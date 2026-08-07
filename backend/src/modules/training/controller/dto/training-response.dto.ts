@@ -1,0 +1,100 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
+
+export class TrainingSetResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ format: 'uuid' })
+  trainingExerciseId!: string
+
+  @ApiProperty()
+  setNumber!: number
+
+  @ApiPropertyOptional({ nullable: true })
+  weight!: number | null
+
+  @ApiPropertyOptional({ nullable: true })
+  reps!: number | null
+
+  @ApiPropertyOptional({ nullable: true })
+  rir!: number | null
+
+  @ApiPropertyOptional({ nullable: true })
+  rpe!: number | null
+
+  @ApiProperty()
+  completed!: boolean
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  metadata!: Record<string, unknown>
+
+  @ApiProperty()
+  createdAt!: string
+}
+
+export class TrainingExerciseResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ format: 'uuid' })
+  trainingId!: string
+
+  @ApiProperty({ format: 'uuid' })
+  exerciseId!: string
+
+  @ApiProperty()
+  exerciseOrder!: number
+
+  @ApiProperty()
+  targetSets!: number
+
+  @ApiPropertyOptional({ nullable: true })
+  minReps!: number | null
+
+  @ApiPropertyOptional({ nullable: true })
+  maxReps!: number | null
+
+  @ApiPropertyOptional({ nullable: true })
+  restSeconds!: number | null
+
+  @ApiPropertyOptional({ nullable: true })
+  notes!: string | null
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  metadata!: Record<string, unknown>
+
+  @ApiPropertyOptional({ type: [TrainingSetResponseDto] })
+  sets?: TrainingSetResponseDto[]
+}
+
+export class TrainingResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ format: 'uuid' })
+  userId!: string
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  templateId!: string | null
+
+  @ApiProperty({ enum: ['planned', 'in_progress', 'finished', 'cancelled'] })
+  status!: string
+
+  @ApiProperty()
+  startedAt!: string
+
+  @ApiPropertyOptional({ nullable: true })
+  finishedAt!: string | null
+
+  @ApiPropertyOptional({ nullable: true })
+  notes!: string | null
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  metadata!: Record<string, unknown>
+
+  @ApiProperty()
+  createdAt!: string
+
+  @ApiPropertyOptional({ type: [TrainingExerciseResponseDto] })
+  exercises?: TrainingExerciseResponseDto[]
+}
