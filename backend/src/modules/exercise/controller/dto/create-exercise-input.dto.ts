@@ -1,7 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
-import { IsObject, IsOptional, IsString, MinLength } from 'class-validator'
+import { IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator'
 
 export class CreateExerciseInputDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  id?: string
+
   @ApiProperty()
   @IsString()
   @MinLength(1)

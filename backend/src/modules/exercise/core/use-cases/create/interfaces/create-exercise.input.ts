@@ -1,4 +1,5 @@
 export interface CreateExerciseInput {
+  id?: string
   name: string
   description?: string | null
   muscleGroup?: string | null

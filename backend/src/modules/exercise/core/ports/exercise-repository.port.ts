@@ -14,6 +14,7 @@ export interface ListExercisesRepositoryOutput {
 }
 
 export interface CreateExerciseRepositoryInput {
+  id?: string
   name: string
   description?: string | null
   muscleGroup?: string | null

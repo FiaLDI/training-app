@@ -14,6 +14,7 @@ export interface ListEquipmentRepositoryOutput {
 }
 
 export interface CreateEquipmentRepositoryInput {
+  id?: string
   name: string
   metadata?: Record<string, unknown>
 }

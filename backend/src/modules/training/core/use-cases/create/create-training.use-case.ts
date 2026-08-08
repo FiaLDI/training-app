@@ -13,6 +13,11 @@ export class CreateTrainingUseCase implements UseCase<CreateTrainingInput, Creat
   ) {}
 
   public async execute(input: CreateTrainingInput): Promise<CreateTrainingOutput> {
+    if (input.id) {
+      const existing = await this.trainingRepository.getById(input.id, input.userId)
+      if (existing) return { training: existing }
+    }
+
     if (input.status === 'planned') {
       if (!input.scheduledAt) {
         throw new BadRequestException('scheduledAt is required for planned trainings')

@@ -15,6 +15,7 @@ export interface ListTemplatesRepositoryOutput {
 }
 
 export interface CreateTemplateRepositoryInput {
+  id?: string
   userId: string
   name: string
   description?: string | null
@@ -30,6 +31,7 @@ export interface UpdateTemplateRepositoryInput {
 }
 
 export interface CreateTemplateExerciseRepositoryInput {
+  id?: string
   templateId: string
   userId: string
   exerciseId: string

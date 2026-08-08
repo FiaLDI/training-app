@@ -1,4 +1,5 @@
 export interface CreateTrainingSetInput {
+  id?: string
   userId: string
   trainingExerciseId: string
   setNumber: number

@@ -25,6 +25,7 @@ export interface ListTrainingsRepositoryOutput {
 }
 
 export interface CreateTrainingRepositoryInput {
+  id?: string
   userId: string
   templateId?: string | null
   programId?: string | null
@@ -52,6 +53,7 @@ export interface UpdateTrainingRepositoryInput {
 }
 
 export interface CreateTrainingExerciseRepositoryInput {
+  id?: string
   trainingId: string
   userId: string
   exerciseId: string
@@ -79,6 +81,7 @@ export interface UpdateTrainingExerciseRepositoryInput {
 }
 
 export interface CreateTrainingSetRepositoryInput {
+  id?: string
   trainingExerciseId: string
   userId: string
   setNumber: number

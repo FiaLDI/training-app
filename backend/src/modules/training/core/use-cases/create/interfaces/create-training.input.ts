@@ -1,6 +1,7 @@
 import { TrainingStatus } from '../../../types'
 
 export interface CreateTrainingInput {
+  id?: string
   userId: string
   templateId?: string | null
   programId?: string | null

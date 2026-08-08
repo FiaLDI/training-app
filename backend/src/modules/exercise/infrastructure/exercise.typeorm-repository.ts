@@ -57,7 +57,13 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
   }
 
   async create(input: CreateExerciseRepositoryInput): Promise<Exercise> {
+    if (input.id) {
+      const existing = await this.exercises.findOne({ where: { id: input.id } })
+      if (existing) return this.mapToDomain(existing)
+    }
+
     const entity = this.exercises.create({
+      ...(input.id ? { id: input.id } : {}),
       name: input.name,
       description: input.description ?? null,
       muscleGroup: input.muscleGroup ?? null,

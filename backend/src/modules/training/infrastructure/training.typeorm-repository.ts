@@ -175,7 +175,15 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
   }
 
   async create(input: CreateTrainingRepositoryInput): Promise<Training> {
+    if (input.id) {
+      const existing = await this.trainings.findOne({
+        where: { id: input.id, userId: input.userId },
+      })
+      if (existing) return this.mapTraining(existing)
+    }
+
     const entity = this.trainings.create({
+      ...(input.id ? { id: input.id } : {}),
       userId: input.userId,
       templateId: input.templateId ?? null,
       programId: input.programId ?? null,
@@ -244,9 +252,15 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
   async createExercise(
     input: CreateTrainingExerciseRepositoryInput,
   ): Promise<TrainingExercise | null> {
+    if (input.id) {
+      const existing = await this.findOwnedExercise(input.id, input.userId)
+      if (existing) return this.mapExercise(existing)
+    }
+
     if (!(await this.ownsTraining(input.trainingId, input.userId))) return null
 
     const entity = this.trainingExercises.create({
+      ...(input.id ? { id: input.id } : {}),
       trainingId: input.trainingId,
       exerciseId: input.exerciseId,
       exerciseOrder: input.exerciseOrder,
@@ -287,10 +301,16 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
   }
 
   async createSet(input: CreateTrainingSetRepositoryInput): Promise<TrainingSet | null> {
+    if (input.id) {
+      const existing = await this.findOwnedSet(input.id, input.userId)
+      if (existing) return this.mapSet(existing)
+    }
+
     const exercise = await this.findOwnedExercise(input.trainingExerciseId, input.userId)
     if (!exercise) return null
 
     const entity = this.trainingSets.create({
+      ...(input.id ? { id: input.id } : {}),
       trainingExerciseId: input.trainingExerciseId,
       setNumber: input.setNumber,
       weight: input.weight === undefined || input.weight === null ? null : String(input.weight),

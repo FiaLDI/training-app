@@ -7,6 +7,10 @@ export class CreateTemplateUseCase implements UseCase<CreateTemplateInput, Creat
   constructor(private readonly templateRepository: TemplateRepositoryPort) {}
 
   public async execute(input: CreateTemplateInput): Promise<CreateTemplateOutput> {
+    if (input.id) {
+      const existing = await this.templateRepository.getById(input.id, input.userId)
+      if (existing) return { template: existing }
+    }
     const template = await this.templateRepository.create(input)
     return { template }
   }

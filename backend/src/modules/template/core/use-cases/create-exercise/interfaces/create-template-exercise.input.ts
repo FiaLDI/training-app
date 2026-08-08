@@ -1,4 +1,5 @@
 export interface CreateTemplateExerciseInput {
+  id?: string
   userId: string
   templateId: string
   exerciseId: string

@@ -11,6 +11,11 @@ import {
 } from 'class-validator'
 
 export class CreateTemplateExerciseInputDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  id?: string
+
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   exerciseId!: string

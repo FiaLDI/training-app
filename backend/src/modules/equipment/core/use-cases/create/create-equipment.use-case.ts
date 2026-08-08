@@ -1,5 +1,3 @@
-import { ConflictException } from '@nestjs/common'
-
 import { UseCase } from '../../../../../common/core/use-case'
 import { EquipmentRepositoryPort } from '../../ports/equipment-repository.port'
 import { CreateEquipmentInput } from './interfaces/create-equipment.input'
@@ -11,10 +9,13 @@ export class CreateEquipmentUseCase
   constructor(private readonly equipmentRepository: EquipmentRepositoryPort) {}
 
   public async execute(input: CreateEquipmentInput): Promise<CreateEquipmentOutput> {
-    const existing = await this.equipmentRepository.findByName(input.name)
-    if (existing) {
-      throw new ConflictException('Equipment with this name already exists')
+    if (input.id) {
+      const byId = await this.equipmentRepository.getById(input.id)
+      if (byId) return { equipment: byId }
     }
+
+    const byName = await this.equipmentRepository.findByName(input.name)
+    if (byName) return { equipment: byName }
 
     const equipment = await this.equipmentRepository.create(input)
     return { equipment }

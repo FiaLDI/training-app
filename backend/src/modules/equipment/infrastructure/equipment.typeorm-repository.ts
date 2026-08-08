@@ -60,7 +60,13 @@ export class EquipmentTypeormRepository implements EquipmentRepositoryPort {
   }
 
   async create(input: CreateEquipmentRepositoryInput): Promise<Equipment> {
+    if (input.id) {
+      const existing = await this.equipment.findOne({ where: { id: input.id } })
+      if (existing) return this.mapToDomain(existing)
+    }
+
     const entity = this.equipment.create({
+      ...(input.id ? { id: input.id } : {}),
       name: input.name.trim(),
       metadata: input.metadata ?? {},
     })

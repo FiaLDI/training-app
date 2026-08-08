@@ -10,6 +10,11 @@ import {
 } from 'class-validator'
 
 export class CreateTrainingInputDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  id?: string
+
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   @IsOptional()
   @IsUUID()

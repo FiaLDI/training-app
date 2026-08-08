@@ -96,7 +96,15 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
   }
 
   async create(input: CreateTemplateRepositoryInput): Promise<WorkoutTemplate> {
+    if (input.id) {
+      const existing = await this.templates.findOne({
+        where: { id: input.id, userId: input.userId },
+      })
+      if (existing) return this.mapTemplate(existing)
+    }
+
     const entity = this.templates.create({
+      ...(input.id ? { id: input.id } : {}),
       userId: input.userId,
       name: input.name,
       description: input.description ?? null,
@@ -132,9 +140,15 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
   async createExercise(
     input: CreateTemplateExerciseRepositoryInput,
   ): Promise<TemplateExercise | null> {
+    if (input.id) {
+      const existing = await this.findOwnedExercise(input.id, input.userId)
+      if (existing) return this.mapExercise(existing)
+    }
+
     if (!(await this.ownsTemplate(input.templateId, input.userId))) return null
 
     const entity = this.templateExercises.create({
+      ...(input.id ? { id: input.id } : {}),
       templateId: input.templateId,
       exerciseId: input.exerciseId,
       exerciseOrder: input.exerciseOrder,
