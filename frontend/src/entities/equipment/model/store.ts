@@ -2,15 +2,10 @@
 
 import { create } from 'zustand'
 
-import { useSessionStore } from '@/entities/session/model/store'
+import { catalogSync } from '@/shared/lib/catalog-sync'
 import { localData } from '@/shared/lib/local-data'
 
-import { equipmentApi } from '../api/equipment-api'
 import type { CreateEquipmentInput, Equipment } from './types'
-
-function isLocalMode() {
-  return useSessionStore.getState().mode === 'local'
-}
 
 type EquipmentStore = {
   items: Equipment[]
@@ -29,14 +24,11 @@ export const useEquipmentStore = create<EquipmentStore>((set) => ({
   async fetchList() {
     set({ loading: true, error: null })
     try {
-      if (isLocalMode()) {
-        set({ items: localData.equipment.list(), loading: false })
-        return
-      }
-      const result = await equipmentApi.list({ limit: 200 })
-      set({ items: result.items, loading: false })
+      await catalogSync.mergeFromServer()
+      set({ items: localData.equipment.list(), loading: false })
     } catch (error) {
       set({
+        items: localData.equipment.list(),
         loading: false,
         error: error instanceof Error ? error.message : 'Не удалось загрузить инвентарь',
       })
@@ -44,29 +36,17 @@ export const useEquipmentStore = create<EquipmentStore>((set) => ({
   },
 
   async create(input) {
-    if (isLocalMode()) {
-      const equipment = localData.equipment.create(input)
-      set((state) => ({
-        items: [...state.items, equipment].sort((a, b) => a.name.localeCompare(b.name, 'ru')),
-      }))
-      return equipment
-    }
-    const equipment = await equipmentApi.create(input)
+    const equipment = await catalogSync.createEquipment(input)
     set((state) => ({
-      items: [...state.items, equipment].sort((a, b) => a.name.localeCompare(b.name, 'ru')),
+      items: [...state.items.filter((item) => item.id !== equipment.id), equipment].sort((a, b) =>
+        a.name.localeCompare(b.name, 'ru'),
+      ),
     }))
     return equipment
   },
 
   async remove(id) {
-    if (isLocalMode()) {
-      localData.equipment.remove(id)
-      set((state) => ({
-        items: state.items.filter((item) => item.id !== id),
-      }))
-      return
-    }
-    await equipmentApi.remove(id)
+    await catalogSync.removeEquipment(id)
     set((state) => ({
       items: state.items.filter((item) => item.id !== id),
     }))

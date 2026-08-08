@@ -27,11 +27,14 @@ export type WorkoutTemplateWithExercises = WorkoutTemplate & {
 }
 
 export type CreateTemplateInput = {
+  id?: string
   name: string
   description?: string | null
+  metadata?: Record<string, unknown>
 }
 
 export type CreateTemplateExerciseInput = {
+  id?: string
   exerciseId: string
   exerciseOrder: number
   targetSets: number
@@ -41,6 +44,7 @@ export type CreateTemplateExerciseInput = {
   targetWeight?: number | null
   restSeconds?: number | null
   notes?: string | null
+  metadata?: Record<string, unknown>
 }
 
 export type UpdateTemplateExerciseInput = {

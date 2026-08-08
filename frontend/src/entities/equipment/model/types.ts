@@ -7,7 +7,9 @@ export type Equipment = {
 }
 
 export type CreateEquipmentInput = {
+  id?: string
   name: string
+  metadata?: Record<string, unknown>
 }
 
 export type ListEquipmentResult = {

@@ -45,7 +45,18 @@ export type TrainingWithDetails = Training & {
   exercises: Array<TrainingExercise & { sets: TrainingSet[] }>
 }
 
+export type TrainingSyncStatus = 'pending' | 'synced' | 'error'
+
+export type TrainingSyncMeta = {
+  status: TrainingSyncStatus
+  reason?: 'local_mode' | 'timeout' | 'network' | 'server'
+  serverSyncedAt?: string
+  error?: string
+  failedAt?: string
+}
+
 export type CreateTrainingInput = {
+  id?: string
   templateId?: string | null
   programId?: string | null
   programDayId?: string | null
@@ -54,9 +65,11 @@ export type CreateTrainingInput = {
   startedAt?: string | null
   finishedAt?: string | null
   notes?: string | null
+  metadata?: Record<string, unknown>
 }
 
 export type CreateTrainingExerciseInput = {
+  id?: string
   exerciseId: string
   exerciseOrder: number
   targetSets: number
@@ -69,12 +82,14 @@ export type CreateTrainingExerciseInput = {
 }
 
 export type CreateTrainingSetInput = {
+  id?: string
   setNumber: number
   weight?: number | null
   reps?: number | null
   rir?: number | null
   rpe?: number | null
   completed?: boolean
+  metadata?: Record<string, unknown>
 }
 
 export type ListTrainingsResult = {

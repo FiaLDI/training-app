@@ -12,6 +12,10 @@ import type {
   TrainingWithDetails,
 } from '../model/types'
 
+type RequestExtras = {
+  timeoutMs?: number
+}
+
 export const trainingApi = {
   list(
     params: {
@@ -20,62 +24,89 @@ export const trainingApi = {
       status?: TrainingStatus
       from?: string
       to?: string
-    } = {},
+    } & RequestExtras = {},
   ) {
+    const { timeoutMs, ...query } = params
     const search = new URLSearchParams()
-    if (params.page) search.set('page', String(params.page))
-    if (params.limit) search.set('limit', String(params.limit))
-    if (params.status) search.set('status', params.status)
-    if (params.from) search.set('from', params.from)
-    if (params.to) search.set('to', params.to)
+    if (query.page) search.set('page', String(query.page))
+    if (query.limit) search.set('limit', String(query.limit))
+    if (query.status) search.set('status', query.status)
+    if (query.from) search.set('from', query.from)
+    if (query.to) search.set('to', query.to)
     const qs = search.toString()
-    return apiRequest<ListTrainingsResult>(`/trainings${qs ? `?${qs}` : ''}`)
+    return apiRequest<ListTrainingsResult>(`/trainings${qs ? `?${qs}` : ''}`, { timeoutMs })
   },
 
-  getById(id: string) {
-    return apiRequest<TrainingWithDetails>(`/trainings/${id}`)
+  getById(id: string, extras: RequestExtras = {}) {
+    return apiRequest<TrainingWithDetails>(`/trainings/${id}`, extras)
   },
 
-  create(input: CreateTrainingInput) {
-    return apiRequest<TrainingWithDetails>('/trainings', { method: 'POST', body: input })
+  create(input: CreateTrainingInput, extras: RequestExtras = {}) {
+    return apiRequest<TrainingWithDetails>('/trainings', {
+      method: 'POST',
+      body: input,
+      ...extras,
+    })
   },
 
-  update(id: string, input: Partial<CreateTrainingInput>) {
-    return apiRequest<Training>(`/trainings/${id}`, { method: 'PATCH', body: input })
+  update(id: string, input: Partial<CreateTrainingInput>, extras: RequestExtras = {}) {
+    return apiRequest<Training>(`/trainings/${id}`, {
+      method: 'PATCH',
+      body: input,
+      ...extras,
+    })
   },
 
-  remove(id: string) {
-    return apiRequest<{ deleted: boolean }>(`/trainings/${id}`, { method: 'DELETE' })
+  remove(id: string, extras: RequestExtras = {}) {
+    return apiRequest<{ deleted: boolean }>(`/trainings/${id}`, {
+      method: 'DELETE',
+      ...extras,
+    })
   },
 
-  addExercise(trainingId: string, input: CreateTrainingExerciseInput) {
+  addExercise(
+    trainingId: string,
+    input: CreateTrainingExerciseInput,
+    extras: RequestExtras = {},
+  ) {
     return apiRequest<TrainingExercise>(`/trainings/${trainingId}/exercises`, {
       method: 'POST',
       body: input,
+      ...extras,
     })
   },
 
-  removeExercise(exerciseId: string) {
+  removeExercise(exerciseId: string, extras: RequestExtras = {}) {
     return apiRequest<{ deleted: boolean }>(`/trainings/exercises/${exerciseId}`, {
       method: 'DELETE',
+      ...extras,
     })
   },
 
-  addSet(exerciseId: string, input: CreateTrainingSetInput) {
+  addSet(exerciseId: string, input: CreateTrainingSetInput, extras: RequestExtras = {}) {
     return apiRequest<TrainingSet>(`/trainings/exercises/${exerciseId}/sets`, {
       method: 'POST',
       body: input,
+      ...extras,
     })
   },
 
-  updateSet(setId: string, input: Partial<CreateTrainingSetInput>) {
+  updateSet(
+    setId: string,
+    input: Partial<CreateTrainingSetInput>,
+    extras: RequestExtras = {},
+  ) {
     return apiRequest<TrainingSet>(`/trainings/sets/${setId}`, {
       method: 'PATCH',
       body: input,
+      ...extras,
     })
   },
 
-  removeSet(setId: string) {
-    return apiRequest<{ deleted: boolean }>(`/trainings/sets/${setId}`, { method: 'DELETE' })
+  removeSet(setId: string, extras: RequestExtras = {}) {
+    return apiRequest<{ deleted: boolean }>(`/trainings/sets/${setId}`, {
+      method: 'DELETE',
+      ...extras,
+    })
   },
 }

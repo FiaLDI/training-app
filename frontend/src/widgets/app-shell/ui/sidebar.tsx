@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 
 import { useSessionStore } from '@/entities/session/model/store'
+import { SyncSidebarButton } from '@/features/sync-trainings/ui/sync-sidebar-button'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
 
@@ -141,6 +142,7 @@ export function Sidebar() {
         <p className="truncate text-xs text-[var(--muted)]">
           {mode === 'local' ? 'Локальный режим' : user?.email ?? 'Облако'}
         </p>
+        <SyncSidebarButton />
         <Button
           type="button"
           variant="ghost"

@@ -2,15 +2,10 @@
 
 import { create } from 'zustand'
 
-import { useSessionStore } from '@/entities/session/model/store'
+import { catalogSync } from '@/shared/lib/catalog-sync'
 import { localData } from '@/shared/lib/local-data'
 
-import { exerciseApi } from '../api/exercise-api'
 import type { CreateExerciseInput, Exercise, UpdateExerciseInput } from './types'
-
-function isLocalMode() {
-  return useSessionStore.getState().mode === 'local'
-}
 
 type ExerciseStore = {
   items: Exercise[]
@@ -43,18 +38,14 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const query = (q ?? get().query) || undefined
-      if (isLocalMode()) {
-        const items = localData.exercises.list(query)
-        set({ items, total: items.length, loading: false })
-        return
-      }
-      const result = await exerciseApi.list({
-        limit: 100,
-        q: query,
-      })
-      set({ items: result.items, total: result.total, loading: false })
+      await catalogSync.mergeFromServer()
+      const items = localData.exercises.list(query)
+      set({ items, total: items.length, loading: false })
     } catch (error) {
+      const items = localData.exercises.list((q ?? get().query) || undefined)
       set({
+        items,
+        total: items.length,
         loading: false,
         error: error instanceof Error ? error.message : 'Не удалось загрузить упражнения',
       })
@@ -64,14 +55,11 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
   async fetchOne(id) {
     set({ loading: true, error: null })
     try {
-      if (isLocalMode()) {
-        set({ current: localData.exercises.get(id), loading: false })
-        return
-      }
-      const current = await exerciseApi.getById(id)
-      set({ current, loading: false })
+      await catalogSync.mergeFromServer()
+      set({ current: localData.exercises.get(id), loading: false })
     } catch (error) {
       set({
+        current: localData.exercises.get(id),
         loading: false,
         error: error instanceof Error ? error.message : 'Не удалось загрузить упражнение',
       })
@@ -79,27 +67,13 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
   },
 
   async create(input) {
-    if (isLocalMode()) {
-      const exercise = localData.exercises.create(input)
-      set((state) => ({ items: [exercise, ...state.items], total: state.total + 1 }))
-      return exercise
-    }
-    const exercise = await exerciseApi.create(input)
-    set((state) => ({ items: [exercise, ...state.items], total: state.total + 1 }))
+    const exercise = await catalogSync.createExercise(input)
+    set((state) => ({ items: [exercise, ...state.items.filter((item) => item.id !== exercise.id)], total: state.total + 1 }))
     return exercise
   },
 
   async update(id, input) {
-    if (isLocalMode()) {
-      const exercise = localData.exercises.update(id, input)
-      if (!exercise) throw new Error('Упражнение не найдено')
-      set((state) => ({
-        items: state.items.map((item) => (item.id === id ? exercise : item)),
-        current: state.current?.id === id ? exercise : state.current,
-      }))
-      return exercise
-    }
-    const exercise = await exerciseApi.update(id, input)
+    const exercise = await catalogSync.updateExercise(id, input)
     set((state) => ({
       items: state.items.map((item) => (item.id === id ? exercise : item)),
       current: state.current?.id === id ? exercise : state.current,
@@ -108,16 +82,7 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
   },
 
   async remove(id) {
-    if (isLocalMode()) {
-      localData.exercises.remove(id)
-      set((state) => ({
-        items: state.items.filter((item) => item.id !== id),
-        total: Math.max(0, state.total - 1),
-        current: state.current?.id === id ? null : state.current,
-      }))
-      return
-    }
-    await exerciseApi.remove(id)
+    await catalogSync.removeExercise(id)
     set((state) => ({
       items: state.items.filter((item) => item.id !== id),
       total: Math.max(0, state.total - 1),

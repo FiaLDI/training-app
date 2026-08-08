@@ -10,49 +10,76 @@ import type {
   WorkoutTemplateWithExercises,
 } from '../model/types'
 
+type RequestExtras = {
+  timeoutMs?: number
+}
+
 export const templateApi = {
-  list(params: { page?: number; limit?: number; q?: string } = {}) {
+  list(params: { page?: number; limit?: number; q?: string } & RequestExtras = {}) {
+    const { timeoutMs, ...query } = params
     const search = new URLSearchParams()
-    if (params.page) search.set('page', String(params.page))
-    if (params.limit) search.set('limit', String(params.limit))
-    if (params.q) search.set('q', params.q)
+    if (query.page) search.set('page', String(query.page))
+    if (query.limit) search.set('limit', String(query.limit))
+    if (query.q) search.set('q', query.q)
     const qs = search.toString()
-    return apiRequest<ListTemplatesResult>(`/templates${qs ? `?${qs}` : ''}`)
+    return apiRequest<ListTemplatesResult>(`/templates${qs ? `?${qs}` : ''}`, { timeoutMs })
   },
 
-  getById(id: string) {
-    return apiRequest<WorkoutTemplateWithExercises>(`/templates/${id}`)
+  getById(id: string, extras: RequestExtras = {}) {
+    return apiRequest<WorkoutTemplateWithExercises>(`/templates/${id}`, extras)
   },
 
-  create(input: CreateTemplateInput) {
-    return apiRequest<WorkoutTemplate>('/templates', { method: 'POST', body: input })
+  create(input: CreateTemplateInput, extras: RequestExtras = {}) {
+    return apiRequest<WorkoutTemplate>('/templates', {
+      method: 'POST',
+      body: input,
+      ...extras,
+    })
   },
 
-  update(id: string, input: Partial<CreateTemplateInput>) {
-    return apiRequest<WorkoutTemplate>(`/templates/${id}`, { method: 'PATCH', body: input })
+  update(id: string, input: Partial<CreateTemplateInput>, extras: RequestExtras = {}) {
+    return apiRequest<WorkoutTemplate>(`/templates/${id}`, {
+      method: 'PATCH',
+      body: input,
+      ...extras,
+    })
   },
 
-  remove(id: string) {
-    return apiRequest<{ deleted: boolean }>(`/templates/${id}`, { method: 'DELETE' })
+  remove(id: string, extras: RequestExtras = {}) {
+    return apiRequest<{ deleted: boolean }>(`/templates/${id}`, {
+      method: 'DELETE',
+      ...extras,
+    })
   },
 
-  addExercise(templateId: string, input: CreateTemplateExerciseInput) {
+  addExercise(
+    templateId: string,
+    input: CreateTemplateExerciseInput,
+    extras: RequestExtras = {},
+  ) {
     return apiRequest<TemplateExercise>(`/templates/${templateId}/exercises`, {
       method: 'POST',
       body: input,
+      ...extras,
     })
   },
 
-  updateExercise(exerciseId: string, input: UpdateTemplateExerciseInput) {
+  updateExercise(
+    exerciseId: string,
+    input: UpdateTemplateExerciseInput,
+    extras: RequestExtras = {},
+  ) {
     return apiRequest<TemplateExercise>(`/templates/exercises/${exerciseId}`, {
       method: 'PATCH',
       body: input,
+      ...extras,
     })
   },
 
-  removeExercise(exerciseId: string) {
+  removeExercise(exerciseId: string, extras: RequestExtras = {}) {
     return apiRequest<{ deleted: boolean }>(`/templates/exercises/${exerciseId}`, {
       method: 'DELETE',
+      ...extras,
     })
   },
 }

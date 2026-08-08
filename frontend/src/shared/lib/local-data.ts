@@ -37,6 +37,7 @@ import type {
   Training,
   TrainingExercise,
   TrainingSet,
+  TrainingSyncMeta,
   TrainingWithDetails,
 } from '@/entities/training/model/types'
 import type {
@@ -77,16 +78,19 @@ export const localData = {
     create(input: CreateExerciseInput): Exercise {
       const stamp = nowIso()
       return exercisesDb.upsert({
-        id: createLocalId(),
+        id: input.id ?? createLocalId(),
         name: input.name,
         description: input.description ?? null,
         muscleGroup: input.muscleGroup ?? null,
         equipment: input.equipment ?? null,
         difficulty: input.difficulty ?? null,
-        metadata: {},
+        metadata: input.metadata ?? {},
         createdAt: stamp,
         updatedAt: stamp,
       })
+    },
+    upsert(exercise: Exercise): Exercise {
+      return exercisesDb.upsert(exercise)
     },
     update(id: string, input: UpdateExerciseInput): Exercise | null {
       const current = exercisesDb.get(id)
@@ -111,15 +115,25 @@ export const localData = {
     list() {
       return equipmentDb.list().sort((a, b) => a.name.localeCompare(b.name, 'ru'))
     },
+    get(id: string) {
+      return equipmentDb.get(id)
+    },
     create(input: CreateEquipmentInput): Equipment {
       const stamp = nowIso()
       return equipmentDb.upsert({
-        id: createLocalId(),
+        id: input.id ?? createLocalId(),
         name: input.name.trim(),
-        metadata: {},
+        metadata: input.metadata ?? {},
         createdAt: stamp,
         updatedAt: stamp,
       })
+    },
+    upsert(equipment: Equipment): Equipment {
+      return equipmentDb.upsert(equipment)
+    },
+    replaceId(oldId: string, next: Equipment): Equipment {
+      equipmentDb.remove(oldId)
+      return equipmentDb.upsert(next)
     },
     remove(id: string) {
       return equipmentDb.remove(id)
@@ -167,13 +181,39 @@ export const localData = {
     },
     create(input: CreateTemplateInput): WorkoutTemplate {
       const stamp = nowIso()
+      const sync: TrainingSyncMeta =
+        (input.metadata?.sync as TrainingSyncMeta | undefined) ?? {
+          status: 'pending',
+          reason: 'local_mode',
+        }
       return templatesDb.upsert({
-        id: createLocalId(),
+        id: input.id ?? createLocalId(),
         name: input.name,
         description: input.description ?? null,
-        metadata: {},
+        metadata: { ...(input.metadata ?? {}), sync },
         createdAt: stamp,
         updatedAt: stamp,
+      })
+    },
+    upsert(template: WorkoutTemplate): WorkoutTemplate {
+      return templatesDb.upsert(template)
+    },
+    update(
+      id: string,
+      input: Partial<CreateTemplateInput> & { metadata?: Record<string, unknown> },
+    ): WorkoutTemplate | null {
+      const current = templatesDb.get(id)
+      if (!current) return null
+      return templatesDb.upsert({
+        ...current,
+        name: input.name ?? current.name,
+        description:
+          input.description === undefined ? current.description : input.description,
+        metadata:
+          input.metadata === undefined
+            ? current.metadata
+            : { ...current.metadata, ...input.metadata },
+        updatedAt: nowIso(),
       })
     },
     remove(id: string) {
@@ -185,7 +225,7 @@ export const localData = {
     addExercise(templateId: string, input: CreateTemplateExerciseInput): TemplateExercise | null {
       if (!templatesDb.get(templateId)) return null
       return templateExercisesDb.upsert({
-        id: createLocalId(),
+        id: input.id ?? createLocalId(),
         templateId,
         exerciseId: input.exerciseId,
         exerciseOrder: input.exerciseOrder,
@@ -196,8 +236,11 @@ export const localData = {
         targetWeight: input.targetWeight ?? null,
         restSeconds: input.restSeconds ?? null,
         notes: input.notes ?? null,
-        metadata: {},
+        metadata: input.metadata ?? {},
       })
+    },
+    upsertExercise(exercise: TemplateExercise): TemplateExercise {
+      return templateExercisesDb.upsert(exercise)
     },
     updateExercise(
       exerciseRowId: string,
@@ -401,8 +444,13 @@ export const localData = {
       return { ...training, exercises }
     },
     create(input: CreateTrainingInput): Training {
+      const existingSync = input.metadata?.sync as TrainingSyncMeta | undefined
+      const sync: TrainingSyncMeta = existingSync ?? {
+        status: 'pending',
+        reason: 'local_mode',
+      }
       const training = trainingsDb.upsert({
-        id: createLocalId(),
+        id: input.id ?? createLocalId(),
         templateId: input.templateId ?? null,
         programId: input.programId ?? null,
         programDayId: input.programDayId ?? null,
@@ -411,7 +459,7 @@ export const localData = {
         startedAt: input.status === 'planned' ? null : (input.startedAt ?? null),
         finishedAt: input.finishedAt ?? null,
         notes: input.notes ?? null,
-        metadata: {},
+        metadata: { ...(input.metadata ?? {}), sync },
         createdAt: nowIso(),
       })
       if (input.templateId) {
@@ -435,6 +483,9 @@ export const localData = {
       }
       return training
     },
+    upsert(training: Training): Training {
+      return trainingsDb.upsert(training)
+    },
     update(id: string, input: Partial<CreateTrainingInput> & { status?: Training['status'] }) {
       const current = trainingsDb.get(id)
       if (!current) return null
@@ -443,6 +494,10 @@ export const localData = {
       if (nextStatus === 'in_progress' && !startedAt) {
         startedAt = nowIso()
       }
+      const metadata =
+        input.metadata === undefined
+          ? current.metadata
+          : { ...current.metadata, ...input.metadata }
       return trainingsDb.upsert({
         ...current,
         ...input,
@@ -451,6 +506,7 @@ export const localData = {
         scheduledAt:
           input.scheduledAt === undefined ? current.scheduledAt : input.scheduledAt,
         finishedAt: input.finishedAt === undefined ? current.finishedAt : input.finishedAt,
+        metadata,
       })
     },
     finish(id: string): Training | null {
@@ -482,7 +538,7 @@ export const localData = {
     ): TrainingExercise | null {
       if (!trainingsDb.get(trainingId)) return null
       return trainingExercisesDb.upsert({
-        id: createLocalId(),
+        id: input.id ?? createLocalId(),
         trainingId,
         exerciseId: input.exerciseId,
         exerciseOrder: input.exerciseOrder,
@@ -495,13 +551,16 @@ export const localData = {
         metadata: input.metadata ?? {},
       })
     },
+    upsertExercise(exercise: TrainingExercise): TrainingExercise {
+      return trainingExercisesDb.upsert(exercise)
+    },
     addSet(
       exerciseId: string,
       input: CreateTrainingSetInput,
     ): TrainingSet | null {
       if (!trainingExercisesDb.get(exerciseId)) return null
       return trainingSetsDb.upsert({
-        id: createLocalId(),
+        id: input.id ?? createLocalId(),
         trainingExerciseId: exerciseId,
         setNumber: input.setNumber,
         weight: input.weight ?? null,
@@ -509,9 +568,12 @@ export const localData = {
         rir: input.rir ?? null,
         rpe: input.rpe ?? null,
         completed: input.completed ?? true,
-        metadata: {},
+        metadata: input.metadata ?? {},
         createdAt: nowIso(),
       })
+    },
+    upsertSet(set: TrainingSet): TrainingSet {
+      return trainingSetsDb.upsert(set)
     },
     removeSet(setId: string) {
       return trainingSetsDb.remove(setId)
