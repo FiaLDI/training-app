@@ -1,32 +1,22 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Play, Plus, Trash2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-import { CreateProgramForm } from '@/features/create-program/ui/create-program-form'
 import { useProgramStore } from '@/entities/program/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
 import type { Training } from '@/entities/training/model/types'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
-import { PageHeader } from '@/shared/ui/page-header'
 import { Select } from '@/shared/ui/select'
 import { ListSkeleton } from '@/shared/ui/skeleton'
 
 const DAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-const DAY_FULL = [
-  'Понедельник',
-  'Вторник',
-  'Среда',
-  'Четверг',
-  'Пятница',
-  'Суббота',
-  'Воскресенье',
-]
 
 function startOfWeekMonday(date: Date): Date {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -42,13 +32,60 @@ function addDays(date: Date, days: number): Date {
   return next
 }
 
-function toWeekStartIso(date: Date): string {
-  return toDateKey(date)
+function sameDay(a: Date, b: Date) {
+  return toDateKey(a) === toDateKey(b)
+}
+
+function formatDayMonth(date: Date) {
+  return date.toLocaleDateString('ru-RU', {
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function formatWeekRange(weekStart: Date) {
+  const weekEnd = addDays(weekStart, 6)
+  const sameMonth = weekStart.getMonth() === weekEnd.getMonth()
+  const sameYear = weekStart.getFullYear() === weekEnd.getFullYear()
+
+  if (sameMonth) {
+    return `${weekStart.getDate()}–${weekEnd.getDate()} ${weekEnd.toLocaleDateString('ru-RU', {
+      month: 'long',
+      year: 'numeric',
+    })}`
+  }
+
+  const startLabel = weekStart.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
+  const endLabel = weekEnd.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+  return `${startLabel} — ${endLabel}`
+}
+
+function weekOffsetFromCurrent(weekStart: Date) {
+  const current = startOfWeekMonday(new Date())
+  return Math.round((weekStart.getTime() - current.getTime()) / (7 * 24 * 60 * 60 * 1000))
+}
+
+function weekTitle(weekStart: Date) {
+  const offset = weekOffsetFromCurrent(weekStart)
+  if (offset === 0) return 'Текущая неделя'
+  if (offset === 1) return 'Следующая неделя'
+  if (offset === -1) return 'Прошлая неделя'
+  if (offset > 1) return `Через ${offset} нед.`
+  return `${Math.abs(offset)} нед. назад`
 }
 
 export function PlanPage() {
   const router = useRouter()
-  const [weekStart, setWeekStart] = useState(() => startOfWeekMonday(new Date()))
+  const todayWeek = useMemo(() => startOfWeekMonday(new Date()), [])
+  const [weekStart, setWeekStart] = useState(() => todayWeek)
   const trainings = useTrainingStore((s) => s.items)
   const loading = useTrainingStore((s) => s.loading)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
@@ -58,20 +95,19 @@ export function PlanPage() {
   const currentProgram = useProgramStore((s) => s.current)
   const fetchPrograms = useProgramStore((s) => s.fetchList)
   const fetchProgram = useProgramStore((s) => s.fetchOne)
+  const createProgram = useProgramStore((s) => s.create)
   const addDay = useProgramStore((s) => s.addDay)
   const updateDay = useProgramStore((s) => s.updateDay)
   const removeDay = useProgramStore((s) => s.removeDay)
-  const removeProgram = useProgramStore((s) => s.remove)
   const applyProgram = useProgramStore((s) => s.apply)
   const templates = useTemplateStore((s) => s.items)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
 
   const [programId, setProgramId] = useState('')
   const [savingDay, setSavingDay] = useState<number | null>(null)
-  const [sheetDay, setSheetDay] = useState<string | null>(null)
-  const [sheetTemplateId, setSheetTemplateId] = useState('')
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const appliedKey = useRef<string | null>(null)
+  const ensuringProgram = useRef(false)
 
   const from = useMemo(() => {
     const d = new Date(weekStart)
@@ -85,6 +121,9 @@ export function PlanPage() {
     return d.toISOString()
   }, [weekStart])
 
+  const isCurrentWeek = sameDay(weekStart, todayWeek)
+  const offset = weekOffsetFromCurrent(weekStart)
+
   useEffect(() => {
     void fetchTrainings({ from, to, limit: 100 })
     void fetchPrograms()
@@ -92,25 +131,56 @@ export function PlanPage() {
   }, [from, to, fetchTrainings, fetchPrograms, fetchTemplates])
 
   useEffect(() => {
-    if (programs.length > 0 && !programId) {
-      setProgramId(programs[0].id)
+    if (programs.length > 0) {
+      if (!programId || !programs.some((p) => p.id === programId)) {
+        setProgramId(programs[0].id)
+      }
+      return
     }
-    if (programs.length === 0) {
-      setProgramId('')
-    }
-  }, [programs, programId])
+    if (ensuringProgram.current) return
+    ensuringProgram.current = true
+    void createProgram({ name: 'Моя неделя' })
+      .then((program) => {
+        setProgramId(program.id)
+        return fetchPrograms()
+      })
+      .finally(() => {
+        ensuringProgram.current = false
+      })
+  }, [programs, programId, createProgram, fetchPrograms])
 
   useEffect(() => {
     if (programId) void fetchProgram(programId)
   }, [programId, fetchProgram])
 
+  useEffect(() => {
+    if (!programId || !currentProgram || currentProgram.id !== programId) return
+    if (currentProgram.days.length === 0) return
+    const key = `${programId}:${toDateKey(weekStart)}`
+    if (appliedKey.current === key) return
+    appliedKey.current = key
+    void applyProgram(programId, toDateKey(weekStart)).then(() =>
+      fetchTrainings({ from, to, limit: 100 }),
+    )
+  }, [programId, currentProgram, weekStart, from, to, applyProgram, fetchTrainings])
+
   const days = useMemo(
-    () => DAY_SHORT.map((label, index) => ({ label, date: addDays(weekStart, index) })),
+    () =>
+      DAY_SHORT.map((label, index) => ({
+        label,
+        date: addDays(weekStart, index),
+        dayOfWeek: index + 1,
+      })),
     [weekStart],
   )
 
+  function goToWeek(next: Date) {
+    appliedKey.current = null
+    setWeekStart(startOfWeekMonday(next))
+  }
+
   function templateName(templateId: string | null) {
-    if (!templateId) return 'Пустая сессия'
+    if (!templateId) return 'Тренировка'
     return templates.find((t) => t.id === templateId)?.name ?? 'Тренировка'
   }
 
@@ -127,353 +197,274 @@ export function PlanPage() {
     })
   }
 
-  async function onFillWeek() {
-    if (!programId) return
-    setBusy(true)
-    setMessage(null)
-    try {
-      const result = await applyProgram(programId, toWeekStartIso(weekStart))
-      setMessage(`Добавлено ${result.created}, пропущено ${result.skipped}`)
-      await fetchTrainings({ from, to, limit: 100 })
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Не удалось заполнить неделю')
-    } finally {
-      setBusy(false)
+  function scheduleTemplateId(dayOfWeek: number) {
+    if (!currentProgram || currentProgram.id !== programId) return ''
+    const primary = currentProgram.days
+      .filter((d) => d.dayOfWeek === dayOfWeek)
+      .sort((a, b) => a.slotOrder - b.slotOrder)[0]
+    return primary?.templateId ?? ''
+  }
+
+  async function upsertScheduleDay(dayOfWeek: number, templateId: string) {
+    if (!currentProgram || currentProgram.id !== programId) return
+    const primary = currentProgram.days
+      .filter((d) => d.dayOfWeek === dayOfWeek)
+      .sort((a, b) => a.slotOrder - b.slotOrder)[0]
+    const extras = currentProgram.days
+      .filter((d) => d.dayOfWeek === dayOfWeek)
+      .sort((a, b) => a.slotOrder - b.slotOrder)
+      .slice(1)
+
+    for (const extra of extras) {
+      await removeDay(programId, extra.id)
+    }
+
+    if (!templateId) {
+      if (primary) await removeDay(programId, primary.id)
+      return
+    }
+
+    if (primary) {
+      await updateDay(programId, primary.id, { templateId, slotOrder: 0 })
+    } else {
+      await addDay(programId, { dayOfWeek, slotOrder: 0, templateId })
     }
   }
 
-  async function onDayChange(dayOfWeek: number, templateId: string) {
-    if (!currentProgram || currentProgram.id !== programId) return
+  async function onDayPlanChange(dayOfWeek: number, date: Date, templateId: string) {
+    if (!programId) return
     setSavingDay(dayOfWeek)
     try {
-      const primary = currentProgram.days
-        .filter((d) => d.dayOfWeek === dayOfWeek)
-        .sort((a, b) => a.slotOrder - b.slotOrder)[0]
-      const extras = currentProgram.days
-        .filter((d) => d.dayOfWeek === dayOfWeek)
-        .sort((a, b) => a.slotOrder - b.slotOrder)
-        .slice(1)
+      await upsertScheduleDay(dayOfWeek, templateId)
 
-      for (const extra of extras) {
-        await removeDay(programId, extra.id)
-      }
+      const existing = trainingsForDay(date)
+      const hasActive = existing.some((t) => t.status === 'in_progress' || t.status === 'finished')
+      if (hasActive) return
 
-      if (!templateId) {
-        if (primary) await removeDay(programId, primary.id)
-        return
-      }
+      const planned = existing.filter((t) => t.status === 'planned')
+      if (!templateId) return
 
-      if (primary) {
-        await updateDay(programId, primary.id, { templateId, slotOrder: 0 })
-      } else {
-        await addDay(programId, { dayOfWeek, slotOrder: 0, templateId })
+      if (planned.length === 0) {
+        const scheduledAt = new Date(`${toDateKey(date)}T12:00:00`).toISOString()
+        await create({
+          templateId,
+          status: 'planned',
+          scheduledAt,
+        })
+        await fetchTrainings({ from, to, limit: 100 })
       }
     } finally {
       setSavingDay(null)
     }
   }
 
-  async function planDay(templateId: string | null) {
-    if (!sheetDay) return
+  async function onStart(id: string) {
     setBusy(true)
-    setMessage(null)
     try {
-      const scheduledAt = new Date(`${sheetDay}T12:00:00`).toISOString()
-      await create({
-        templateId,
-        status: 'planned',
-        scheduledAt,
-      })
-      setSheetDay(null)
-      setSheetTemplateId('')
-      await fetchTrainings({ from, to, limit: 100 })
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Не удалось запланировать')
+      const training = await start(id)
+      router.push(`/trainings/${training.id}`)
     } finally {
       setBusy(false)
     }
   }
 
-  async function startNow(templateId: string | null) {
+  async function startTodayPlan(templateId: string) {
     setBusy(true)
-    setMessage(null)
     try {
       const training = await create({
         templateId,
         status: 'in_progress',
         startedAt: new Date().toISOString(),
       })
-      setSheetDay(null)
       router.push(`/trainings/${training.id}`)
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Не удалось начать')
+    } finally {
       setBusy(false)
     }
   }
 
-  async function onStart(id: string) {
-    const training = await start(id)
-    router.push(`/trainings/${training.id}`)
-  }
-
-  const sheetLabel = sheetDay
-    ? days.find((d) => toDateKey(d.date) === sheetDay)?.label ?? sheetDay
-    : ''
-
-  const scheduleReady = currentProgram && currentProgram.id === programId
+  const scheduleReady = Boolean(currentProgram && currentProgram.id === programId)
 
   return (
     <div>
-      <PageHeader
-        title="Неделя"
-        description="Настрой расписание и заполни дни — или добавь тренировку вручную."
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setWeekStart(addDays(weekStart, -7))}
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <span className="min-w-36 text-center text-sm text-[var(--muted)]">
-              {toDateKey(weekStart)} — {toDateKey(addDays(weekStart, 6))}
-            </span>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setWeekStart(addDays(weekStart, 7))}
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void onFillWeek()}
-              disabled={busy || !programId}
-            >
-              Заполнить неделю
-            </Button>
-          </div>
-        }
-      />
-
-      <div className="mb-4 flex flex-wrap gap-3 text-sm">
-        <Link href="/plans" className="text-[var(--accent)] hover:underline">
-          Планы тренировок
-        </Link>
+      <div className="mb-6">
+        <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Планирование</p>
+        <h1 className="mt-1 font-[family-name:var(--font-display)] text-3xl tracking-tight">
+          {weekTitle(weekStart)}
+        </h1>
+        <p className="mt-1 text-sm text-[var(--muted)]">{formatWeekRange(weekStart)}</p>
       </div>
 
-      {message ? <p className="mb-4 text-sm text-[var(--muted)]">{message}</p> : null}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="inline-flex items-center gap-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1">
+          <button
+            type="button"
+            onClick={() => goToWeek(addDays(weekStart, -7))}
+            className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+          >
+            <ChevronLeft className="size-4" />
+            <span className="hidden sm:inline">Предыдущая</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => goToWeek(todayWeek)}
+            className={cn(
+              'rounded-xl px-3 py-2 text-sm transition',
+              isCurrentWeek
+                ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                : 'text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
+            )}
+          >
+            Текущая
+          </button>
+          <button
+            type="button"
+            onClick={() => goToWeek(addDays(weekStart, 7))}
+            className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+          >
+            <span className="hidden sm:inline">Следующая</span>
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          {offset !== 0 ? (
+            <button
+              type="button"
+              onClick={() => goToWeek(todayWeek)}
+              className="text-[var(--accent)] hover:underline"
+            >
+              Вернуться к текущей
+            </button>
+          ) : null}
+          <Link href="/plans" className="text-[var(--muted)] hover:text-[var(--foreground)]">
+            Планы
+          </Link>
+        </div>
+      </div>
+
+      {templates.length === 0 ? (
+        <p className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
+          Сначала{' '}
+          <Link href="/plans" className="text-[var(--accent)] hover:underline">
+            создай план
+          </Link>
+          , затем назначь его на дни.
+        </p>
+      ) : null}
 
       {loading && trainings.length === 0 ? <ListSkeleton count={3} /> : null}
 
-      <div className="mb-10 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
-        {days.map(({ label, date }) => {
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+        {days.map(({ label, date, dayOfWeek }) => {
           const key = toDateKey(date)
           const dayTrainings = trainingsForDay(date)
-          const isToday = key === toDateKey(new Date())
+          const isToday = sameDay(date, new Date())
+          const selectedPlan = scheduleTemplateId(dayOfWeek)
+          const primary = dayTrainings[0]
+          const isRest = !selectedPlan && !primary
+
           return (
-            <div
+            <article
               key={key}
-              className={`rounded-xl border bg-[var(--surface)] p-3 ${
-                isToday ? 'border-[var(--accent)]/50' : 'border-[var(--border)]'
-              }`}
-            >
-              <div className="mb-2 flex items-baseline justify-between gap-2">
-                <p className="text-xs uppercase tracking-wider text-[var(--muted)]">{label}</p>
-                <p className="text-xs text-[var(--muted)]">{date.getDate()}</p>
-              </div>
-              {dayTrainings.length === 0 ? (
-                <p className="text-xs text-[var(--muted)]">Свободно</p>
-              ) : (
-                <ul className="space-y-2">
-                  {dayTrainings.map((training) => (
-                    <li
-                      key={training.id}
-                      className="rounded-lg bg-[var(--surface-2)] px-2 py-2 text-xs"
-                    >
-                      <Link href={`/trainings/${training.id}`} className="block hover:underline">
-                        {trainingLabel(training)}
-                      </Link>
-                      <div className="mt-1 flex items-center justify-between gap-1">
-                        <TrainingStatusBadge status={training.status} />
-                        {training.status === 'planned' ? (
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 text-[var(--accent)]"
-                            onClick={() => void onStart(training.id)}
-                          >
-                            <Play className="size-3" />
-                            Старт
-                          </button>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+              className={cn(
+                'flex flex-col rounded-2xl border bg-[var(--surface)] p-4 transition',
+                isToday
+                  ? 'border-[var(--accent)]/45 bg-[var(--accent)]/5 shadow-[0_0_0_1px_rgba(163,230,53,0.12)]'
+                  : 'border-[var(--border)] hover:border-[var(--border)]/80',
+                isRest && !isToday && 'opacity-80',
               )}
-              <button
-                type="button"
-                className="mt-3 inline-flex items-center gap-1 text-[11px] text-[var(--accent)] hover:underline"
-                onClick={() => {
-                  setSheetDay(key)
-                  setSheetTemplateId('')
-                }}
-              >
-                <Plus className="size-3" />
-                Добавить
-              </button>
-            </div>
-          )
-        })}
-      </div>
-
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-[family-name:var(--font-display)] text-xl">Расписание</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              Какой план в какой день. Пусто = отдых. Потом нажми «Заполнить неделю».
-            </p>
-          </div>
-          {programId ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() =>
-                void removeProgram(programId).then(() => {
-                  setProgramId('')
-                  void fetchPrograms()
-                })
-              }
             >
-              <Trash2 className="size-4" />
-              Удалить
-            </Button>
-          ) : null}
-        </div>
+              <header className="mb-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p
+                      className={cn(
+                        'text-[11px] font-medium uppercase tracking-[0.14em]',
+                        isToday ? 'text-[var(--accent)]' : 'text-[var(--muted)]',
+                      )}
+                    >
+                      {label}
+                      {isToday ? ' · сегодня' : ''}
+                    </p>
+                    <p className="mt-1 font-[family-name:var(--font-display)] text-xl leading-none tracking-tight">
+                      {date.getDate()}
+                    </p>
+                    <p className="mt-1 text-xs capitalize text-[var(--muted)]">
+                      {formatDayMonth(date)}
+                    </p>
+                  </div>
+                </div>
+              </header>
 
-        {programs.length === 0 ? (
-          <div className="space-y-3">
-            <p className="text-sm text-[var(--muted)]">Пока нет расписания. Создай одно:</p>
-            <CreateProgramForm
-              onCreated={(program) => {
-                setProgramId(program.id)
-                void fetchPrograms()
-              }}
-            />
-          </div>
-        ) : (
-          <>
-            <div className="mb-4 flex flex-wrap items-end gap-3">
-              <label className="min-w-48 flex-1 space-y-1 text-xs text-[var(--muted)]">
-                Вариант
-                <Select value={programId} onChange={(e) => setProgramId(e.target.value)}>
-                  {programs.map((program) => (
-                    <option key={program.id} value={program.id}>
-                      {program.name}
+              <label className="mb-3 block space-y-1.5 text-[11px] text-[var(--muted)]">
+                План
+                <Select
+                  value={selectedPlan}
+                  disabled={!scheduleReady || savingDay === dayOfWeek}
+                  onChange={(e) => void onDayPlanChange(dayOfWeek, date, e.target.value)}
+                  className="w-full text-sm"
+                >
+                  <option value="">Отдых</option>
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
                     </option>
                   ))}
                 </Select>
               </label>
-              <CreateProgramForm
-                onCreated={(program) => {
-                  setProgramId(program.id)
-                  void fetchPrograms()
-                }}
-              />
-            </div>
 
-            {scheduleReady ? (
-              <ul className="space-y-3">
-                {DAY_FULL.map((label, index) => {
-                  const dayOfWeek = index + 1
-                  const primary = currentProgram.days
-                    .filter((d) => d.dayOfWeek === dayOfWeek)
-                    .sort((a, b) => a.slotOrder - b.slotOrder)[0]
-                  return (
-                    <li
-                      key={label}
-                      className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 px-4 py-3"
+              <div className="mt-auto space-y-3 pt-1">
+                {primary ? (
+                  <>
+                    <Link
+                      href={`/trainings/${primary.id}`}
+                      className="block truncate text-sm font-medium hover:text-[var(--accent)]"
                     >
-                      <span className="w-36 text-sm text-[var(--foreground)]">{label}</span>
-                      <Select
-                        value={primary?.templateId ?? ''}
-                        disabled={savingDay === dayOfWeek}
-                        onChange={(e) => void onDayChange(dayOfWeek, e.target.value)}
-                        className="min-w-48 flex-1"
-                      >
-                        <option value="">Отдых</option>
-                        {templates.map((template) => (
-                          <option key={template.id} value={template.id}>
-                            {template.name}
-                          </option>
-                        ))}
-                      </Select>
-                    </li>
-                  )
-                })}
-              </ul>
-            ) : (
-              <ListSkeleton count={3} />
-            )}
-          </>
-        )}
-      </section>
-
-      {sheetDay ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
-          <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="font-[family-name:var(--font-display)] text-xl">
-                {sheetLabel} · {sheetDay}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setSheetDay(null)}
-                aria-label="Закрыть"
-              >
-                <X className="size-5 text-[var(--muted)]" />
-              </button>
-            </div>
-            <label className="mb-4 block space-y-1 text-xs text-[var(--muted)]">
-              План
-              <Select
-                value={sheetTemplateId}
-                onChange={(e) => setSheetTemplateId(e.target.value)}
-              >
-                <option value="">Пустая сессия</option>
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <div className="flex flex-col gap-2">
-              <Button
-                type="button"
-                onClick={() => void planDay(sheetTemplateId || null)}
-                disabled={busy}
-              >
-                Запланировать
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => void startNow(sheetTemplateId || null)}
-                disabled={busy}
-              >
-                <Play className="size-4" />
-                Начать сейчас
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setSheetDay(null)}>
-                Отмена
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                      {trainingLabel(primary)}
+                    </Link>
+                    <div className="flex items-center justify-between gap-2">
+                      <TrainingStatusBadge status={primary.status} />
+                      {primary.status === 'planned' ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent)]/15 px-2.5 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--accent)]/25 disabled:opacity-50"
+                          onClick={() => void onStart(primary.id)}
+                        >
+                          <Play className="size-3" />
+                          Старт
+                        </button>
+                      ) : primary.status === 'in_progress' ? (
+                        <Link
+                          href={`/trainings/${primary.id}`}
+                          className="text-xs font-medium text-[var(--accent)] hover:underline"
+                        >
+                          Открыть
+                        </Link>
+                      ) : null}
+                    </div>
+                  </>
+                ) : selectedPlan ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    disabled={busy}
+                    onClick={() => void startTodayPlan(selectedPlan)}
+                  >
+                    <Play className="size-4" />
+                    Начать
+                  </Button>
+                ) : (
+                  <p className="rounded-lg bg-[var(--surface-2)] px-3 py-2 text-center text-xs text-[var(--muted)]">
+                    Отдых
+                  </p>
+                )}
+              </div>
+            </article>
+          )
+        })}
+      </div>
     </div>
   )
 }

@@ -26,8 +26,8 @@ export function TrainingsPage() {
   return (
     <div>
       <PageHeader
-        title="Тренировки"
-        description="История ваших сессий."
+        title="История"
+        description="Прошедшие и запланированные сессии."
         action={<StartTrainingButton />}
       />
 

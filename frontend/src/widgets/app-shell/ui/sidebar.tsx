@@ -21,15 +21,15 @@ import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
 
 const primaryLinks = [
-  { href: '/', label: 'Главная', icon: Home },
+  { href: '/', label: 'Сегодня', icon: Home },
   { href: '/plan', label: 'Неделя', icon: CalendarDays },
-  { href: '/trainings', label: 'Тренировки', icon: History },
-  { href: '/stats', label: 'Статистика', icon: BarChart3 },
+  { href: '/trainings', label: 'История', icon: History },
 ]
 
 const moreLinks = [
   { href: '/plans', label: 'Планы', icon: LayoutTemplate },
   { href: '/exercises', label: 'Упражнения', icon: Dumbbell },
+  { href: '/stats', label: 'Статистика', icon: BarChart3 },
   { href: '/equipment', label: 'Инвентарь', icon: Package },
 ]
 
