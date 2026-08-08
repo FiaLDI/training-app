@@ -3,11 +3,36 @@ map $http_upgrade $connection_upgrade {
     '' close;
 }
 
+# Production HTTPS config: HTTP redirects to HTTPS (except ACME).
+# Installed by scripts/ssl-issue.sh after a real certificate is issued.
+
 server {
     listen 80;
     server_name _;
 
     client_max_body_size 20m;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name _;
+
+    client_max_body_size 20m;
+
+    ssl_certificate     /etc/letsencrypt/live/ip/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ip/privkey.pem;
+
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_protocols TLSv1.2 TLSv1.3;
 
     location /api/ {
         proxy_pass http://backend:3000/api/;

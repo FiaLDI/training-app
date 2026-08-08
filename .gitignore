@@ -70,6 +70,12 @@ web_modules/
 .env.*
 !.env.example
 
+# Let's Encrypt / certbot material (keep directory placeholders)
+certbot/conf/**
+!certbot/conf/.gitkeep
+certbot/www/**
+!certbot/www/.gitkeep
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

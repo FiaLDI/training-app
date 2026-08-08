@@ -3,11 +3,13 @@
   "private": true,
   "scripts": {
     "setup": "node -e \"const fs=require('fs'); if(!fs.existsSync('.env')){fs.copyFileSync('.env.example','.env'); console.log('Created .env from .env.example')} else { console.log('.env already exists') }\"",
-    "up": "npm run setup && docker compose up --build -d",
+    "up": "npm run setup && bash scripts/ssl-ensure-dummy.sh && docker compose up --build -d",
     "down": "docker compose down",
     "logs": "docker compose logs -f",
-    "restart": "docker compose up --build -d --force-recreate",
+    "restart": "bash scripts/ssl-ensure-dummy.sh && docker compose up --build -d --force-recreate",
     "db:up": "docker compose up -d postgres",
-    "db:down": "docker compose stop postgres"
+    "db:down": "docker compose stop postgres",
+    "ssl:issue": "bash scripts/ssl-issue.sh",
+    "ssl:renew": "bash scripts/ssl-renew.sh"
   }
 }
