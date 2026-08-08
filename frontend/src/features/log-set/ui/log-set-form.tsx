@@ -12,6 +12,7 @@ type Props = {
   exerciseId: string
   nextSetNumber: number
   defaultWeight?: number | null
+  onLogged?: () => void
 }
 
 export function LogSetForm({
@@ -19,6 +20,7 @@ export function LogSetForm({
   exerciseId,
   nextSetNumber,
   defaultWeight,
+  onLogged,
 }: Props) {
   const addSet = useTrainingStore((s) => s.addSet)
   const [weight, setWeight] = useState(
@@ -41,6 +43,7 @@ export function LogSetForm({
       })
       setWeight(defaultWeight == null ? '' : String(defaultWeight))
       setReps('')
+      onLogged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось записать подход')
     } finally {

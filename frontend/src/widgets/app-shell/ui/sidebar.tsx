@@ -10,7 +10,6 @@ import {
   Dumbbell,
   Home,
   LayoutTemplate,
-  History,
   LogOut,
   Package,
   MoreHorizontal,
@@ -23,13 +22,12 @@ import { Button } from '@/shared/ui/button'
 const primaryLinks = [
   { href: '/', label: 'Сегодня', icon: Home },
   { href: '/plan', label: 'Неделя', icon: CalendarDays },
-  { href: '/trainings', label: 'История', icon: History },
+  { href: '/stats', label: 'Статистика', icon: BarChart3 },
 ]
 
 const moreLinks = [
   { href: '/plans', label: 'Планы', icon: LayoutTemplate },
   { href: '/exercises', label: 'Упражнения', icon: Dumbbell },
-  { href: '/stats', label: 'Статистика', icon: BarChart3 },
   { href: '/equipment', label: 'Инвентарь', icon: Package },
 ]
 

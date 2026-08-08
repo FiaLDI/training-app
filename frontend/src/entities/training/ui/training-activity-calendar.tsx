@@ -98,7 +98,7 @@ export function TrainingActivityCalendar({ trainings, className }: Props) {
                       return (
                         <Link
                           key={day.date}
-                          href="/trainings"
+                          href="/plan"
                           title={title}
                           className={cn(cellClass, 'block hover:brightness-110')}
                         />

@@ -1,5 +1,5 @@
-import { TrainingsPage } from '@/views/trainings/ui/trainings-page'
+import { redirect } from 'next/navigation'
 
 export default function Page() {
-  return <TrainingsPage />
+  redirect('/plan')
 }

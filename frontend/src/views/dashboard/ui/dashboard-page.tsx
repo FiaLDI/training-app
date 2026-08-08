@@ -27,12 +27,17 @@ export function DashboardPage() {
   }, [fetchTrainings, fetchTemplates])
 
   const todayKey = toDateKey(new Date())
+
   const active = trainings.find((item) => item.status === 'in_progress')
-  const todayPlanned = trainings.find((t) => {
-    if (t.status !== 'planned') return false
-    const when = t.scheduledAt ?? t.createdAt
+
+  const todayItems = trainings.filter((t) => {
+    if (t.status === 'cancelled') return false
+    const when = t.scheduledAt ?? t.startedAt ?? t.createdAt
     return toDateKey(new Date(when)) === todayKey
   })
+
+  const todayPlanned = todayItems.find((t) => t.status === 'planned')
+  const todayFinished = todayItems.find((t) => t.status === 'finished')
 
   function labelFor(templateId: string | null, fallback = 'Тренировка') {
     if (!templateId) return fallback
@@ -49,15 +54,24 @@ export function DashboardPage() {
       router.push(`/trainings/${training.id}`)
       return
     }
-    if (templates[0]) {
+
+    const templateId =
+      todayFinished?.templateId ?? templates[0]?.id ?? null
+
+    if (templateId || templates.length === 0) {
+      if (!templateId) {
+        router.push('/plans')
+        return
+      }
       const training = await create({
-        templateId: templates[0].id,
+        templateId,
         status: 'in_progress',
         startedAt: new Date().toISOString(),
       })
       router.push(`/trainings/${training.id}`)
       return
     }
+
     router.push('/plans')
   }
 
@@ -65,9 +79,11 @@ export function DashboardPage() {
     ? 'Продолжить'
     : todayPlanned
       ? 'Начать сегодня'
-      : templates.length > 0
-        ? 'Начать тренировку'
-        : 'Создать план'
+      : todayFinished
+        ? 'Ещё одна тренировка'
+        : templates.length > 0
+          ? 'Начать тренировку'
+          : 'Создать план'
 
   return (
     <div className="mx-auto max-w-lg">
@@ -78,7 +94,9 @@ export function DashboardPage() {
             ? 'Есть незавершённая сессия.'
             : todayPlanned
               ? `По плану: ${labelFor(todayPlanned.templateId)}`
-              : 'Начни тренировку или открой неделю.'
+              : todayFinished
+                ? `Уже сделано: ${labelFor(todayFinished.templateId)}. Можно начать ещё одну.`
+                : 'Начни тренировку или открой неделю.'
         }
       />
 
@@ -101,6 +119,22 @@ export function DashboardPage() {
           </div>
           <ArrowRight className="size-5 text-[var(--accent)]" />
         </button>
+      ) : todayFinished ? (
+        <Link
+          href={`/trainings/${todayFinished.id}`}
+          className="mb-6 flex w-full items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left transition hover:border-[var(--accent)]/30"
+        >
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[var(--muted)]">Сегодня выполнено</p>
+            <p className="mt-1 font-[family-name:var(--font-display)] text-xl">
+              {labelFor(todayFinished.templateId)}
+            </p>
+            <div className="mt-2">
+              <TrainingStatusBadge status="finished" />
+            </div>
+          </div>
+          <ArrowRight className="size-5 text-[var(--muted)]" />
+        </Link>
       ) : null}
 
       <div className="flex flex-col gap-3">

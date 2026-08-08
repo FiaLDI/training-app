@@ -113,6 +113,17 @@ export const useTrainingStore = create<TrainingStore>((set) => ({
 
   async start(id) {
     if (isLocalMode()) {
+      const existing = localData.trainings.get(id)
+      if (!existing) throw new Error('Тренировка не найдена')
+      if (existing.status === 'finished' || existing.status === 'cancelled') {
+        const training = localData.trainings.create({
+          templateId: existing.templateId,
+          status: 'in_progress',
+          startedAt: new Date().toISOString(),
+        })
+        set((state) => ({ items: [training, ...state.items], current: localData.trainings.get(training.id) }))
+        return training
+      }
       const training = localData.trainings.update(id, {
         status: 'in_progress',
         startedAt: new Date().toISOString(),
@@ -124,6 +135,18 @@ export const useTrainingStore = create<TrainingStore>((set) => ({
       }))
       return training!
     }
+
+    const existing = await trainingApi.getById(id)
+    if (existing.status === 'finished' || existing.status === 'cancelled') {
+      const training = await trainingApi.create({
+        templateId: existing.templateId,
+        status: 'in_progress',
+        startedAt: new Date().toISOString(),
+      })
+      set((state) => ({ items: [training, ...state.items], current: training }))
+      return training
+    }
+
     await trainingApi.update(id, {
       status: 'in_progress',
       startedAt: new Date().toISOString(),

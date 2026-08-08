@@ -360,7 +360,11 @@ export function PlanPage() {
           const dayTrainings = trainingsForDay(date)
           const isToday = sameDay(date, new Date())
           const selectedPlan = scheduleTemplateId(dayOfWeek)
-          const primary = dayTrainings[0]
+          const primary =
+            dayTrainings.find((t) => t.status === 'in_progress') ??
+            dayTrainings.find((t) => t.status === 'planned') ??
+            dayTrainings.find((t) => t.status === 'finished') ??
+            null
           const isRest = !selectedPlan && !primary
 
           return (
@@ -441,6 +445,16 @@ export function PlanPage() {
                         >
                           Открыть
                         </Link>
+                      ) : primary.status === 'finished' && selectedPlan ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          className="inline-flex items-center gap-1 rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--border)]/40 disabled:opacity-50"
+                          onClick={() => void startTodayPlan(selectedPlan)}
+                        >
+                          <Play className="size-3" />
+                          Ещё раз
+                        </button>
                       ) : null}
                     </div>
                   </>

@@ -4,7 +4,7 @@ import { cn } from '@/shared/lib/cn'
 
 type Props = {
   title: string
-  description?: string
+  description?: ReactNode
   action?: ReactNode
   className?: string
 }
@@ -17,7 +17,7 @@ export function PageHeader({ title, description, action, className }: Props) {
           {title}
         </h1>
         {description ? (
-          <p className="mt-2 max-w-xl text-sm text-[var(--muted)]">{description}</p>
+          <div className="mt-2 max-w-xl text-sm text-[var(--muted)]">{description}</div>
         ) : null}
       </div>
       {action}
