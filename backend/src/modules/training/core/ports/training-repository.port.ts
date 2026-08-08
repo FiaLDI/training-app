@@ -1,9 +1,11 @@
 import {
+  ExerciseProgressPoint,
   Training,
   TrainingExercise,
   TrainingSet,
   TrainingStatus,
   TrainingWithDetails,
+  VolumeStatPoint,
 } from '../types'
 
 export interface ListTrainingsRepositoryInput {
@@ -11,6 +13,8 @@ export interface ListTrainingsRepositoryInput {
   page: number
   limit: number
   status?: TrainingStatus
+  from?: string
+  to?: string
 }
 
 export interface ListTrainingsRepositoryOutput {
@@ -23,8 +27,11 @@ export interface ListTrainingsRepositoryOutput {
 export interface CreateTrainingRepositoryInput {
   userId: string
   templateId?: string | null
+  programId?: string | null
+  programDayId?: string | null
   status: TrainingStatus
-  startedAt: string
+  scheduledAt?: string | null
+  startedAt?: string | null
   finishedAt?: string | null
   notes?: string | null
   metadata?: Record<string, unknown>
@@ -34,10 +41,14 @@ export interface UpdateTrainingRepositoryInput {
   id: string
   userId: string
   status?: TrainingStatus
-  startedAt?: string
+  scheduledAt?: string | null
+  startedAt?: string | null
   finishedAt?: string | null
   notes?: string | null
   metadata?: Record<string, unknown>
+  programId?: string | null
+  programDayId?: string | null
+  templateId?: string | null
 }
 
 export interface CreateTrainingExerciseRepositoryInput {
@@ -46,6 +57,7 @@ export interface CreateTrainingExerciseRepositoryInput {
   exerciseId: string
   exerciseOrder: number
   targetSets: number
+  isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
   restSeconds?: number | null
@@ -58,6 +70,7 @@ export interface UpdateTrainingExerciseRepositoryInput {
   userId: string
   exerciseOrder?: number
   targetSets?: number
+  isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
   restSeconds?: number | null
@@ -89,12 +102,30 @@ export interface UpdateTrainingSetRepositoryInput {
   metadata?: Record<string, unknown>
 }
 
+export interface VolumeStatsRepositoryInput {
+  userId: string
+  from: string
+  to: string
+}
+
+export interface ExerciseProgressRepositoryInput {
+  userId: string
+  exerciseId: string
+  from: string
+  to: string
+}
+
 export interface TrainingRepositoryPort {
   list(input: ListTrainingsRepositoryInput): Promise<ListTrainingsRepositoryOutput>
   getById(id: string, userId: string): Promise<TrainingWithDetails | null>
   create(input: CreateTrainingRepositoryInput): Promise<Training>
   update(input: UpdateTrainingRepositoryInput): Promise<Training | null>
   delete(id: string, userId: string): Promise<boolean>
+  findActiveByProgramDay(
+    userId: string,
+    programDayId: string,
+    scheduledAt: string,
+  ): Promise<Training | null>
 
   createExercise(input: CreateTrainingExerciseRepositoryInput): Promise<TrainingExercise | null>
   updateExercise(input: UpdateTrainingExerciseRepositoryInput): Promise<TrainingExercise | null>
@@ -103,6 +134,9 @@ export interface TrainingRepositoryPort {
   createSet(input: CreateTrainingSetRepositoryInput): Promise<TrainingSet | null>
   updateSet(input: UpdateTrainingSetRepositoryInput): Promise<TrainingSet | null>
   deleteSet(id: string, userId: string): Promise<boolean>
+
+  getVolumeStats(input: VolumeStatsRepositoryInput): Promise<VolumeStatPoint[]>
+  getExerciseProgress(input: ExerciseProgressRepositoryInput): Promise<ExerciseProgressPoint[]>
 }
 
 export const TRAINING_REPOSITORY_PORT = Symbol('TRAINING_REPOSITORY_PORT')

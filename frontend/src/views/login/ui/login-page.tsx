@@ -36,12 +36,12 @@ export function LoginPage() {
       const result = await register(email)
       setMessage(
         result.created
-          ? 'Account created. Permanent code is in the backend console — use only the code to sign in.'
-          : 'Account already exists. Permanent code re-logged to the backend console.',
+          ? 'Аккаунт создан. Постоянный код — в консоли бэкенда; входите только по коду.'
+          : 'Аккаунт уже существует. Постоянный код снова выведен в консоль бэкенда.',
       )
       setStep('login')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed')
+      setError(err instanceof Error ? err.message : 'Не удалось зарегистрироваться')
     } finally {
       setLoading(false)
     }
@@ -55,7 +55,7 @@ export function LoginPage() {
       await login(code)
       router.replace('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid code')
+      setError(err instanceof Error ? err.message : 'Неверный код')
     } finally {
       setLoading(false)
     }
@@ -73,19 +73,19 @@ export function LoginPage() {
           Iron<span className="text-[var(--accent)]">Log</span>
         </p>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          Local mode without an account, or cloud sync with a permanent code.
+          Локальный режим без аккаунта или облачная синхронизация с постоянным кодом.
         </p>
 
         {step === 'choose' && (
           <div className="mt-8 flex flex-col gap-3">
             <Button type="button" onClick={goLocal}>
-              Continue locally
+              Продолжить локально
             </Button>
             <Button type="button" variant="secondary" onClick={() => setStep('login')}>
-              Sign in with code
+              Войти по коду
             </Button>
             <Button type="button" variant="ghost" onClick={() => setStep('register')}>
-              Register with email
+              Зарегистрироваться по email
             </Button>
           </div>
         )}
@@ -93,27 +93,27 @@ export function LoginPage() {
         {step === 'register' && (
           <form className="mt-8 space-y-4" onSubmit={onRegister}>
             <label className="block space-y-2 text-sm">
-              <span className="text-[var(--muted)]">Email</span>
+              <span className="text-[var(--muted)]">Эл. почта</span>
               <Input
                 type="email"
                 required
                 autoFocus
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder="name@example.com"
               />
             </label>
             <p className="text-xs text-[var(--muted)]">
-              A permanent login code will be generated once and logged to the backend console.
-              Sign in with that code only.
+              Постоянный код входа будет создан один раз и выведен в консоль бэкенда.
+              Входите только по этому коду.
             </p>
             {error && <p className="text-sm text-red-300">{error}</p>}
             <div className="flex gap-2">
               <Button type="button" variant="ghost" onClick={() => setStep('choose')}>
-                Back
+                Назад
               </Button>
               <Button type="submit" disabled={loading} className="flex-1">
-                {loading ? 'Registering…' : 'Register'}
+                {loading ? 'Регистрация…' : 'Зарегистрироваться'}
               </Button>
             </div>
           </form>
@@ -123,7 +123,7 @@ export function LoginPage() {
           <form className="mt-8 space-y-4" onSubmit={onLogin}>
             {message && <p className="text-sm text-[var(--accent)]">{message}</p>}
             <label className="block space-y-2 text-sm">
-              <span className="text-[var(--muted)]">Code</span>
+              <span className="text-[var(--muted)]">Код</span>
               <Input
                 required
                 autoFocus
@@ -136,10 +136,10 @@ export function LoginPage() {
             {error && <p className="text-sm text-red-300">{error}</p>}
             <div className="flex gap-2">
               <Button type="button" variant="ghost" onClick={() => setStep('choose')}>
-                Back
+                Назад
               </Button>
               <Button type="submit" disabled={loading} className="flex-1">
-                {loading ? 'Signing in…' : 'Sign in'}
+                {loading ? 'Вход…' : 'Войти'}
               </Button>
             </div>
           </form>

@@ -58,10 +58,10 @@ export function CreateEquipmentForm({ onCreated }: Props) {
         />
       </label>
       <Button type="submit" disabled={saving || !name.trim()}>
-        {saving ? 'Saving…' : 'Create'}
+        {saving ? 'Сохранение…' : 'Создать'}
       </Button>
       <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-        Cancel
+        Отмена
       </Button>
       {error ? <p className="w-full text-sm text-red-300">{error}</p> : null}
     </form>

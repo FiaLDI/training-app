@@ -17,6 +17,9 @@ export class TrainingExerciseEntity {
   @Column({ name: 'target_sets', type: 'integer' })
   targetSets!: number
 
+  @Column({ name: 'is_warmup', type: 'boolean', default: false })
+  isWarmup!: boolean
+
   @Column({ name: 'min_reps', type: 'integer', nullable: true })
   minReps!: number | null
 

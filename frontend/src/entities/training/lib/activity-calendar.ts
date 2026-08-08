@@ -114,7 +114,7 @@ export function buildActivityMonths(
     const month = date.getMonth()
     result.push({
       key: `${year}-${String(month + 1).padStart(2, '0')}`,
-      label: date.toLocaleString(undefined, { month: 'short' }),
+      label: date.toLocaleString('ru-RU', { month: 'short' }),
       weeks: buildMonthWeeks(year, month, trained, todayKey),
       isCurrent: offset === 0,
     })

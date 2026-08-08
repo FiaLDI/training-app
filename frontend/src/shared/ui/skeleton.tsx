@@ -21,7 +21,7 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
     <div
       className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
       aria-busy="true"
-      aria-label="Loading"
+      aria-label="Загрузка"
     >
       {Array.from({ length: count }, (_, i) => (
         <div
@@ -49,7 +49,7 @@ export function ListSkeleton({
   dense?: boolean
 }) {
   return (
-    <ul className={cn(dense ? 'space-y-2' : 'space-y-3')} aria-busy="true" aria-label="Loading">
+    <ul className={cn(dense ? 'space-y-2' : 'space-y-3')} aria-busy="true" aria-label="Загрузка">
       {Array.from({ length: count }, (_, i) => (
         <li
           key={i}
@@ -68,7 +68,7 @@ export function ListSkeleton({
 
 export function DetailSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Loading">
+    <div aria-busy="true" aria-label="Загрузка">
       <Skeleton className="mb-4 h-4 w-24" />
       <Skeleton className="h-8 w-56 max-w-full" />
       <Skeleton className="mt-3 h-4 w-full max-w-md" />

@@ -1,4 +1,4 @@
-import { TemplateDetailPage } from '@/views/templates/ui/template-detail-page'
+import { redirect } from 'next/navigation'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -6,5 +6,5 @@ type Props = {
 
 export default async function Page({ params }: Props) {
   const { id } = await params
-  return <TemplateDetailPage id={id} />
+  redirect(`/plans/${id}`)
 }

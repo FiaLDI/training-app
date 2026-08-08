@@ -37,7 +37,7 @@ export function AuthGate({ children }: Props) {
   if (!hydrated) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-[var(--muted)]">
-        Loading…
+        Загрузка…
       </div>
     )
   }
@@ -49,7 +49,7 @@ export function AuthGate({ children }: Props) {
   if (!mode) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-[var(--muted)]">
-        Redirecting…
+        Перенаправление…
       </div>
     )
   }

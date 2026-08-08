@@ -18,8 +18,6 @@ export function StartTrainingButton({ templateId }: Props) {
   const templates = useTemplateStore((s) => s.items)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const create = useTrainingStore((s) => s.create)
-  const addExercise = useTrainingStore((s) => s.addExercise)
-  const fetchTemplate = useTemplateStore((s) => s.fetchOne)
   const [selectedId, setSelectedId] = useState(templateId ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,30 +38,9 @@ export function StartTrainingButton({ templateId }: Props) {
         status: 'in_progress',
         startedAt: new Date().toISOString(),
       })
-
-      if (selectedId) {
-        await fetchTemplate(selectedId)
-        const template = useTemplateStore.getState().current
-        if (template) {
-          for (const item of template.exercises) {
-            await addExercise(training.id, {
-              exerciseId: item.exerciseId,
-              exerciseOrder: item.exerciseOrder,
-              targetSets: item.targetSets,
-              minReps: item.minReps,
-              maxReps: item.maxReps,
-              restSeconds: item.restSeconds,
-              notes: item.notes,
-              metadata:
-                item.targetWeight != null ? { targetWeight: item.targetWeight } : undefined,
-            })
-          }
-        }
-      }
-
       router.push(`/trainings/${training.id}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start training')
+      setError(err instanceof Error ? err.message : 'Не удалось начать тренировку')
       setLoading(false)
     }
   }
@@ -77,7 +54,7 @@ export function StartTrainingButton({ templateId }: Props) {
           onFocus={() => void ensureTemplates()}
           className="min-w-48"
         >
-          <option value="">Empty session</option>
+          <option value="">Пустая сессия</option>
           {templates.map((template) => (
             <option key={template.id} value={template.id}>
               {template.name}
@@ -87,7 +64,7 @@ export function StartTrainingButton({ templateId }: Props) {
       ) : null}
       <Button type="button" onClick={() => void start()} disabled={loading}>
         <Play className="size-4" />
-        {loading ? 'Starting…' : 'Start training'}
+        {loading ? 'Запуск…' : 'Начать тренировку'}
       </Button>
       {error ? <p className="w-full text-sm text-red-300">{error}</p> : null}
     </div>

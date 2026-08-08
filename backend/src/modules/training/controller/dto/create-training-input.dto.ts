@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import {
+  IsBoolean,
   IsDateString,
   IsIn,
   IsObject,
@@ -14,13 +15,29 @@ export class CreateTrainingInputDto {
   @IsUUID()
   templateId?: string | null
 
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  programId?: string | null
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  programDayId?: string | null
+
   @ApiProperty({ enum: ['planned', 'in_progress', 'finished', 'cancelled'] })
   @IsIn(['planned', 'in_progress', 'finished', 'cancelled'])
   status!: 'planned' | 'in_progress' | 'finished' | 'cancelled'
 
-  @ApiProperty()
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
   @IsDateString()
-  startedAt!: string
+  scheduledAt?: string | null
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsDateString()
+  startedAt?: string | null
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()

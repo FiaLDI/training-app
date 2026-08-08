@@ -6,19 +6,23 @@ import {
   CreateTrainingExerciseRepositoryInput,
   CreateTrainingRepositoryInput,
   CreateTrainingSetRepositoryInput,
+  ExerciseProgressRepositoryInput,
   ListTrainingsRepositoryInput,
   ListTrainingsRepositoryOutput,
   TrainingRepositoryPort,
   UpdateTrainingExerciseRepositoryInput,
   UpdateTrainingRepositoryInput,
   UpdateTrainingSetRepositoryInput,
+  VolumeStatsRepositoryInput,
 } from '../core/ports/training-repository.port'
 import {
+  ExerciseProgressPoint,
   Training,
   TrainingExercise,
   TrainingSet,
   TrainingStatus,
   TrainingWithDetails,
+  VolumeStatPoint,
 } from '../core/types'
 import { TrainingExerciseEntity } from '../core/entity/training-exercise.entity'
 import { TrainingSetEntity } from '../core/entity/training-set.entity'
@@ -40,8 +44,11 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       id: entity.id,
       userId: entity.userId,
       templateId: entity.templateId,
+      programId: entity.programId,
+      programDayId: entity.programDayId,
       status: entity.status as TrainingStatus,
-      startedAt: entity.startedAt.toISOString(),
+      scheduledAt: entity.scheduledAt ? entity.scheduledAt.toISOString() : null,
+      startedAt: entity.startedAt ? entity.startedAt.toISOString() : null,
       finishedAt: entity.finishedAt ? entity.finishedAt.toISOString() : null,
       notes: entity.notes,
       metadata: entity.metadata ?? {},
@@ -56,6 +63,7 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       exerciseId: entity.exerciseId,
       exerciseOrder: entity.exerciseOrder,
       targetSets: entity.targetSets,
+      isWarmup: entity.isWarmup ?? false,
       minReps: entity.minReps,
       maxReps: entity.maxReps,
       restSeconds: entity.restSeconds,
@@ -105,15 +113,31 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
   }
 
   async list(input: ListTrainingsRepositoryInput): Promise<ListTrainingsRepositoryOutput> {
-    const where = input.status
-      ? { userId: input.userId, status: input.status }
-      : { userId: input.userId }
-    const [items, total] = await this.trainings.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      skip: (input.page - 1) * input.limit,
-      take: input.limit,
-    })
+    const qb = this.trainings
+      .createQueryBuilder('t')
+      .where('t.user_id = :userId', { userId: input.userId })
+
+    if (input.status) {
+      qb.andWhere('t.status = :status', { status: input.status })
+    }
+
+    if (input.from) {
+      qb.andWhere('COALESCE(t.scheduled_at, t.started_at, t.created_at) >= :from', {
+        from: new Date(input.from),
+      })
+    }
+
+    if (input.to) {
+      qb.andWhere('COALESCE(t.scheduled_at, t.started_at, t.created_at) <= :to', {
+        to: new Date(input.to),
+      })
+    }
+
+    qb.orderBy('t.created_at', 'DESC')
+      .skip((input.page - 1) * input.limit)
+      .take(input.limit)
+
+    const [items, total] = await qb.getManyAndCount()
 
     return {
       items: items.map((item) => this.mapTraining(item)),
@@ -154,8 +178,11 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     const entity = this.trainings.create({
       userId: input.userId,
       templateId: input.templateId ?? null,
+      programId: input.programId ?? null,
+      programDayId: input.programDayId ?? null,
       status: input.status,
-      startedAt: new Date(input.startedAt),
+      scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
+      startedAt: input.startedAt ? new Date(input.startedAt) : null,
       finishedAt: input.finishedAt ? new Date(input.finishedAt) : null,
       notes: input.notes ?? null,
       metadata: input.metadata ?? {},
@@ -168,12 +195,20 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     if (!entity) return null
 
     if (input.status !== undefined) entity.status = input.status
-    if (input.startedAt !== undefined) entity.startedAt = new Date(input.startedAt)
+    if (input.scheduledAt !== undefined) {
+      entity.scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null
+    }
+    if (input.startedAt !== undefined) {
+      entity.startedAt = input.startedAt ? new Date(input.startedAt) : null
+    }
     if (input.finishedAt !== undefined) {
       entity.finishedAt = input.finishedAt ? new Date(input.finishedAt) : null
     }
     if (input.notes !== undefined) entity.notes = input.notes
     if (input.metadata !== undefined) entity.metadata = input.metadata
+    if (input.programId !== undefined) entity.programId = input.programId
+    if (input.programDayId !== undefined) entity.programDayId = input.programDayId
+    if (input.templateId !== undefined) entity.templateId = input.templateId
 
     return this.mapTraining(await this.trainings.save(entity))
   }
@@ -181,6 +216,29 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
   async delete(id: string, userId: string): Promise<boolean> {
     const result = await this.trainings.delete({ id, userId })
     return (result.affected ?? 0) > 0
+  }
+
+  async findActiveByProgramDay(
+    userId: string,
+    programDayId: string,
+    scheduledAt: string,
+  ): Promise<Training | null> {
+    const dayStart = new Date(scheduledAt)
+    const dayEnd = new Date(dayStart)
+    dayEnd.setUTCDate(dayEnd.getUTCDate() + 1)
+
+    const entity = await this.trainings
+      .createQueryBuilder('t')
+      .where('t.user_id = :userId', { userId })
+      .andWhere('t.program_day_id = :programDayId', { programDayId })
+      .andWhere('t.status != :cancelled', { cancelled: 'cancelled' })
+      .andWhere('t.scheduled_at >= :dayStart AND t.scheduled_at < :dayEnd', {
+        dayStart,
+        dayEnd,
+      })
+      .getOne()
+
+    return entity ? this.mapTraining(entity) : null
   }
 
   async createExercise(
@@ -193,6 +251,7 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       exerciseId: input.exerciseId,
       exerciseOrder: input.exerciseOrder,
       targetSets: input.targetSets,
+      isWarmup: input.isWarmup ?? false,
       minReps: input.minReps ?? null,
       maxReps: input.maxReps ?? null,
       restSeconds: input.restSeconds ?? null,
@@ -210,6 +269,7 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
 
     if (input.exerciseOrder !== undefined) entity.exerciseOrder = input.exerciseOrder
     if (input.targetSets !== undefined) entity.targetSets = input.targetSets
+    if (input.isWarmup !== undefined) entity.isWarmup = input.isWarmup
     if (input.minReps !== undefined) entity.minReps = input.minReps
     if (input.maxReps !== undefined) entity.maxReps = input.maxReps
     if (input.restSeconds !== undefined) entity.restSeconds = input.restSeconds
@@ -267,5 +327,91 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     if (!entity) return false
     const result = await this.trainingSets.delete(id)
     return (result.affected ?? 0) > 0
+  }
+
+  async getVolumeStats(input: VolumeStatsRepositoryInput): Promise<VolumeStatPoint[]> {
+    const rows = await this.trainings.manager.query(
+      `
+      SELECT
+        to_char(DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at)), 'YYYY-MM-DD') AS date,
+        COALESCE(SUM(
+          CASE
+            WHEN COALESCE(te.is_warmup, false) = false
+              AND ts.completed = true
+              AND ts.weight IS NOT NULL
+              AND ts.reps IS NOT NULL
+            THEN ts.weight::numeric * ts.reps
+            ELSE 0
+          END
+        ), 0)::float AS volume
+      FROM trainings t
+      LEFT JOIN training_exercises te ON te.training_id = t.id
+      LEFT JOIN training_sets ts ON ts.training_exercise_id = te.id
+      WHERE t.user_id = $1
+        AND t.status IN ('finished', 'in_progress')
+        AND COALESCE(t.started_at, t.scheduled_at, t.created_at) >= $2::timestamptz
+        AND COALESCE(t.started_at, t.scheduled_at, t.created_at) <= $3::timestamptz
+      GROUP BY DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at))
+      HAVING COALESCE(SUM(
+          CASE
+            WHEN COALESCE(te.is_warmup, false) = false
+              AND ts.completed = true
+              AND ts.weight IS NOT NULL
+              AND ts.reps IS NOT NULL
+            THEN ts.weight::numeric * ts.reps
+            ELSE 0
+          END
+        ), 0) > 0
+      ORDER BY DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at)) ASC
+      `,
+      [input.userId, input.from, input.to],
+    )
+
+    return rows.map((row: { date: string; volume: number | string }) => ({
+      date: row.date,
+      volume: Number(row.volume) || 0,
+    }))
+  }
+
+  async getExerciseProgress(
+    input: ExerciseProgressRepositoryInput,
+  ): Promise<ExerciseProgressPoint[]> {
+    const rows = await this.trainings.manager.query(
+      `
+      SELECT
+        to_char(DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at)), 'YYYY-MM-DD') AS date,
+        MAX(CASE WHEN COALESCE(te.is_warmup, false) = false AND ts.completed = true THEN ts.weight::numeric END)::float AS max_weight,
+        COALESCE(MAX(
+          CASE
+            WHEN COALESCE(te.is_warmup, false) = false
+              AND ts.completed = true
+              AND ts.weight IS NOT NULL
+              AND ts.reps IS NOT NULL
+            THEN ts.weight::numeric * ts.reps
+            ELSE 0
+          END
+        ), 0)::float AS best_volume
+      FROM trainings t
+      INNER JOIN training_exercises te ON te.training_id = t.id
+      LEFT JOIN training_sets ts ON ts.training_exercise_id = te.id
+      WHERE t.user_id = $1
+        AND te.exercise_id = $2
+        AND COALESCE(te.is_warmup, false) = false
+        AND t.status IN ('finished', 'in_progress')
+        AND COALESCE(t.started_at, t.scheduled_at, t.created_at) >= $3::timestamptz
+        AND COALESCE(t.started_at, t.scheduled_at, t.created_at) <= $4::timestamptz
+      GROUP BY DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at))
+      ORDER BY DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at)) ASC
+      `,
+      [input.userId, input.exerciseId, input.from, input.to],
+    )
+
+    return rows.map(
+      (row: { date: string; max_weight: number | string | null; best_volume: number | string }) => ({
+        date: row.date,
+        maxWeight: row.max_weight == null ? null : Number(row.max_weight),
+        bestVolume: Number(row.best_volume) || 0,
+      }),
+    )
   }
 }

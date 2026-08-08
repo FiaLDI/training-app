@@ -3,8 +3,11 @@ import { TrainingStatus } from '../../../types'
 export interface CreateTrainingInput {
   userId: string
   templateId?: string | null
+  programId?: string | null
+  programDayId?: string | null
   status: TrainingStatus
-  startedAt: string
+  scheduledAt?: string | null
+  startedAt?: string | null
   finishedAt?: string | null
   notes?: string | null
   metadata?: Record<string, unknown>

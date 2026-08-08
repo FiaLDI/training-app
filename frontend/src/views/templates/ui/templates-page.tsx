@@ -22,8 +22,8 @@ export function TemplatesPage() {
   return (
     <div>
       <PageHeader
-        title="Templates"
-        description="Reusable workout blueprints."
+        title="Планы"
+        description="Состав тренировок: упражнения и подходы."
         action={<CreateTemplateForm />}
       />
 
@@ -31,7 +31,7 @@ export function TemplatesPage() {
       {loading && items.length === 0 ? (
         <CardGridSkeleton />
       ) : items.length === 0 ? (
-        <EmptyState>No templates yet. Create one and add exercises.</EmptyState>
+        <EmptyState>Пока нет планов. Создай один и добавь упражнения.</EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((template) => (

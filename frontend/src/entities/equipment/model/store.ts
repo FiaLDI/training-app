@@ -38,7 +38,7 @@ export const useEquipmentStore = create<EquipmentStore>((set) => ({
     } catch (error) {
       set({
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to load equipment',
+        error: error instanceof Error ? error.message : 'Не удалось загрузить инвентарь',
       })
     }
   },

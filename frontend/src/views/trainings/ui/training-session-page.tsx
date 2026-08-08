@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, CheckCircle2, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, CheckCircle2, Play, Trash2 } from 'lucide-react'
 
 import { AddTrainingExerciseForm } from '@/features/add-training-exercise/ui/add-training-exercise-form'
 import { LogSetForm } from '@/features/log-set/ui/log-set-form'
@@ -19,10 +20,12 @@ type Props = {
 }
 
 export function TrainingSessionPage({ id }: Props) {
+  const router = useRouter()
   const current = useTrainingStore((s) => s.current)
   const loading = useTrainingStore((s) => s.loading)
   const error = useTrainingStore((s) => s.error)
   const fetchOne = useTrainingStore((s) => s.fetchOne)
+  const start = useTrainingStore((s) => s.start)
   const finish = useTrainingStore((s) => s.finish)
   const remove = useTrainingStore((s) => s.remove)
   const removeSet = useTrainingStore((s) => s.removeSet)
@@ -42,10 +45,16 @@ export function TrainingSessionPage({ id }: Props) {
   }
 
   if (error || !current) {
-    return <p className="text-sm text-red-300">{error ?? 'Training not found'}</p>
+    return <p className="text-sm text-red-300">{error ?? 'Тренировка не найдена'}</p>
   }
 
   const canEdit = current.status === 'in_progress' || current.status === 'planned'
+  const whenLabel =
+    current.status === 'planned' && current.scheduledAt
+      ? `Запланировано ${new Date(current.scheduledAt).toLocaleString('ru-RU')}`
+      : current.startedAt
+        ? `Начата ${new Date(current.startedAt).toLocaleString('ru-RU')}`
+        : 'Не начата'
 
   return (
     <div>
@@ -54,19 +63,32 @@ export function TrainingSessionPage({ id }: Props) {
         className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
       >
         <ArrowLeft className="size-4" />
-        Trainings
+        Тренировки
       </Link>
 
       <PageHeader
-        title="Training session"
-        description={`Started ${new Date(current.startedAt).toLocaleString()}`}
+        title="Тренировка"
+        description={whenLabel}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <TrainingStatusBadge status={current.status} />
-            {canEdit ? (
+            {current.status === 'planned' ? (
+              <Button
+                type="button"
+                onClick={() =>
+                  void start(id).then(() => {
+                    router.refresh()
+                  })
+                }
+              >
+                <Play className="size-4" />
+                Старт
+              </Button>
+            ) : null}
+            {canEdit && current.status === 'in_progress' ? (
               <Button type="button" onClick={() => void finish(id)}>
                 <CheckCircle2 className="size-4" />
-                Finish
+                Завершить
               </Button>
             ) : null}
             <Button
@@ -85,7 +107,7 @@ export function TrainingSessionPage({ id }: Props) {
       />
 
       {current.exercises.length === 0 ? (
-        <EmptyState>Add exercises to start logging sets.</EmptyState>
+        <EmptyState>Добавь упражнения, чтобы записывать подходы.</EmptyState>
       ) : (
         <div className="space-y-4">
           {current.exercises.map((exercise) => (
@@ -97,14 +119,19 @@ export function TrainingSessionPage({ id }: Props) {
                 <div>
                   <h3 className="font-[family-name:var(--font-display)] text-lg">
                     {exerciseName(exercise.exerciseId)}
+                    {exercise.isWarmup ? (
+                      <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
+                        Разминка
+                      </span>
+                    ) : null}
                   </h3>
                   <p className="text-xs text-[var(--muted)]">
-                    Target {exercise.targetSets} sets
+                    Цель: {exercise.targetSets} подходов
                     {exercise.minReps != null || exercise.maxReps != null
-                      ? ` · ${exercise.minReps ?? '?'}–${exercise.maxReps ?? '?'} reps`
+                      ? ` · ${exercise.minReps ?? '?'}–${exercise.maxReps ?? '?'} повт.`
                       : ''}
                     {typeof exercise.metadata?.targetWeight === 'number'
-                      ? ` · ${exercise.metadata.targetWeight} kg`
+                      ? ` · ${exercise.metadata.targetWeight} кг`
                       : ''}
                   </p>
                 </div>
@@ -118,10 +145,9 @@ export function TrainingSessionPage({ id }: Props) {
                       className="flex items-center justify-between rounded-lg bg-[var(--surface-2)] px-3 py-2 text-sm"
                     >
                       <span>
-                        Set {set.setNumber}
-                        {set.weight != null ? ` · ${set.weight} kg` : ''}
-                        {set.reps != null ? ` · ${set.reps} reps` : ''}
-                        {set.rir != null ? ` · RIR ${set.rir}` : ''}
+                        Подход {set.setNumber}
+                        {set.weight != null ? ` · ${set.weight} кг` : ''}
+                        {set.reps != null ? ` · ${set.reps} повт.` : ''}
                       </span>
                       {canEdit ? (
                         <button
@@ -136,7 +162,7 @@ export function TrainingSessionPage({ id }: Props) {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-3 text-sm text-[var(--muted)]">No sets yet.</p>
+                <p className="mt-3 text-sm text-[var(--muted)]">Пока нет подходов.</p>
               )}
 
               {canEdit ? (

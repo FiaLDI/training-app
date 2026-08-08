@@ -7,7 +7,16 @@ export class UpdateTrainingUseCase implements UseCase<UpdateTrainingInput, Updat
   constructor(private readonly trainingRepository: TrainingRepositoryPort) {}
 
   public async execute(input: UpdateTrainingInput): Promise<UpdateTrainingOutput> {
-    const training = await this.trainingRepository.update(input)
+    const patch = { ...input }
+
+    if (input.status === 'in_progress' && input.startedAt === undefined) {
+      const existing = await this.trainingRepository.getById(input.id, input.userId)
+      if (existing && !existing.startedAt) {
+        patch.startedAt = new Date().toISOString()
+      }
+    }
+
+    const training = await this.trainingRepository.update(patch)
     return { training }
   }
 }

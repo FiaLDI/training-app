@@ -4,6 +4,7 @@ export interface CreateTrainingExerciseInput {
   exerciseId: string
   exerciseOrder: number
   targetSets: number
+  isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
   restSeconds?: number | null

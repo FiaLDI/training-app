@@ -5,4 +5,6 @@ export interface ListTrainingsInput {
   page: number
   limit: number
   status?: TrainingStatus
+  from?: string
+  to?: string
 }

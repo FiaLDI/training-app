@@ -24,6 +24,7 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
   const [targetWeight, setTargetWeight] = useState(
     item.targetWeight == null ? '' : String(item.targetWeight),
   )
+  const [isWarmup, setIsWarmup] = useState(item.isWarmup ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,6 +33,7 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
     setMinReps(item.minReps == null ? '' : String(item.minReps))
     setMaxReps(item.maxReps == null ? '' : String(item.maxReps))
     setTargetWeight(item.targetWeight == null ? '' : String(item.targetWeight))
+    setIsWarmup(item.isWarmup ?? false)
   }, [item])
 
   function cancelEdit() {
@@ -39,6 +41,7 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
     setMinReps(item.minReps == null ? '' : String(item.minReps))
     setMaxReps(item.maxReps == null ? '' : String(item.maxReps))
     setTargetWeight(item.targetWeight == null ? '' : String(item.targetWeight))
+    setIsWarmup(item.isWarmup ?? false)
     setError(null)
     setEditing(false)
   }
@@ -53,6 +56,7 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
         minReps: minReps === '' ? null : Number(minReps),
         maxReps: maxReps === '' ? null : Number(maxReps),
         targetWeight: targetWeight === '' ? null : Number(targetWeight),
+        isWarmup,
       })
       setEditing(false)
     } catch (err) {
@@ -66,13 +70,20 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
     return (
       <li className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
         <div>
-          <p className="text-sm text-[var(--foreground)]">{exerciseName}</p>
+          <p className="text-sm text-[var(--foreground)]">
+            {exerciseName}
+            {item.isWarmup ? (
+              <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
+                Разминка
+              </span>
+            ) : null}
+          </p>
           <p className="text-xs text-[var(--muted)]">
-            #{item.exerciseOrder + 1} · {item.targetSets} sets
+            #{item.exerciseOrder + 1} · {item.targetSets} подходов
             {item.minReps != null || item.maxReps != null
-              ? ` · ${item.minReps ?? '?'}–${item.maxReps ?? '?'} reps`
+              ? ` · ${item.minReps ?? '?'}–${item.maxReps ?? '?'} повт.`
               : ''}
-            {item.targetWeight != null ? ` · ${item.targetWeight} kg` : ''}
+            {item.targetWeight != null ? ` · ${item.targetWeight} кг` : ''}
           </p>
         </div>
         <div className="flex gap-1">
@@ -92,7 +103,7 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
       <p className="mb-3 text-sm text-[var(--foreground)]">{exerciseName}</p>
       <form onSubmit={onSave} className="flex flex-wrap items-end gap-2">
         <label className="space-y-1 text-xs text-[var(--muted)]">
-          Sets
+          Подходы
           <Input
             type="number"
             min="1"
@@ -102,7 +113,7 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
           />
         </label>
         <label className="space-y-1 text-xs text-[var(--muted)]">
-          Min reps
+          Мин. повт.
           <Input
             type="number"
             min="0"
@@ -112,7 +123,7 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
           />
         </label>
         <label className="space-y-1 text-xs text-[var(--muted)]">
-          Max reps
+          Макс. повт.
           <Input
             type="number"
             min="0"
@@ -122,7 +133,7 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
           />
         </label>
         <label className="space-y-1 text-xs text-[var(--muted)]">
-          Вес (kg)
+          Вес (кг)
           <Input
             type="number"
             min="0"
@@ -132,9 +143,18 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
             className="w-24"
           />
         </label>
+        <label className="flex items-center gap-2 pb-2 text-xs text-[var(--muted)]">
+          <input
+            type="checkbox"
+            checked={isWarmup}
+            onChange={(e) => setIsWarmup(e.target.checked)}
+            className="size-4 rounded border-[var(--border)]"
+          />
+          Разминка
+        </label>
         <Button type="submit" disabled={saving}>
           <Check className="size-4" />
-          Save
+          Сохранить
         </Button>
         <Button type="button" variant="ghost" onClick={cancelEdit}>
           <X className="size-4" />

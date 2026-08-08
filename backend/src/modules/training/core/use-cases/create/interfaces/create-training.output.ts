@@ -1,5 +1,5 @@
-import { Training } from '../../../types'
+import { TrainingWithDetails } from '../../../types'
 
 export interface CreateTrainingOutput {
-  training: Training
+  training: TrainingWithDetails
 }

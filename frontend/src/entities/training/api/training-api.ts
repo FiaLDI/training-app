@@ -13,11 +13,21 @@ import type {
 } from '../model/types'
 
 export const trainingApi = {
-  list(params: { page?: number; limit?: number; status?: TrainingStatus } = {}) {
+  list(
+    params: {
+      page?: number
+      limit?: number
+      status?: TrainingStatus
+      from?: string
+      to?: string
+    } = {},
+  ) {
     const search = new URLSearchParams()
     if (params.page) search.set('page', String(params.page))
     if (params.limit) search.set('limit', String(params.limit))
     if (params.status) search.set('status', params.status)
+    if (params.from) search.set('from', params.from)
+    if (params.to) search.set('to', params.to)
     const qs = search.toString()
     return apiRequest<ListTrainingsResult>(`/trainings${qs ? `?${qs}` : ''}`)
   },
@@ -27,7 +37,7 @@ export const trainingApi = {
   },
 
   create(input: CreateTrainingInput) {
-    return apiRequest<Training>('/trainings', { method: 'POST', body: input })
+    return apiRequest<TrainingWithDetails>('/trainings', { method: 'POST', body: input })
   },
 
   update(id: string, input: Partial<CreateTrainingInput>) {

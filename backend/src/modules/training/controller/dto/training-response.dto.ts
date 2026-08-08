@@ -48,6 +48,9 @@ export class TrainingExerciseResponseDto {
   @ApiProperty()
   targetSets!: number
 
+  @ApiProperty()
+  isWarmup!: boolean
+
   @ApiPropertyOptional({ nullable: true })
   minReps!: number | null
 
@@ -77,11 +80,20 @@ export class TrainingResponseDto {
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   templateId!: string | null
 
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  programId!: string | null
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  programDayId!: string | null
+
   @ApiProperty({ enum: ['planned', 'in_progress', 'finished', 'cancelled'] })
   status!: string
 
-  @ApiProperty()
-  startedAt!: string
+  @ApiPropertyOptional({ nullable: true })
+  scheduledAt!: string | null
+
+  @ApiPropertyOptional({ nullable: true })
+  startedAt!: string | null
 
   @ApiPropertyOptional({ nullable: true })
   finishedAt!: string | null

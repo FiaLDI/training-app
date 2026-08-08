@@ -23,9 +23,11 @@ type TrainingStore = {
   current: TrainingWithDetails | null
   loading: boolean
   error: string | null
-  fetchList: (params?: { limit?: number }) => Promise<void>
+  fetchList: (params?: { limit?: number; from?: string; to?: string }) => Promise<void>
   fetchOne: (id: string) => Promise<void>
   create: (input: CreateTrainingInput) => Promise<Training>
+  update: (id: string, input: Partial<CreateTrainingInput>) => Promise<void>
+  start: (id: string) => Promise<Training>
   finish: (id: string) => Promise<void>
   remove: (id: string) => Promise<void>
   addExercise: (trainingId: string, input: CreateTrainingExerciseInput) => Promise<void>
@@ -43,15 +45,22 @@ export const useTrainingStore = create<TrainingStore>((set) => ({
     set({ loading: true, error: null })
     try {
       if (isLocalMode()) {
-        set({ items: localData.trainings.list(), loading: false })
+        set({
+          items: localData.trainings.list({ from: params?.from, to: params?.to }),
+          loading: false,
+        })
         return
       }
-      const result = await trainingApi.list({ limit: params?.limit ?? 100 })
+      const result = await trainingApi.list({
+        limit: params?.limit ?? 100,
+        from: params?.from,
+        to: params?.to,
+      })
       set({ items: result.items, loading: false })
     } catch (error) {
       set({
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to load trainings',
+        error: error instanceof Error ? error.message : 'Не удалось загрузить тренировки',
       })
     }
   },
@@ -68,7 +77,7 @@ export const useTrainingStore = create<TrainingStore>((set) => ({
     } catch (error) {
       set({
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to load training',
+        error: error instanceof Error ? error.message : 'Не удалось загрузить тренировку',
       })
     }
   },
@@ -82,6 +91,49 @@ export const useTrainingStore = create<TrainingStore>((set) => ({
     const training = await trainingApi.create(input)
     set((state) => ({ items: [training, ...state.items] }))
     return training
+  },
+
+  async update(id, input) {
+    if (isLocalMode()) {
+      localData.trainings.update(id, input)
+      const current = localData.trainings.get(id)
+      set((state) => ({
+        current,
+        items: state.items.map((item) => (item.id === id && current ? current : item)),
+      }))
+      return
+    }
+    await trainingApi.update(id, input)
+    const current = await trainingApi.getById(id)
+    set((state) => ({
+      current,
+      items: state.items.map((item) => (item.id === id ? current : item)),
+    }))
+  },
+
+  async start(id) {
+    if (isLocalMode()) {
+      const training = localData.trainings.update(id, {
+        status: 'in_progress',
+        startedAt: new Date().toISOString(),
+      })
+      const current = localData.trainings.get(id)
+      set((state) => ({
+        current,
+        items: state.items.map((item) => (item.id === id && current ? current : item)),
+      }))
+      return training!
+    }
+    await trainingApi.update(id, {
+      status: 'in_progress',
+      startedAt: new Date().toISOString(),
+    })
+    const current = await trainingApi.getById(id)
+    set((state) => ({
+      current,
+      items: state.items.map((item) => (item.id === id ? current : item)),
+    }))
+    return current
   },
 
   async finish(id) {

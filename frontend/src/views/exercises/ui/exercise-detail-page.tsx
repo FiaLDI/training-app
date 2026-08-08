@@ -83,7 +83,7 @@ export function ExerciseDetailPage({ id }: Props) {
       setUrl('')
       await loadSources()
     } catch (err) {
-      setSourceError(err instanceof Error ? err.message : 'Failed to add source')
+      setSourceError(err instanceof Error ? err.message : 'Не удалось добавить источник')
     }
   }
 
@@ -112,7 +112,7 @@ export function ExerciseDetailPage({ id }: Props) {
   }
 
   if (error || !current) {
-    return <p className="text-sm text-red-300">{error ?? 'Exercise not found'}</p>
+    return <p className="text-sm text-red-300">{error ?? 'Упражнение не найдено'}</p>
   }
 
   const primaryUrl = getPrimaryImageUrl(current)
@@ -127,7 +127,7 @@ export function ExerciseDetailPage({ id }: Props) {
         className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
       >
         <ArrowLeft className="size-4" />
-        Exercises
+        Упражнения
       </Link>
 
       <PageHeader
@@ -138,7 +138,7 @@ export function ExerciseDetailPage({ id }: Props) {
             {!editing ? (
               <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
                 <Pencil className="size-4" />
-                Edit
+                Изменить
               </Button>
             ) : null}
             <Button
@@ -151,7 +151,7 @@ export function ExerciseDetailPage({ id }: Props) {
               }
             >
               <Trash2 className="size-4" />
-              Delete
+              Удалить
             </Button>
           </div>
         }
@@ -175,7 +175,7 @@ export function ExerciseDetailPage({ id }: Props) {
               className="size-full object-cover"
             />
             <span className="absolute top-3 left-3 rounded-md bg-[var(--accent)] px-2 py-1 text-xs font-medium text-[var(--accent-fg)]">
-              Main image
+              Главное изображение
             </span>
           </div>
         </div>
@@ -202,7 +202,7 @@ export function ExerciseDetailPage({ id }: Props) {
 
       {imageSources.length > 0 ? (
         <section className="mb-8">
-          <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl">Images</h2>
+          <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl">Изображения</h2>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {imageSources.map((source) => {
               const isPrimary = source.id === primarySourceId
@@ -220,20 +220,20 @@ export function ExerciseDetailPage({ id }: Props) {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={source.url}
-                      alt={source.title || 'Exercise image'}
+                      alt={source.title || 'Изображение упражнения'}
                       className="size-full object-cover"
                     />
                   </div>
                   <div className="flex items-center justify-between gap-2 px-3 py-2">
                     <p className="truncate text-xs text-[var(--muted)]">
-                      {source.title || 'image'}
+                      {source.title || 'изображение'}
                     </p>
                     <div className="flex shrink-0 gap-1">
                       <Button
                         type="button"
                         variant="ghost"
                         className="px-2"
-                        title={isPrimary ? 'Main image' : 'Set as main'}
+                        title={isPrimary ? 'Главное изображение' : 'Сделать главным'}
                         onClick={() => void onSetPrimary(source)}
                       >
                         <Star
@@ -260,7 +260,7 @@ export function ExerciseDetailPage({ id }: Props) {
         </section>
       ) : null}
 
-      <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl">Sources</h2>
+      <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl">Источники</h2>
       <ul className="mb-4 space-y-2">
         {otherSources.map((source) => (
           <li
@@ -295,23 +295,23 @@ export function ExerciseDetailPage({ id }: Props) {
         className="flex flex-wrap items-end gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4"
       >
         <label className="space-y-1 text-xs text-[var(--muted)]">
-          Type
+          Тип
           <Select value={type} onChange={(e) => setType(e.target.value)} className="w-32">
-            <option value="youtube">youtube</option>
-            <option value="article">article</option>
-            <option value="image">image</option>
-            <option value="other">other</option>
+            <option value="youtube">YouTube</option>
+            <option value="article">статья</option>
+            <option value="image">изображение</option>
+            <option value="other">другое</option>
           </Select>
         </label>
         <label className="min-w-40 flex-1 space-y-1 text-xs text-[var(--muted)]">
-          Title
+          Название
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
         <label className="min-w-56 flex-1 space-y-1 text-xs text-[var(--muted)]">
-          URL
+          Ссылка
           <Input required type="url" value={url} onChange={(e) => setUrl(e.target.value)} />
         </label>
-        <Button type="submit">Add source</Button>
+        <Button type="submit">Добавить источник</Button>
         {sourceError ? <p className="w-full text-sm text-red-300">{sourceError}</p> : null}
       </form>
     </div>

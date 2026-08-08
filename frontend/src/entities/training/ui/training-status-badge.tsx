@@ -9,10 +9,10 @@ const styles: Record<TrainingStatus, string> = {
 }
 
 const labels: Record<TrainingStatus, string> = {
-  planned: 'Planned',
-  in_progress: 'In progress',
-  finished: 'Finished',
-  cancelled: 'Cancelled',
+  planned: 'Запланирована',
+  in_progress: 'В процессе',
+  finished: 'Завершена',
+  cancelled: 'Отменена',
 }
 
 type Props = {
@@ -24,7 +24,7 @@ export function TrainingStatusBadge({ status, className }: Props) {
   return (
     <span
       className={cn(
-        'inline-flex rounded-md px-2 py-1 text-xs font-medium capitalize',
+        'inline-flex rounded-md px-2 py-1 text-xs font-medium',
         styles[status],
         className,
       )}

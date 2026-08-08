@@ -18,7 +18,7 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: 'IronLog',
-  description: 'Workout tracking app',
+  description: 'Приложение для учёта тренировок',
 }
 
 export default function RootLayout({
@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${syne.variable} ${dmSans.variable} h-full antialiased`}>
+    <html lang="ru" className={`${syne.variable} ${dmSans.variable} h-full antialiased`}>
       <body className="min-h-full">
         <AuthGate>{children}</AuthGate>
       </body>

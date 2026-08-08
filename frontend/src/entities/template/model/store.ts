@@ -54,7 +54,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
     } catch (error) {
       set({
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to load templates',
+        error: error instanceof Error ? error.message : 'Не удалось загрузить планы',
       })
     }
   },
@@ -71,7 +71,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
     } catch (error) {
       set({
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to load template',
+        error: error instanceof Error ? error.message : 'Не удалось загрузить план',
       })
     }
   },

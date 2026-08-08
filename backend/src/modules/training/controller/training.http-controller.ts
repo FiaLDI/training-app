@@ -80,17 +80,23 @@ export class TrainingHttpController {
     required: false,
     enum: ['planned', 'in_progress', 'finished', 'cancelled'],
   })
+  @ApiQuery({ name: 'from', required: false, description: 'ISO date lower bound' })
+  @ApiQuery({ name: 'to', required: false, description: 'ISO date upper bound' })
   async list(
     @CurrentUser() user: User,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
     @Query('status') status?: TrainingStatus,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     return this.listUseCase.execute({
       userId: user.id,
       page: Math.max(1, Number(page) || 1),
       limit: Math.min(100, Math.max(1, Number(limit) || 20)),
       status,
+      from,
+      to,
     })
   }
 

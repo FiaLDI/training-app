@@ -43,6 +43,7 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
       exerciseId: entity.exerciseId,
       exerciseOrder: entity.exerciseOrder,
       targetSets: entity.targetSets,
+      isWarmup: entity.isWarmup ?? false,
       minReps: entity.minReps,
       maxReps: entity.maxReps,
       targetWeight: entity.targetWeight === null ? null : Number(entity.targetWeight),
@@ -138,6 +139,7 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
       exerciseId: input.exerciseId,
       exerciseOrder: input.exerciseOrder,
       targetSets: input.targetSets,
+      isWarmup: input.isWarmup ?? false,
       minReps: input.minReps ?? null,
       maxReps: input.maxReps ?? null,
       targetWeight:
@@ -159,6 +161,7 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
 
     if (input.exerciseOrder !== undefined) entity.exerciseOrder = input.exerciseOrder
     if (input.targetSets !== undefined) entity.targetSets = input.targetSets
+    if (input.isWarmup !== undefined) entity.isWarmup = input.isWarmup
     if (input.minReps !== undefined) entity.minReps = input.minReps
     if (input.maxReps !== undefined) entity.maxReps = input.maxReps
     if (input.targetWeight !== undefined) {

@@ -27,9 +27,9 @@ export function CreateTemplateForm() {
         name,
         description: description || null,
       })
-      router.push(`/templates/${template.id}`)
+      router.push(`/plans/${template.id}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create')
+      setError(err instanceof Error ? err.message : 'Не удалось создать')
       setSaving(false)
     }
   }
@@ -38,7 +38,7 @@ export function CreateTemplateForm() {
     return (
       <Button type="button" onClick={() => setOpen(true)}>
         <Plus className="size-4" />
-        New template
+        Новый план
       </Button>
     )
   }
@@ -48,19 +48,19 @@ export function CreateTemplateForm() {
       onSubmit={onSubmit}
       className="w-full max-w-md space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4"
     >
-      <Input required placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+      <Input required placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} />
       <Textarea
-        placeholder="Description"
+        placeholder="Описание"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <div className="flex gap-2">
         <Button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : 'Create'}
+          {saving ? 'Сохранение…' : 'Создать'}
         </Button>
         <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
+          Отмена
         </Button>
       </div>
     </form>

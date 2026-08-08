@@ -4,8 +4,11 @@ export interface Training {
   id: string
   userId: string
   templateId: string | null
+  programId: string | null
+  programDayId: string | null
   status: TrainingStatus
-  startedAt: string
+  scheduledAt: string | null
+  startedAt: string | null
   finishedAt: string | null
   notes: string | null
   metadata: Record<string, unknown>
@@ -18,6 +21,7 @@ export interface TrainingExercise {
   exerciseId: string
   exerciseOrder: number
   targetSets: number
+  isWarmup: boolean
   minReps: number | null
   maxReps: number | null
   restSeconds: number | null
@@ -40,4 +44,15 @@ export interface TrainingSet {
 
 export interface TrainingWithDetails extends Training {
   exercises: Array<TrainingExercise & { sets: TrainingSet[] }>
+}
+
+export interface VolumeStatPoint {
+  date: string
+  volume: number
+}
+
+export interface ExerciseProgressPoint {
+  date: string
+  maxWeight: number | null
+  bestVolume: number
 }

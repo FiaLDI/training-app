@@ -56,7 +56,7 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
     } catch (error) {
       set({
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to load exercises',
+        error: error instanceof Error ? error.message : 'Не удалось загрузить упражнения',
       })
     }
   },
@@ -73,7 +73,7 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
     } catch (error) {
       set({
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to load exercise',
+        error: error instanceof Error ? error.message : 'Не удалось загрузить упражнение',
       })
     }
   },
@@ -92,7 +92,7 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
   async update(id, input) {
     if (isLocalMode()) {
       const exercise = localData.exercises.update(id, input)
-      if (!exercise) throw new Error('Exercise not found')
+      if (!exercise) throw new Error('Упражнение не найдено')
       set((state) => ({
         items: state.items.map((item) => (item.id === id ? exercise : item)),
         current: state.current?.id === id ? exercise : state.current,

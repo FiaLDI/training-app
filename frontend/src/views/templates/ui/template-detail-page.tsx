@@ -40,17 +40,17 @@ export function TemplateDetailPage({ id }: Props) {
   }
 
   if (error || !current) {
-    return <p className="text-sm text-red-300">{error ?? 'Template not found'}</p>
+    return <p className="text-sm text-red-300">{error ?? 'План не найден'}</p>
   }
 
   return (
     <div>
       <Link
-        href="/templates"
+        href="/plans"
         className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
       >
         <ArrowLeft className="size-4" />
-        Templates
+        Планы
       </Link>
 
       <PageHeader
@@ -64,20 +64,20 @@ export function TemplateDetailPage({ id }: Props) {
               type="button"
               onClick={() =>
                 void remove(id).then(() => {
-                  window.location.href = '/templates'
+                  window.location.href = '/plans'
                 })
               }
             >
               <Trash2 className="size-4" />
-              Delete
+              Удалить
             </Button>
           </div>
         }
       />
 
-      <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl">Exercises</h2>
+      <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl">Упражнения</h2>
       {current.exercises.length === 0 ? (
-        <EmptyState>No exercises in this template yet.</EmptyState>
+        <EmptyState>В этом плане пока нет упражнений.</EmptyState>
       ) : (
         <ul className="space-y-2">
           {current.exercises.map((item) => (

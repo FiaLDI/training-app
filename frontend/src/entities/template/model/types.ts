@@ -13,6 +13,7 @@ export type TemplateExercise = {
   exerciseId: string
   exerciseOrder: number
   targetSets: number
+  isWarmup: boolean
   minReps: number | null
   maxReps: number | null
   targetWeight: number | null
@@ -34,6 +35,7 @@ export type CreateTemplateExerciseInput = {
   exerciseId: string
   exerciseOrder: number
   targetSets: number
+  isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
   targetWeight?: number | null
@@ -44,6 +46,7 @@ export type CreateTemplateExerciseInput = {
 export type UpdateTemplateExerciseInput = {
   exerciseOrder?: number
   targetSets?: number
+  isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
   targetWeight?: number | null

@@ -74,7 +74,7 @@ export function CreateExerciseForm({ onCreated }: Props) {
       setOpen(false)
       onCreated?.()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create')
+      setError(err instanceof Error ? err.message : 'Не удалось создать')
     } finally {
       setSaving(false)
     }
@@ -84,7 +84,7 @@ export function CreateExerciseForm({ onCreated }: Props) {
     return (
       <Button type="button" onClick={() => setOpen(true)}>
         <Plus className="size-4" />
-        New exercise
+        Новое упражнение
       </Button>
     )
   }
@@ -96,12 +96,12 @@ export function CreateExerciseForm({ onCreated }: Props) {
     >
       <Input
         required
-        placeholder="Name"
+        placeholder="Название"
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
       <Textarea
-        placeholder="Description"
+        placeholder="Описание"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
@@ -168,10 +168,10 @@ export function CreateExerciseForm({ onCreated }: Props) {
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <div className="flex gap-2">
         <Button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : 'Create'}
+          {saving ? 'Сохранение…' : 'Создать'}
         </Button>
         <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
+          Отмена
         </Button>
       </div>
     </form>

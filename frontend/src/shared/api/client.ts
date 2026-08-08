@@ -55,6 +55,18 @@ export async function apiRequest<T>(
       // ignore parse errors
     }
 
+    if (!message || message === response.statusText) {
+      const fallback: Record<number, string> = {
+        400: 'Некорректный запрос',
+        401: 'Нужна авторизация',
+        403: 'Доступ запрещён',
+        404: 'Не найдено',
+        409: 'Конфликт данных',
+        500: 'Ошибка сервера',
+      }
+      message = fallback[response.status] ?? `Ошибка ${response.status}`
+    }
+
     if (response.status === 401 && typeof window !== 'undefined' && !skipAuth) {
       try {
         localStorage.removeItem('ironlog:session')

@@ -33,8 +33,8 @@ export function ExercisesPage() {
   return (
     <div>
       <PageHeader
-        title="Exercises"
-        description="Build your library of movements."
+        title="Упражнения"
+        description="Собери свою библиотеку движений."
         action={<CreateExerciseForm onCreated={() => void fetchList()} />}
       />
 
@@ -42,7 +42,7 @@ export function ExercisesPage() {
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--muted)]" />
         <Input
           className="pl-10"
-          placeholder="Search exercises…"
+          placeholder="Поиск упражнений…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -52,7 +52,7 @@ export function ExercisesPage() {
       {loading && items.length === 0 ? (
         <CardGridSkeleton />
       ) : items.length === 0 ? (
-        <EmptyState>No exercises yet. Create one to get started.</EmptyState>
+        <EmptyState>Пока нет упражнений. Создай первое.</EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((exercise) => (

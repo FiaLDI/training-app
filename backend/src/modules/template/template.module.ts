@@ -75,6 +75,7 @@ import { WorkoutTemplateEntity } from './core/entity/workout-template.entity'
     CreateTemplateUseCase,
     UpdateTemplateUseCase,
     DeleteTemplateUseCase,
+    TemplateTypeormRepository,
     TEMPLATE_REPOSITORY_PORT,
   ],
 })

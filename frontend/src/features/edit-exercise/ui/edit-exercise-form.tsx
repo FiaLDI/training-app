@@ -76,7 +76,7 @@ export function EditExerciseForm({ exercise, onCancel, onSaved }: Props) {
       })
       onSaved?.()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update')
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить')
     } finally {
       setSaving(false)
     }
@@ -89,12 +89,12 @@ export function EditExerciseForm({ exercise, onCancel, onSaved }: Props) {
     >
       <Input
         required
-        placeholder="Name"
+        placeholder="Название"
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
       <Textarea
-        placeholder="Description"
+        placeholder="Описание"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
@@ -161,10 +161,10 @@ export function EditExerciseForm({ exercise, onCancel, onSaved }: Props) {
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <div className="flex gap-2">
         <Button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Сохранение…' : 'Сохранить'}
         </Button>
         <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancel
+          Отмена
         </Button>
       </div>
     </form>

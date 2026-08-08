@@ -26,8 +26,8 @@ export function TrainingsPage() {
   return (
     <div>
       <PageHeader
-        title="Trainings"
-        description="History of your sessions."
+        title="Тренировки"
+        description="История ваших сессий."
         action={<StartTrainingButton />}
       />
 
@@ -35,7 +35,7 @@ export function TrainingsPage() {
       {loading && items.length === 0 ? (
         <ListSkeleton />
       ) : items.length === 0 ? (
-        <EmptyState>No trainings logged yet.</EmptyState>
+        <EmptyState>Пока нет записанных тренировок.</EmptyState>
       ) : (
         <ul className="space-y-3">
           {items.map((training) => (
@@ -46,11 +46,15 @@ export function TrainingsPage() {
               >
                 <div>
                   <p className="text-sm text-[var(--foreground)]">
-                    {new Date(training.startedAt).toLocaleString()}
+                    {training.startedAt
+                      ? new Date(training.startedAt).toLocaleString('ru-RU')
+                      : training.scheduledAt
+                        ? `Запланировано ${new Date(training.scheduledAt).toLocaleString('ru-RU')}`
+                        : 'Без названия'}
                   </p>
                   {training.finishedAt ? (
                     <p className="text-xs text-[var(--muted)]">
-                      Finished {new Date(training.finishedAt).toLocaleString()}
+                      Завершена {new Date(training.finishedAt).toLocaleString('ru-RU')}
                     </p>
                   ) : null}
                 </div>

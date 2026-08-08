@@ -20,6 +20,7 @@ export function AddTrainingExerciseForm({ trainingId, nextOrder }: Props) {
   const addExercise = useTrainingStore((s) => s.addExercise)
   const [exerciseId, setExerciseId] = useState('')
   const [targetSets, setTargetSets] = useState('3')
+  const [isWarmup, setIsWarmup] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,10 +38,12 @@ export function AddTrainingExerciseForm({ trainingId, nextOrder }: Props) {
         exerciseId,
         exerciseOrder: nextOrder,
         targetSets: Number(targetSets) || 3,
+        isWarmup,
       })
       setExerciseId('')
+      setIsWarmup(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add exercise')
+      setError(err instanceof Error ? err.message : 'Не удалось добавить упражнение')
     } finally {
       setSaving(false)
     }
@@ -52,9 +55,9 @@ export function AddTrainingExerciseForm({ trainingId, nextOrder }: Props) {
       className="mt-4 flex flex-wrap items-end gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4"
     >
       <label className="min-w-56 flex-1 space-y-1 text-xs text-[var(--muted)]">
-        Exercise
+        Упражнение
         <Select required value={exerciseId} onChange={(e) => setExerciseId(e.target.value)}>
-          <option value="">Select…</option>
+          <option value="">Выберите…</option>
           {exercises.map((exercise) => (
             <option key={exercise.id} value={exercise.id}>
               {exercise.name}
@@ -63,7 +66,7 @@ export function AddTrainingExerciseForm({ trainingId, nextOrder }: Props) {
         </Select>
       </label>
       <label className="space-y-1 text-xs text-[var(--muted)]">
-        Target sets
+        Целевые подходы
         <Input
           type="number"
           min="1"
@@ -72,9 +75,18 @@ export function AddTrainingExerciseForm({ trainingId, nextOrder }: Props) {
           className="w-24"
         />
       </label>
+      <label className="flex items-center gap-2 pb-2 text-xs text-[var(--muted)]">
+        <input
+          type="checkbox"
+          checked={isWarmup}
+          onChange={(e) => setIsWarmup(e.target.checked)}
+          className="size-4 rounded border-[var(--border)]"
+        />
+        Разминка
+      </label>
       <Button type="submit" disabled={saving || !exerciseId}>
         <Plus className="size-4" />
-        Add to session
+        Добавить в сессию
       </Button>
       {error ? <p className="w-full text-sm text-red-300">{error}</p> : null}
     </form>

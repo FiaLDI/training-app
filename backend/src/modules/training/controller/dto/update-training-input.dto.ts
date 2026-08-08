@@ -7,10 +7,15 @@ export class UpdateTrainingInputDto {
   @IsIn(['planned', 'in_progress', 'finished', 'cancelled'])
   status?: 'planned' | 'in_progress' | 'finished' | 'cancelled'
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsDateString()
-  startedAt?: string
+  scheduledAt?: string | null
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsDateString()
+  startedAt?: string | null
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()

@@ -16,6 +16,9 @@ export class TemplateExerciseResponseDto {
   @ApiProperty()
   targetSets!: number
 
+  @ApiProperty()
+  isWarmup!: boolean
+
   @ApiPropertyOptional({ nullable: true })
   minReps!: number | null
 

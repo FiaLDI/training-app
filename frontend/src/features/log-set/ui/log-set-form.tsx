@@ -25,7 +25,6 @@ export function LogSetForm({
     defaultWeight == null ? '' : String(defaultWeight),
   )
   const [reps, setReps] = useState('')
-  const [rir, setRir] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,14 +37,12 @@ export function LogSetForm({
         setNumber: nextSetNumber,
         weight: weight === '' ? null : Number(weight),
         reps: reps === '' ? null : Number(reps),
-        rir: rir === '' ? null : Number(rir),
         completed: true,
       })
       setWeight(defaultWeight == null ? '' : String(defaultWeight))
       setReps('')
-      setRir('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to log set')
+      setError(err instanceof Error ? err.message : 'Не удалось записать подход')
     } finally {
       setSaving(false)
     }
@@ -74,19 +71,9 @@ export function LogSetForm({
           className="w-20"
         />
       </label>
-      <label className="space-y-1 text-xs text-[var(--muted)]">
-        Запас силы (1-10)
-        <Input
-          type="number"
-          min="0"
-          value={rir}
-          onChange={(e) => setRir(e.target.value)}
-          className="w-20"
-        />
-      </label>
       <Button type="submit" disabled={saving} className="h-[42px]">
         <Plus className="size-4" />
-        Set {nextSetNumber}
+        Подход {nextSetNumber}
       </Button>
       {error ? <p className="w-full text-sm text-red-300">{error}</p> : null}
     </form>

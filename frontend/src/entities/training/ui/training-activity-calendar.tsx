@@ -14,7 +14,9 @@ type Props = {
 
 export function TrainingActivityCalendar({ trainings, className }: Props) {
   const { months, total } = buildActivityMonths(
-    trainings.filter((t) => t.status !== 'cancelled').map((t) => t.startedAt),
+    trainings
+      .filter((t) => (t.status === 'finished' || t.status === 'in_progress') && t.startedAt)
+      .map((t) => t.startedAt as string),
     new Date(),
     3,
   )
@@ -38,15 +40,15 @@ export function TrainingActivityCalendar({ trainings, className }: Props) {
     <section className={cn('mb-10', className)}>
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Consistency</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Регулярность</p>
           <p className="mt-1 font-[family-name:var(--font-display)] text-3xl tracking-tight">
             {total}
             <span className="ml-2 text-base font-normal text-[var(--muted)]">
-              {total === 1 ? 'day' : 'days'} trained
+              {total === 1 ? 'день с тренировкой' : 'дней с тренировкой'}
             </span>
           </p>
         </div>
-        <p className="pb-1 text-xs text-[var(--muted)]">±2 months</p>
+        <p className="pb-1 text-xs text-[var(--muted)]">±2 месяца</p>
       </div>
 
       <div ref={scrollRef} className="-mx-1 px-1 pb-1">
@@ -78,8 +80,8 @@ export function TrainingActivityCalendar({ trainings, className }: Props) {
                     }
 
                     const title = day.trained
-                      ? `${day.date}: workout`
-                      : `${day.date}: rest`
+                      ? `${day.date}: тренировка`
+                      : `${day.date}: отдых`
 
                     const cellClass = cn(
                       'aspect-square rounded-md transition',
@@ -117,15 +119,15 @@ export function TrainingActivityCalendar({ trainings, className }: Props) {
       <div className="mt-4 flex items-center gap-4 text-[11px] text-[var(--muted)]">
         <span className="inline-flex items-center gap-1.5">
           <span className="size-3.5 rounded-md bg-[var(--border)]/70" />
-          Past
+          Прошлое
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="size-3.5 rounded-md border border-[var(--border)]" />
-          Ahead
+          Впереди
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="size-3.5 rounded-md bg-[var(--accent)]" />
-          Trained
+          Тренировка
         </span>
       </div>
     </section>

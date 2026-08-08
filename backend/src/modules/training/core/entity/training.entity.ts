@@ -16,11 +16,20 @@ export class TrainingEntity {
   @Column({ name: 'template_id', type: 'uuid', nullable: true })
   templateId!: string | null
 
+  @Column({ name: 'program_id', type: 'uuid', nullable: true })
+  programId!: string | null
+
+  @Column({ name: 'program_day_id', type: 'uuid', nullable: true })
+  programDayId!: string | null
+
   @Column({ type: 'text' })
   status!: string
 
-  @Column({ name: 'started_at', type: 'timestamptz' })
-  startedAt!: Date
+  @Column({ name: 'scheduled_at', type: 'timestamptz', nullable: true })
+  scheduledAt!: Date | null
+
+  @Column({ name: 'started_at', type: 'timestamptz', nullable: true })
+  startedAt!: Date | null
 
   @Column({ name: 'finished_at', type: 'timestamptz', nullable: true })
   finishedAt!: Date | null

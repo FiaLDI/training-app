@@ -3,8 +3,11 @@ export type TrainingStatus = 'planned' | 'in_progress' | 'finished' | 'cancelled
 export type Training = {
   id: string
   templateId: string | null
+  programId: string | null
+  programDayId: string | null
   status: TrainingStatus
-  startedAt: string
+  scheduledAt: string | null
+  startedAt: string | null
   finishedAt: string | null
   notes: string | null
   metadata: Record<string, unknown>
@@ -17,6 +20,7 @@ export type TrainingExercise = {
   exerciseId: string
   exerciseOrder: number
   targetSets: number
+  isWarmup: boolean
   minReps: number | null
   maxReps: number | null
   restSeconds: number | null
@@ -43,8 +47,11 @@ export type TrainingWithDetails = Training & {
 
 export type CreateTrainingInput = {
   templateId?: string | null
+  programId?: string | null
+  programDayId?: string | null
   status: TrainingStatus
-  startedAt: string
+  scheduledAt?: string | null
+  startedAt?: string | null
   finishedAt?: string | null
   notes?: string | null
 }
@@ -53,6 +60,7 @@ export type CreateTrainingExerciseInput = {
   exerciseId: string
   exerciseOrder: number
   targetSets: number
+  isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
   restSeconds?: number | null

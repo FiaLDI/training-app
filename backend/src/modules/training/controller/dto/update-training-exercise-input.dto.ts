@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger'
-import { IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator'
+import { IsBoolean, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator'
 
 export class UpdateTrainingExerciseInputDto {
   @ApiPropertyOptional({ minimum: 0 })
@@ -13,6 +13,11 @@ export class UpdateTrainingExerciseInputDto {
   @IsInt()
   @Min(1)
   targetSets?: number
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isWarmup?: boolean
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()

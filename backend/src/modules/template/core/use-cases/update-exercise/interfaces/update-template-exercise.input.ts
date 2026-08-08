@@ -3,6 +3,7 @@ export interface UpdateTemplateExerciseInput {
   id: string
   exerciseOrder?: number
   targetSets?: number
+  isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
   targetWeight?: number | null

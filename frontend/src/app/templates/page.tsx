@@ -1,5 +1,5 @@
-import { TemplatesPage } from '@/views/templates/ui/templates-page'
+import { redirect } from 'next/navigation'
 
 export default function Page() {
-  return <TemplatesPage />
+  redirect('/plans')
 }

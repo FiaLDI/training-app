@@ -37,7 +37,7 @@ export function ExerciseCard({ exercise }: Props) {
           </h3>
         </div>
         <p className="mt-2 line-clamp-2 text-sm text-[var(--muted)]">
-          {exercise.description || 'No description'}
+          {exercise.description || 'Без описания'}
         </p>
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
           {muscleGroups.map((group) => (
