@@ -1,15 +1,19 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useSessionStore } from '@/entities/session/model/store'
 import { statsApi } from '@/entities/stats/api/stats-api'
 import type { ExerciseProgressPoint, VolumeStatPoint } from '@/entities/stats/model/types'
 import { SimpleBarChart } from '@/entities/stats/ui/simple-bar-chart'
+import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
+import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
 import { localData } from '@/shared/lib/local-data'
+import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Select } from '@/shared/ui/select'
 
@@ -30,6 +34,17 @@ function formatNumber(value: number, digits = 0) {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   })
+}
+
+function formatDuration(startedAt: string | null, finishedAt: string | null) {
+  if (!startedAt || !finishedAt) return null
+  const ms = new Date(finishedAt).getTime() - new Date(startedAt).getTime()
+  if (ms <= 0) return null
+  const totalMin = Math.round(ms / 60000)
+  if (totalMin < 60) return `${totalMin} мин`
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return m > 0 ? `${h} ч ${m} мин` : `${h} ч`
 }
 
 type MetricCardProps = {
@@ -54,6 +69,8 @@ export function StatsPage() {
   const mode = useSessionStore((s) => s.mode)
   const exercises = useExerciseStore((s) => s.items)
   const fetchExercises = useExerciseStore((s) => s.fetchList)
+  const templates = useTemplateStore((s) => s.items)
+  const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const trainings = useTrainingStore((s) => s.items)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
   const [volume, setVolume] = useState<VolumeStatPoint[]>([])
@@ -64,8 +81,9 @@ export function StatsPage() {
 
   useEffect(() => {
     void fetchExercises()
+    void fetchTemplates()
     void fetchTrainings({ from: range.from, to: range.to, limit: 100 })
-  }, [fetchExercises, fetchTrainings, range.from, range.to])
+  }, [fetchExercises, fetchTemplates, fetchTrainings, range.from, range.to])
 
   useEffect(() => {
     if (!exerciseId && exercises.length > 0) {
@@ -150,6 +168,21 @@ export function StatsPage() {
       return ms >= fromMs && ms <= toMs
     })
   }, [trainings, range.from, range.to])
+
+  const finishedTrainings = useMemo(() => {
+    return sessions
+      .filter((t) => t.status === 'finished')
+      .sort((a, b) => {
+        const aKey = a.finishedAt ?? a.startedAt ?? a.createdAt
+        const bKey = b.finishedAt ?? b.startedAt ?? b.createdAt
+        return bKey.localeCompare(aKey)
+      })
+  }, [sessions])
+
+  function trainingLabel(templateId: string | null) {
+    if (!templateId) return 'Тренировка'
+    return templates.find((t) => t.id === templateId)?.name ?? 'Тренировка'
+  }
 
   const overview = useMemo(() => {
     const totalVolume = volume.reduce((sum, p) => sum + p.volume, 0)
@@ -283,7 +316,7 @@ export function StatsPage() {
         <SimpleBarChart points={volumeChart} unit="кг×повт." />
       </section>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section className="mb-10 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-[family-name:var(--font-display)] text-xl">Прогресс по упражнению</h2>
@@ -354,6 +387,43 @@ export function StatsPage() {
             />
           </div>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <div className="mb-4">
+          <h2 className="font-[family-name:var(--font-display)] text-xl">Завершённые тренировки</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">За последние 28 дней</p>
+        </div>
+
+        {finishedTrainings.length === 0 ? (
+          <EmptyState>Пока нет завершённых тренировок за этот период.</EmptyState>
+        ) : (
+          <ul className="space-y-2">
+            {finishedTrainings.map((training) => {
+              const when = training.finishedAt ?? training.startedAt ?? training.createdAt
+              const duration = formatDuration(training.startedAt, training.finishedAt)
+              return (
+                <li key={training.id}>
+                  <Link
+                    href={`/trainings/${training.id}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-4 py-3 transition hover:border-[var(--accent)]/30"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                        {trainingLabel(training.templateId)}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">
+                        {new Date(when).toLocaleString('ru-RU')}
+                        {duration ? ` · ${duration}` : ''}
+                      </p>
+                    </div>
+                    <TrainingStatusBadge status={training.status} />
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </section>
     </div>
   )

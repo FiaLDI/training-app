@@ -116,9 +116,10 @@ export function RestTimerBar({
 
 type SessionClockProps = {
   startedAt: string
+  restSeconds?: number
 }
 
-export function SessionClock({ startedAt }: SessionClockProps) {
+export function SessionClock({ startedAt, restSeconds = 0 }: SessionClockProps) {
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -128,10 +129,13 @@ export function SessionClock({ startedAt }: SessionClockProps) {
 
   const started = new Date(startedAt).getTime()
   const elapsed = Math.max(0, Math.floor((now - started) / 1000))
+  const work = Math.max(0, elapsed - Math.max(0, restSeconds))
 
   return (
-    <span className="tabular-nums text-[var(--muted)]">
-      В зале: {formatTime(elapsed)}
+    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums text-[var(--muted)]">
+      <span>В зале: {formatTime(elapsed)}</span>
+      <span>Работа: {formatTime(work)}</span>
+      {restSeconds > 0 ? <span>Отдых: {formatTime(restSeconds)}</span> : null}
     </span>
   )
 }

@@ -39,6 +39,7 @@ export function TrainingSessionPage({ id }: Props) {
   const [timerRunning, setTimerRunning] = useState(false)
   const [timerTotal, setTimerTotal] = useState(DEFAULT_REST_SECONDS)
   const [secondsLeft, setSecondsLeft] = useState(DEFAULT_REST_SECONDS)
+  const [restAccumulated, setRestAccumulated] = useState(0)
 
   useEffect(() => {
     void fetchOne(id)
@@ -48,6 +49,7 @@ export function TrainingSessionPage({ id }: Props) {
   useEffect(() => {
     if (!timerOpen || !timerRunning || secondsLeft <= 0) return
     const interval = window.setInterval(() => {
+      setRestAccumulated((value) => value + 1)
       setSecondsLeft((value) => {
         if (value <= 1) {
           setTimerRunning(false)
@@ -117,7 +119,7 @@ export function TrainingSessionPage({ id }: Props) {
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{whenLabel}</span>
             {current.status === 'in_progress' && current.startedAt ? (
-              <SessionClock startedAt={current.startedAt} />
+              <SessionClock startedAt={current.startedAt} restSeconds={restAccumulated} />
             ) : null}
           </span>
         }
