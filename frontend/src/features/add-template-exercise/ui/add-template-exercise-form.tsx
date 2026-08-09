@@ -3,11 +3,11 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
 
+import { ExerciseCombobox } from '@/entities/exercise/ui/exercise-combobox'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
-import { Select } from '@/shared/ui/select'
 
 type Props = {
   templateId: string
@@ -28,7 +28,7 @@ export function AddTemplateExerciseForm({ templateId, nextOrder }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    void fetchExercises()
+    void fetchExercises('')
   }, [fetchExercises])
 
   async function onSubmit(event: FormEvent) {
@@ -63,14 +63,12 @@ export function AddTemplateExerciseForm({ templateId, nextOrder }: Props) {
     >
       <label className="min-w-56 flex-1 space-y-1 text-xs text-[var(--muted)]">
         Упражнение
-        <Select required value={exerciseId} onChange={(e) => setExerciseId(e.target.value)}>
-          <option value="">Выберите…</option>
-          {exercises.map((exercise) => (
-            <option key={exercise.id} value={exercise.id}>
-              {exercise.name}
-            </option>
-          ))}
-        </Select>
+        <ExerciseCombobox
+          exercises={exercises}
+          value={exerciseId}
+          onChange={setExerciseId}
+          placeholder="Найти упражнение…"
+        />
       </label>
       <label className="space-y-1 text-xs text-[var(--muted)]">
         Подходы

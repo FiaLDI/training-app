@@ -82,6 +82,10 @@ function weekTitle(weekStart: Date) {
   return `${Math.abs(offset)} нед. назад`
 }
 
+function scheduledAtNoonUtc(date: Date) {
+  return `${toDateKey(date)}T12:00:00.000Z`
+}
+
 export function PlanPage() {
   const router = useRouter()
   const todayWeek = useMemo(() => startOfWeekMonday(new Date()), [])
@@ -90,6 +94,7 @@ export function PlanPage() {
   const loading = useTrainingStore((s) => s.loading)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
   const create = useTrainingStore((s) => s.create)
+  const update = useTrainingStore((s) => s.update)
   const start = useTrainingStore((s) => s.start)
   const programs = useProgramStore((s) => s.items)
   const currentProgram = useProgramStore((s) => s.current)
@@ -197,12 +202,42 @@ export function PlanPage() {
     })
   }
 
-  function scheduleTemplateId(dayOfWeek: number) {
+  function primaryTraining(date: Date) {
+    const dayTrainings = trainingsForDay(date)
+    return (
+      dayTrainings.find((t) => t.status === 'in_progress') ??
+      dayTrainings.find((t) => t.status === 'planned') ??
+      dayTrainings.find((t) => t.status === 'finished') ??
+      null
+    )
+  }
+
+  /** Plan for this calendar day (week-specific), not the recurring program. */
+  function weekDayTemplateId(date: Date) {
+    const dayTrainings = trainingsForDay(date)
+    const editable =
+      dayTrainings.find((t) => t.status === 'in_progress') ??
+      dayTrainings.find((t) => t.status === 'planned') ??
+      null
+    return editable?.templateId ?? ''
+  }
+
+  function programDayTemplateId(dayOfWeek: number) {
     if (!currentProgram || currentProgram.id !== programId) return ''
     const primary = currentProgram.days
       .filter((d) => d.dayOfWeek === dayOfWeek)
       .sort((a, b) => a.slotOrder - b.slotOrder)[0]
     return primary?.templateId ?? ''
+  }
+
+  function primaryProgramDay(dayOfWeek: number) {
+    const program = useProgramStore.getState().current
+    if (!program || program.id !== programId) return null
+    return (
+      program.days
+        .filter((d) => d.dayOfWeek === dayOfWeek)
+        .sort((a, b) => a.slotOrder - b.slotOrder)[0] ?? null
+    )
   }
 
   async function upsertScheduleDay(dayOfWeek: number, templateId: string) {
@@ -231,27 +266,84 @@ export function PlanPage() {
     }
   }
 
+  async function refreshWeekTrainings() {
+    await fetchTrainings({ from, to, limit: 100 })
+  }
+
   async function onDayPlanChange(dayOfWeek: number, date: Date, templateId: string) {
+    setSavingDay(dayOfWeek)
+    try {
+      const existing = trainingsForDay(date)
+      if (existing.some((t) => t.status === 'in_progress')) return
+
+      const planned = existing.filter((t) => t.status === 'planned')
+      const matching = planned.find((t) => t.templateId === templateId)
+      const programDay = primaryProgramDay(dayOfWeek)
+
+      for (const training of planned) {
+        if (matching && training.id === matching.id) continue
+        await update(training.id, {
+          status: 'cancelled',
+          // Keep/link program day so apply won't recreate this calendar slot.
+          ...(programDay
+            ? { programId, programDayId: programDay.id }
+            : {}),
+        })
+      }
+
+      if (!templateId) {
+        await refreshWeekTrainings()
+        return
+      }
+
+      if (matching) {
+        if (programDay && (!matching.programDayId || matching.programId !== programId)) {
+          await update(matching.id, {
+            programId,
+            programDayId: programDay.id,
+          })
+        }
+        await refreshWeekTrainings()
+        return
+      }
+
+      await create({
+        templateId,
+        status: 'planned',
+        scheduledAt: scheduledAtNoonUtc(date),
+        programId: programDay ? programId : null,
+        programDayId: programDay?.id ?? null,
+      })
+      await refreshWeekTrainings()
+    } finally {
+      setSavingDay(null)
+    }
+  }
+
+  async function saveDayToProgram(dayOfWeek: number, date: Date) {
     if (!programId) return
     setSavingDay(dayOfWeek)
     try {
+      const dateKey = toDateKey(date)
+      const templateId = weekDayTemplateId(date)
       await upsertScheduleDay(dayOfWeek, templateId)
 
-      const existing = trainingsForDay(date)
-      const hasActive = existing.some((t) => t.status === 'in_progress' || t.status === 'finished')
-      if (hasActive) return
-
-      const planned = existing.filter((t) => t.status === 'planned')
-      if (!templateId) return
-
-      if (planned.length === 0) {
-        const scheduledAt = new Date(`${toDateKey(date)}T12:00:00`).toISOString()
-        await create({
-          templateId,
-          status: 'planned',
-          scheduledAt,
+      const programDay = primaryProgramDay(dayOfWeek)
+      const primaryPlanned = useTrainingStore
+        .getState()
+        .items.filter((t) => {
+          if (t.status !== 'planned') return false
+          const when = t.scheduledAt ?? t.startedAt ?? t.createdAt
+          return toDateKey(new Date(when)) === dateKey
         })
-        await fetchTrainings({ from, to, limit: 100 })
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]
+
+      if (programDay && primaryPlanned) {
+        await update(primaryPlanned.id, {
+          programId,
+          programDayId: programDay.id,
+          templateId: primaryPlanned.templateId,
+        })
       }
     } finally {
       setSavingDay(null)
@@ -292,6 +384,14 @@ export function PlanPage() {
           {weekTitle(weekStart)}
         </h1>
         <p className="mt-1 text-sm text-[var(--muted)]">{formatWeekRange(weekStart)}</p>
+        <p className="mt-2 text-sm text-[var(--muted)]">
+          План дня действует только на эту неделю. Чтобы повторять каждую неделю — «Как каждую
+          неделю» или{' '}
+          <Link href={programId ? `/programs/${programId}` : '/programs'} className="text-[var(--accent)] hover:underline">
+            программа
+          </Link>
+          .
+        </p>
       </div>
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -359,12 +459,15 @@ export function PlanPage() {
           const key = toDateKey(date)
           const dayTrainings = trainingsForDay(date)
           const isToday = sameDay(date, new Date())
-          const selectedPlan = scheduleTemplateId(dayOfWeek)
-          const primary =
-            dayTrainings.find((t) => t.status === 'in_progress') ??
-            dayTrainings.find((t) => t.status === 'planned') ??
-            dayTrainings.find((t) => t.status === 'finished') ??
-            null
+          const selectedPlan = weekDayTemplateId(date)
+          const programPlan = programDayTemplateId(dayOfWeek)
+          const primary = primaryTraining(date)
+          const hasEditable = dayTrainings.some(
+            (t) => t.status === 'planned' || t.status === 'in_progress',
+          )
+          const differsFromProgram =
+            (hasEditable || !primary) && selectedPlan !== programPlan
+          const hasInProgress = dayTrainings.some((t) => t.status === 'in_progress')
           const isRest = !selectedPlan && !primary
 
           return (
@@ -400,11 +503,11 @@ export function PlanPage() {
                 </div>
               </header>
 
-              <label className="mb-3 block space-y-1.5 text-[11px] text-[var(--muted)]">
-                План
+              <label className="mb-1 block space-y-1.5 text-[11px] text-[var(--muted)]">
+                План на день
                 <Select
                   value={selectedPlan}
-                  disabled={!scheduleReady || savingDay === dayOfWeek}
+                  disabled={!scheduleReady || savingDay === dayOfWeek || hasInProgress}
                   onChange={(e) => void onDayPlanChange(dayOfWeek, date, e.target.value)}
                   className="w-full text-sm"
                 >
@@ -416,6 +519,19 @@ export function PlanPage() {
                   ))}
                 </Select>
               </label>
+
+              {differsFromProgram && scheduleReady ? (
+                <button
+                  type="button"
+                  disabled={savingDay === dayOfWeek || hasInProgress}
+                  onClick={() => void saveDayToProgram(dayOfWeek, date)}
+                  className="mb-3 text-left text-[11px] text-[var(--accent)] hover:underline disabled:opacity-50"
+                >
+                  Как каждую неделю
+                </button>
+              ) : (
+                <div className="mb-3 h-[16px]" aria-hidden />
+              )}
 
               <div className="mt-auto space-y-3 pt-1">
                 {primary ? (
@@ -445,12 +561,12 @@ export function PlanPage() {
                         >
                           Открыть
                         </Link>
-                      ) : primary.status === 'finished' && selectedPlan ? (
+                      ) : primary.status === 'finished' && primary.templateId ? (
                         <button
                           type="button"
                           disabled={busy}
                           className="inline-flex items-center gap-1 rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--border)]/40 disabled:opacity-50"
-                          onClick={() => void startTodayPlan(selectedPlan)}
+                          onClick={() => void startTodayPlan(primary.templateId!)}
                         >
                           <Play className="size-3" />
                           Ещё раз

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
 import { useExerciseStore } from '@/entities/exercise/model/store'
+import { ExerciseCombobox } from '@/entities/exercise/ui/exercise-combobox'
 import { useSessionStore } from '@/entities/session/model/store'
 import { statsApi } from '@/entities/stats/api/stats-api'
 import type { ExerciseProgressPoint, VolumeStatPoint } from '@/entities/stats/model/types'
@@ -15,7 +16,6 @@ import { toDateKey } from '@/entities/training/lib/activity-calendar'
 import { localData } from '@/shared/lib/local-data'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
-import { Select } from '@/shared/ui/select'
 
 function defaultRange() {
   const to = new Date()
@@ -80,7 +80,7 @@ export function StatsPage() {
   const range = useMemo(() => defaultRange(), [])
 
   useEffect(() => {
-    void fetchExercises()
+    void fetchExercises('')
     void fetchTemplates()
     void fetchTrainings({ from: range.from, to: range.to, limit: 100 })
   }, [fetchExercises, fetchTemplates, fetchTrainings, range.from, range.to])
@@ -326,14 +326,13 @@ export function StatsPage() {
           </div>
           <label className="min-w-56 space-y-1 text-xs text-[var(--muted)]">
             Упражнение
-            <Select value={exerciseId} onChange={(e) => setExerciseId(e.target.value)}>
-              {exercises.length === 0 ? <option value="">Нет упражнений</option> : null}
-              {exercises.map((exercise) => (
-                <option key={exercise.id} value={exercise.id}>
-                  {exercise.name}
-                </option>
-              ))}
-            </Select>
+            <ExerciseCombobox
+              exercises={exercises}
+              value={exerciseId}
+              onChange={setExerciseId}
+              placeholder={exercises.length === 0 ? 'Нет упражнений' : 'Найти упражнение…'}
+              disabled={exercises.length === 0}
+            />
           </label>
         </div>
 

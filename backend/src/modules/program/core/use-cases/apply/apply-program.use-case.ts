@@ -50,12 +50,21 @@ export class ApplyProgramUseCase implements UseCase<ApplyProgramInput, ApplyProg
       if (!day.templateId) continue
 
       const scheduledAt = scheduledAtForDay(weekStart, day.dayOfWeek)
-      const existing = await this.trainingRepository.findActiveByProgramDay(
+      const existingByProgramDay = await this.trainingRepository.findActiveByProgramDay(
         input.userId,
         day.id,
         scheduledAt,
       )
-      if (existing) {
+      if (existingByProgramDay) {
+        skipped += 1
+        continue
+      }
+
+      const existingOnDate = await this.trainingRepository.findActiveOnScheduledDate(
+        input.userId,
+        scheduledAt,
+      )
+      if (existingOnDate) {
         skipped += 1
         continue
       }

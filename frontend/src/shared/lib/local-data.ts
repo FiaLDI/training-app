@@ -327,13 +327,18 @@ export const localData = {
         const scheduled = new Date(monday)
         scheduled.setUTCDate(scheduled.getUTCDate() + (day.dayOfWeek - 1))
         const scheduledAt = scheduled.toISOString()
-        const existing = trainingsDb.list().find(
-          (t) =>
-            t.programDayId === day.id &&
-            t.status !== 'cancelled' &&
-            t.scheduledAt?.slice(0, 10) === scheduledAt.slice(0, 10),
+        const dayKey = scheduledAt.slice(0, 10)
+        const existingByProgramDay = trainingsDb.list().find(
+          (t) => t.programDayId === day.id && t.scheduledAt?.slice(0, 10) === dayKey,
         )
-        if (existing) {
+        if (existingByProgramDay) {
+          skipped += 1
+          continue
+        }
+        const existingOnDate = trainingsDb.list().find(
+          (t) => t.status !== 'cancelled' && t.scheduledAt?.slice(0, 10) === dayKey,
+        )
+        if (existingOnDate) {
           skipped += 1
           continue
         }

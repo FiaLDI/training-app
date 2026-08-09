@@ -129,6 +129,7 @@ export interface TrainingRepositoryPort {
     programDayId: string,
     scheduledAt: string,
   ): Promise<Training | null>
+  findActiveOnScheduledDate(userId: string, scheduledAt: string): Promise<Training | null>
 
   createExercise(input: CreateTrainingExerciseRepositoryInput): Promise<TrainingExercise | null>
   updateExercise(input: UpdateTrainingExerciseRepositoryInput): Promise<TrainingExercise | null>

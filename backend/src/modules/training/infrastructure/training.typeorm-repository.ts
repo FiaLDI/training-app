@@ -235,15 +235,38 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     const dayEnd = new Date(dayStart)
     dayEnd.setUTCDate(dayEnd.getUTCDate() + 1)
 
+    // Include cancelled: week-specific "rest" must block re-apply for that date.
     const entity = await this.trainings
       .createQueryBuilder('t')
       .where('t.user_id = :userId', { userId })
       .andWhere('t.program_day_id = :programDayId', { programDayId })
+      .andWhere('t.scheduled_at >= :dayStart AND t.scheduled_at < :dayEnd', {
+        dayStart,
+        dayEnd,
+      })
+      .orderBy('t.created_at', 'DESC')
+      .getOne()
+
+    return entity ? this.mapTraining(entity) : null
+  }
+
+  async findActiveOnScheduledDate(
+    userId: string,
+    scheduledAt: string,
+  ): Promise<Training | null> {
+    const dayStart = new Date(scheduledAt)
+    const dayEnd = new Date(dayStart)
+    dayEnd.setUTCDate(dayEnd.getUTCDate() + 1)
+
+    const entity = await this.trainings
+      .createQueryBuilder('t')
+      .where('t.user_id = :userId', { userId })
       .andWhere('t.status != :cancelled', { cancelled: 'cancelled' })
       .andWhere('t.scheduled_at >= :dayStart AND t.scheduled_at < :dayEnd', {
         dayStart,
         dayEnd,
       })
+      .orderBy('t.created_at', 'DESC')
       .getOne()
 
     return entity ? this.mapTraining(entity) : null

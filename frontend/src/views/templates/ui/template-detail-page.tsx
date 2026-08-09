@@ -80,18 +80,34 @@ export function TemplateDetailPage({ id }: Props) {
         <EmptyState>В этом плане пока нет упражнений.</EmptyState>
       ) : (
         <ul className="space-y-2">
-          {current.exercises.map((item) => (
-            <EditTemplateExerciseRow
-              key={item.id}
-              templateId={id}
-              item={item}
-              exerciseName={exerciseName(item.exerciseId)}
-            />
-          ))}
+          {current.exercises.map((item, index) => {
+            const above = current.exercises[index - 1]
+            const below = current.exercises[index + 1]
+            return (
+              <EditTemplateExerciseRow
+                key={item.id}
+                templateId={id}
+                item={item}
+                exerciseName={exerciseName(item.exerciseId)}
+                displayIndex={index + 1}
+                canMoveUp={index > 0}
+                canMoveDown={index < current.exercises.length - 1}
+                neighborAboveId={above?.id}
+                neighborAboveOrder={above?.exerciseOrder}
+                neighborBelowId={below?.id}
+                neighborBelowOrder={below?.exerciseOrder}
+              />
+            )
+          })}
         </ul>
       )}
 
-      <AddTemplateExerciseForm templateId={id} nextOrder={current.exercises.length} />
+      <AddTemplateExerciseForm
+        templateId={id}
+        nextOrder={
+          current.exercises.reduce((max, item) => Math.max(max, item.exerciseOrder), -1) + 1
+        }
+      />
     </div>
   )
 }

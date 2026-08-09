@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, Pencil, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Pencil, Trash2, X } from 'lucide-react'
 
 import type { TemplateExercise } from '@/entities/template/model/types'
 import { useTemplateStore } from '@/entities/template/model/store'
@@ -12,9 +12,27 @@ type Props = {
   templateId: string
   item: TemplateExercise
   exerciseName: string
+  displayIndex: number
+  canMoveUp: boolean
+  canMoveDown: boolean
+  neighborAboveId?: string
+  neighborAboveOrder?: number
+  neighborBelowId?: string
+  neighborBelowOrder?: number
 }
 
-export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Props) {
+export function EditTemplateExerciseRow({
+  templateId,
+  item,
+  exerciseName,
+  displayIndex,
+  canMoveUp,
+  canMoveDown,
+  neighborAboveId,
+  neighborAboveOrder,
+  neighborBelowId,
+  neighborBelowOrder,
+}: Props) {
   const updateExercise = useTemplateStore((s) => s.updateExercise)
   const removeExercise = useTemplateStore((s) => s.removeExercise)
   const [editing, setEditing] = useState(false)
@@ -26,6 +44,7 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
   )
   const [isWarmup, setIsWarmup] = useState(item.isWarmup ?? false)
   const [saving, setSaving] = useState(false)
+  const [moving, setMoving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -66,25 +85,66 @@ export function EditTemplateExerciseRow({ templateId, item, exerciseName }: Prop
     }
   }
 
+  async function move(direction: 'up' | 'down') {
+    const neighborId = direction === 'up' ? neighborAboveId : neighborBelowId
+    const neighborOrder = direction === 'up' ? neighborAboveOrder : neighborBelowOrder
+    if (neighborId == null || neighborOrder == null) return
+
+    setMoving(true)
+    setError(null)
+    try {
+      const currentOrder = item.exerciseOrder
+      await updateExercise(templateId, item.id, { exerciseOrder: neighborOrder })
+      await updateExercise(templateId, neighborId, { exerciseOrder: currentOrder })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось переместить')
+    } finally {
+      setMoving(false)
+    }
+  }
+
   if (!editing) {
     return (
       <li className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-        <div>
-          <p className="text-sm text-[var(--foreground)]">
-            {exerciseName}
-            {item.isWarmup ? (
-              <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
-                Разминка
-              </span>
-            ) : null}
-          </p>
-          <p className="text-xs text-[var(--muted)]">
-            #{item.exerciseOrder + 1} · {item.targetSets} подходов
-            {item.minReps != null || item.maxReps != null
-              ? ` · ${item.minReps ?? '?'}–${item.maxReps ?? '?'} повт.`
-              : ''}
-            {item.targetWeight != null ? ` · ${item.targetWeight} кг` : ''}
-          </p>
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="flex shrink-0 flex-col gap-0.5 pt-0.5">
+            <button
+              type="button"
+              disabled={!canMoveUp || moving}
+              aria-label="Выше"
+              onClick={() => void move('up')}
+              className="inline-flex size-7 items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] disabled:pointer-events-none disabled:opacity-30"
+            >
+              <ChevronUp className="size-4" />
+            </button>
+            <button
+              type="button"
+              disabled={!canMoveDown || moving}
+              aria-label="Ниже"
+              onClick={() => void move('down')}
+              className="inline-flex size-7 items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] disabled:pointer-events-none disabled:opacity-30"
+            >
+              <ChevronDown className="size-4" />
+            </button>
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm text-[var(--foreground)]">
+              {exerciseName}
+              {item.isWarmup ? (
+                <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
+                  Разминка
+                </span>
+              ) : null}
+            </p>
+            <p className="text-xs text-[var(--muted)]">
+              #{displayIndex} · {item.targetSets} подходов
+              {item.minReps != null || item.maxReps != null
+                ? ` · ${item.minReps ?? '?'}–${item.maxReps ?? '?'} повт.`
+                : ''}
+              {item.targetWeight != null ? ` · ${item.targetWeight} кг` : ''}
+            </p>
+            {error ? <p className="mt-1 text-xs text-red-300">{error}</p> : null}
+          </div>
         </div>
         <div className="flex gap-1">
           <Button type="button" variant="ghost" onClick={() => setEditing(true)}>
