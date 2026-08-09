@@ -1,7 +1,22 @@
 import { ApiPropertyOptional } from '@nestjs/swagger'
-import { IsDateString, IsIn, IsObject, IsOptional, IsString } from 'class-validator'
+import { IsDateString, IsIn, IsObject, IsOptional, IsString, IsUUID } from 'class-validator'
 
 export class UpdateTrainingInputDto {
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  templateId?: string | null
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  programId?: string | null
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  programDayId?: string | null
+
   @ApiPropertyOptional({ enum: ['planned', 'in_progress', 'finished', 'cancelled'] })
   @IsOptional()
   @IsIn(['planned', 'in_progress', 'finished', 'cancelled'])

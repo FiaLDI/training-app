@@ -110,6 +110,8 @@ export function PlanPage() {
 
   const [programId, setProgramId] = useState('')
   const [savingDay, setSavingDay] = useState<number | null>(null)
+  const [dayOverrides, setDayOverrides] = useState<Record<string, string>>({})
+  const [dayErrors, setDayErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const appliedKey = useRef<string | null>(null)
   const ensuringProgram = useRef(false)
@@ -181,6 +183,8 @@ export function PlanPage() {
 
   function goToWeek(next: Date) {
     appliedKey.current = null
+    setDayOverrides({})
+    setDayErrors({})
     setWeekStart(startOfWeekMonday(next))
   }
 
@@ -214,12 +218,25 @@ export function PlanPage() {
 
   /** Plan for this calendar day (week-specific), not the recurring program. */
   function weekDayTemplateId(date: Date) {
+    const key = toDateKey(date)
+    if (Object.prototype.hasOwnProperty.call(dayOverrides, key)) {
+      return dayOverrides[key]
+    }
     const dayTrainings = trainingsForDay(date)
     const editable =
       dayTrainings.find((t) => t.status === 'in_progress') ??
       dayTrainings.find((t) => t.status === 'planned') ??
       null
     return editable?.templateId ?? ''
+  }
+
+  function clearDayOverride(dateKey: string) {
+    setDayOverrides((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, dateKey)) return prev
+      const next = { ...prev }
+      delete next[dateKey]
+      return next
+    })
   }
 
   function programDayTemplateId(dayOfWeek: number) {
@@ -271,28 +288,42 @@ export function PlanPage() {
   }
 
   async function onDayPlanChange(dayOfWeek: number, date: Date, templateId: string) {
+    const dateKey = toDateKey(date)
     setSavingDay(dayOfWeek)
+    setDayOverrides((prev) => ({ ...prev, [dateKey]: templateId }))
+    setDayErrors((prev) => {
+      if (!prev[dateKey]) return prev
+      const next = { ...prev }
+      delete next[dateKey]
+      return next
+    })
     try {
       const existing = trainingsForDay(date)
-      if (existing.some((t) => t.status === 'in_progress')) return
+      if (existing.some((t) => t.status === 'in_progress')) {
+        clearDayOverride(dateKey)
+        return
+      }
 
       const planned = existing.filter((t) => t.status === 'planned')
-      const matching = planned.find((t) => t.templateId === templateId)
+      const matching = templateId
+        ? planned.find((t) => t.templateId === templateId)
+        : undefined
       const programDay = primaryProgramDay(dayOfWeek)
 
       for (const training of planned) {
         if (matching && training.id === matching.id) continue
-        await update(training.id, {
-          status: 'cancelled',
-          // Keep/link program day so apply won't recreate this calendar slot.
-          ...(programDay
-            ? { programId, programDayId: programDay.id }
-            : {}),
-        })
+        const patch: Parameters<typeof update>[1] = { status: 'cancelled' }
+        // Link program day on cancel so apply will not recreate this week slot.
+        if (programDay && (!training.programDayId || training.programId !== programId)) {
+          patch.programId = programId
+          patch.programDayId = programDay.id
+        }
+        await update(training.id, patch)
       }
 
       if (!templateId) {
         await refreshWeekTrainings()
+        clearDayOverride(dateKey)
         return
       }
 
@@ -304,6 +335,7 @@ export function PlanPage() {
           })
         }
         await refreshWeekTrainings()
+        clearDayOverride(dateKey)
         return
       }
 
@@ -315,6 +347,13 @@ export function PlanPage() {
         programDayId: programDay?.id ?? null,
       })
       await refreshWeekTrainings()
+      clearDayOverride(dateKey)
+    } catch (err) {
+      clearDayOverride(dateKey)
+      setDayErrors((prev) => ({
+        ...prev,
+        [dateKey]: err instanceof Error ? err.message : 'Не удалось изменить план дня',
+      }))
     } finally {
       setSavingDay(null)
     }
@@ -462,13 +501,18 @@ export function PlanPage() {
           const selectedPlan = weekDayTemplateId(date)
           const programPlan = programDayTemplateId(dayOfWeek)
           const primary = primaryTraining(date)
+          const overrideRest =
+            Object.prototype.hasOwnProperty.call(dayOverrides, key) && dayOverrides[key] === ''
+          const visiblePrimary =
+            primary && !(overrideRest && primary.status === 'planned') ? primary : null
           const hasEditable = dayTrainings.some(
             (t) => t.status === 'planned' || t.status === 'in_progress',
           )
           const differsFromProgram =
-            (hasEditable || !primary) && selectedPlan !== programPlan
+            (hasEditable || !visiblePrimary) && selectedPlan !== programPlan
           const hasInProgress = dayTrainings.some((t) => t.status === 'in_progress')
-          const isRest = !selectedPlan && !primary
+          const isRest = !selectedPlan && !visiblePrimary
+          const dayError = dayErrors[key]
 
           return (
             <article
@@ -520,6 +564,8 @@ export function PlanPage() {
                 </Select>
               </label>
 
+              {dayError ? <p className="mb-2 text-[11px] text-red-300">{dayError}</p> : null}
+
               {differsFromProgram && scheduleReady ? (
                 <button
                   type="button"
@@ -534,39 +580,39 @@ export function PlanPage() {
               )}
 
               <div className="mt-auto space-y-3 pt-1">
-                {primary ? (
+                {visiblePrimary ? (
                   <>
                     <Link
-                      href={`/trainings/${primary.id}`}
+                      href={`/trainings/${visiblePrimary.id}`}
                       className="block truncate text-sm font-medium hover:text-[var(--accent)]"
                     >
-                      {trainingLabel(primary)}
+                      {trainingLabel(visiblePrimary)}
                     </Link>
                     <div className="flex items-center justify-between gap-2">
-                      <TrainingStatusBadge status={primary.status} />
-                      {primary.status === 'planned' ? (
+                      <TrainingStatusBadge status={visiblePrimary.status} />
+                      {visiblePrimary.status === 'planned' ? (
                         <button
                           type="button"
                           disabled={busy}
                           className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent)]/15 px-2.5 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--accent)]/25 disabled:opacity-50"
-                          onClick={() => void onStart(primary.id)}
+                          onClick={() => void onStart(visiblePrimary.id)}
                         >
                           <Play className="size-3" />
                           Старт
                         </button>
-                      ) : primary.status === 'in_progress' ? (
+                      ) : visiblePrimary.status === 'in_progress' ? (
                         <Link
-                          href={`/trainings/${primary.id}`}
+                          href={`/trainings/${visiblePrimary.id}`}
                           className="text-xs font-medium text-[var(--accent)] hover:underline"
                         >
                           Открыть
                         </Link>
-                      ) : primary.status === 'finished' && primary.templateId ? (
+                      ) : visiblePrimary.status === 'finished' && visiblePrimary.templateId ? (
                         <button
                           type="button"
                           disabled={busy}
                           className="inline-flex items-center gap-1 rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--border)]/40 disabled:opacity-50"
-                          onClick={() => void startTodayPlan(primary.templateId!)}
+                          onClick={() => void startTodayPlan(visiblePrimary.templateId!)}
                         >
                           <Play className="size-3" />
                           Ещё раз
