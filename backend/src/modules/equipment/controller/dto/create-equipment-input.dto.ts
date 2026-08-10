@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
-import { IsOptional, IsString, IsUUID, MinLength } from 'class-validator'
+import { IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator'
 
 export class CreateEquipmentInputDto {
   @ApiPropertyOptional({ format: 'uuid' })
@@ -11,4 +11,9 @@ export class CreateEquipmentInputDto {
   @IsString()
   @MinLength(1)
   name!: string
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>
 }
