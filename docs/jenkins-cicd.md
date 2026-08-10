@@ -107,18 +107,54 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 
 ## Jenkins Credentials
 
-Создать в **Manage Jenkins → Credentials** (не писать в Jenkinsfile):
+Создать в **Manage Jenkins → Credentials** (ID должны совпасть **один в один** с Jenkinsfile):
 
-| ID | Тип | Назначение |
-|----|-----|------------|
-| `production-ssh` | SSH Username with private key | пользователь + ключ на production |
-| `production-host` | Secret text | хост / IP, например `203.0.113.10` |
-| `production-deploy-path` | Secret text | путь на сервере, например `/opt/training-app` |
+| ID | Тип в UI | Назначение |
+|----|----------|------------|
+| `production-ssh` | **SSH Username with private key** | пользователь + приватный ключ |
+| `production-host` | **Secret text** | хост / IP, например `78.17.66.92` |
+| `production-deploy-path` | **Secret text** | путь на сервере: **`/opt/training-app`** (не `/root/...`) |
 | (опционально) GitHub creds | Username/password или GitHub App | если private repo |
 
 Опционально в Job / Folder env:
 
 - `DEPLOY_BRANCH` — ветка для деплоя (по умолчанию `develop`)
+
+### Как завести `production-ssh`
+
+На сервере (один раз):
+
+```bash
+# пользователь деплоя
+sudo adduser --disabled-password --gecos "" deploy
+sudo usermod -aG docker deploy
+
+# ключ (можно в любом каталоге; не коммитить в git)
+ssh-keygen -t ed25519 -f ./deploy_key -N "" -C "jenkins-deploy"
+
+# каталог SSH у deploy
+sudo mkdir -p /home/deploy/.ssh
+sudo chmod 700 /home/deploy/.ssh
+sudo cat ./deploy_key.pub >> /home/deploy/.ssh/authorized_keys
+sudo chmod 600 /home/deploy/.ssh/authorized_keys
+sudo chown -R deploy:deploy /home/deploy/.ssh
+
+# проверка
+ssh -i ./deploy_key deploy@127.0.0.1 'echo ok'
+```
+
+В Jenkins → Add Credentials → **SSH Username with private key**:
+
+- **ID:** `production-ssh`
+- **Username:** `deploy`
+- **Private Key:** Enter directly → вставь содержимое файла **`deploy_key`** (приватный, без `.pub`), целиком от `-----BEGIN` до `-----END`
+
+Затем два раза Add Credentials → **Secret text**:
+
+1. ID `production-host` → публичный IP VPS  
+2. ID `production-deploy-path` → `/opt/training-app`
+
+> **Нельзя** ставить `production-deploy-path=/root/training-app`: у `deploy` нет прав на `/root` → `mkdir: cannot create directory '/root': Permission denied`.
 
 ## Создание Pipeline job
 
@@ -137,23 +173,57 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 
 После push в `develop` (или `DEPLOY_BRANCH`): checkout → проверки → образы → transfer → deploy → healthcheck → SUCCESS.
 
+Пока credentials нет или путь неверный — build может собрать образы и упасть на **Transfer & Deploy**. Зелёный build без стадии deploy = на production ничего не выкатилось.
+
 ## Первичная подготовка production
+
+Каталог приложения должен принадлежать `deploy` (рекомендуется `/opt/training-app`):
 
 ```bash
 # на сервере
-sudo adduser --disabled-password deploy
-sudo usermod -aG docker deploy
-# положить public key в /home/deploy/.ssh/authorized_keys
-
 sudo mkdir -p /opt/training-app
 sudo chown deploy:deploy /opt/training-app
-sudo -u deploy git clone git@github.com:FiaLDI/training-app.git /opt/training-app
-cd /opt/training-app
-cp .env.example .env
+
+# если раньше крутили из /root/training-app — перенести и остановить старый стек
+cd /root/training-app && sudo docker compose down || true
+sudo rsync -a /root/training-app/ /opt/training-app/
+sudo chown -R deploy:deploy /opt/training-app
+
+# .env с секретами должен быть в /opt/training-app/.env
+sudo -u deploy bash -c 'cd /opt/training-app && test -f .env || cp .env.example .env'
 # отредактировать POSTGRES_*, JWT_SECRET, APP_PORT, CERTBOT_* …
 ```
 
-Первый релиз можно прогнать через Jenkins или вручную после появления образов.
+Первый релиз — через Jenkins (Rebuild после настройки credentials) или вручную после появления образов.
+
+## Почему на сайте «не обновляется»
+
+Проверь по порядку:
+
+1. **В логе Jenkins есть `Deploy SUCCESS`?**  
+   Если `Could not find credentials…`, `Permission denied`, или стадия Skip deploy — на сервер ничего не ушло. Сборка образов ≠ деплой.
+
+2. **`production-deploy-path` = `/opt/training-app`**, и именно оттуда крутится стек:
+   ```bash
+   ssh deploy@HOST 'cd /opt/training-app && grep IMAGE_TAG .env && docker compose ps'
+   docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep workout
+   ```
+   Образы должны быть вида `workout-frontend:11`, не `:local` и не старый номер.
+
+3. **Старый стек из `/root/training-app` остановлен** (`docker compose down` там). Иначе nginx/порты могут отдавать прежнюю версию.
+
+4. В браузере hard refresh / инкогнито (кэш Next static).
+
+5. В git должен быть нужный коммит на `develop`. Локальные незакоммиченные правки CI не видит.
+
+## Типичные ошибки в логе
+
+| Сообщение | Что сделать |
+|-----------|-------------|
+| `Could not find credentials entry with ID 'production-ssh'` | Создать credentials (см. выше) |
+| `mkdir: cannot create directory '/root': Permission denied` | Сменить `production-deploy-path` на `/opt/training-app`, отдать каталог `deploy` |
+| `Branch '…' != DEPLOY_BRANCH` / Skip deploy | Push в `develop` или выставить `DEPLOY_BRANCH` |
+| Build SUCCESS, но UI старый | Смотри раздел «не обновляется» — часто крутится старый compose из `/root` |
 
 ## Rollback
 
@@ -164,7 +234,7 @@ CURRENT_TAG=145
 PREVIOUS_TAG=144
 ```
 
-Если `145` не проходит healthcheck — снова выставляется `IMAGE_TAG=144`, `docker compose up -d --no-build`, проверка health. Предыдущий образ **не** удаляется сразу после успешного деплоя (хранится пара current + previous). Агрессивный `docker system prune -af` **не** используется.
+Если `145` не проходит healthcheck — снова выставляется `IMAGE_TAG=144`, `docker compose up -d --no-build --force-recreate`, проверка health. Предыдущий образ **не** удаляется сразу после успешного деплоя (хранится пара current + previous). Агрессивный `docker system prune -af` **не** используется.
 
 Ручной rollback:
 

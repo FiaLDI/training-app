@@ -96,7 +96,7 @@ rollback() {
 
   echo "ROLLBACK → IMAGE_TAG=${previous_tag}"
   set_image_tag "$previous_tag"
-  docker compose up -d --no-build --remove-orphans
+  docker compose up -d --no-build --force-recreate --remove-orphans
   if bash scripts/ci-healthcheck.sh --timeout 90 --url "$HEALTH_URL"; then
     echo "Rollback healthcheck: SUCCESS (running ${previous_tag})"
     cat > "$STATE_FILE" <<EOF
@@ -113,7 +113,7 @@ EOF
 set_image_tag "$IMAGE_TAG"
 
 echo "Starting stack with IMAGE_TAG=${IMAGE_TAG} (no build on production)…"
-docker compose up -d --no-build --remove-orphans
+docker compose up -d --no-build --force-recreate --remove-orphans
 
 if ! bash scripts/ci-healthcheck.sh --timeout 120 --url "$HEALTH_URL"; then
   rollback "new version failed healthcheck (${HEALTH_URL})" || true
