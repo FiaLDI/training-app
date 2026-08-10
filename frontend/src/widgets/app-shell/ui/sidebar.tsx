@@ -138,7 +138,7 @@ export function Sidebar() {
         ) : null}
       </nav>
 
-      <div className="mt-auto hidden border-t border-[var(--border)] pt-4 md:block">
+      <div className="mt-auto border-t border-[var(--border)] pt-4">
         <p className="truncate text-xs text-[var(--muted)]">
           {mode === 'local' ? 'Локальный режим' : user?.email ?? 'Облако'}
         </p>

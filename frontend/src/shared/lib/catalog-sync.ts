@@ -77,6 +77,16 @@ async function pushExercise(id: string, op: OutboxOp) {
       metadata: local.metadata,
     })
   }
+  const synced = localData.exercises.get(id)
+  if (synced) {
+    localData.exercises.upsert({
+      ...synced,
+      metadata: {
+        ...synced.metadata,
+        catalogSyncedAt: new Date().toISOString(),
+      },
+    })
+  }
   dequeue('exercise', id)
 }
 
@@ -97,10 +107,26 @@ async function pushEquipment(id: string, op: OutboxOp) {
     metadata: local.metadata,
   })
   if (remote.id !== local.id) {
-    localData.equipment.replaceId(local.id, { ...remote })
+    localData.equipment.replaceId(local.id, {
+      ...remote,
+      metadata: {
+        ...remote.metadata,
+        catalogSyncedAt: new Date().toISOString(),
+      },
+    })
     dequeue('equipment', local.id)
     dequeue('equipment', remote.id)
     return
+  }
+  const synced = localData.equipment.get(id)
+  if (synced) {
+    localData.equipment.upsert({
+      ...synced,
+      metadata: {
+        ...synced.metadata,
+        catalogSyncedAt: new Date().toISOString(),
+      },
+    })
   }
   dequeue('equipment', id)
 }
@@ -182,14 +208,30 @@ export const catalogSync = {
         exerciseApi.list({ limit: 200 }),
         equipmentApi.list({ limit: 200 }),
       ])
-      for (const item of exercises.items) {
+  for (const item of exercises.items) {
         const local = localData.exercises.get(item.id)
         if (!local || local.updatedAt <= item.updatedAt) {
-          localData.exercises.upsert(item)
+          localData.exercises.upsert({
+            ...item,
+            metadata: {
+              ...item.metadata,
+              catalogSyncedAt:
+                (item.metadata?.catalogSyncedAt as string | undefined) ??
+                new Date().toISOString(),
+            },
+          })
         }
       }
       for (const item of equipment.items) {
-        localData.equipment.upsert(item)
+        localData.equipment.upsert({
+          ...item,
+          metadata: {
+            ...item.metadata,
+            catalogSyncedAt:
+              (item.metadata?.catalogSyncedAt as string | undefined) ??
+              new Date().toISOString(),
+          },
+        })
       }
     } catch {
       // offline — keep local catalog

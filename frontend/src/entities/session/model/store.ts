@@ -3,7 +3,21 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+import { backfillPendingSync } from '@/features/sync-trainings/model/backfill-pending-sync'
+import { useSyncNoticeStore } from '@/features/sync-trainings/model/sync-notice-store'
+
 import { authApi, type AuthUser } from '../api/auth-api'
+
+function afterEnterCloud() {
+  if (typeof window === 'undefined') return
+  const summary = backfillPendingSync()
+  if (summary.total > 0) {
+    useSyncNoticeStore.getState().setShowBanner(true)
+    useSyncNoticeStore.getState().setMessage(
+      'Есть локальные данные. Можно отправить их на сервер.',
+    )
+  }
+}
 
 export type AppMode = 'local' | 'cloud'
 
@@ -39,6 +53,7 @@ export const useSessionStore = create<SessionState>()(
 
       setCloudSession(user, accessToken) {
         set({ mode: 'cloud', user, accessToken })
+        afterEnterCloud()
       },
 
       async register(email) {
@@ -48,6 +63,7 @@ export const useSessionStore = create<SessionState>()(
       async login(code) {
         const result = await authApi.login(code)
         set({ mode: 'cloud', user: result.user, accessToken: result.accessToken })
+        afterEnterCloud()
       },
 
       async logout() {
@@ -75,6 +91,10 @@ export const useSessionStore = create<SessionState>()(
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true)
+        if (state?.mode === 'cloud') {
+          // Already in cloud from a previous session — still surface unsynced local data.
+          queueMicrotask(() => afterEnterCloud())
+        }
       },
     },
   ),
