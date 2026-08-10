@@ -9,9 +9,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "sourceMap": true,
+    "rootDir": "./src",
     "outDir": "./dist",
     "incremental": true,
     "strictPropertyInitialization": false
   },
-  "include": ["src/**/*", "data-source.ts"]
+  "include": ["src/**/*"]
 }
