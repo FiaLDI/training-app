@@ -224,6 +224,7 @@ sudo -u deploy bash -c 'cd /opt/training-app && test -f .env || cp .env.example 
 | `mkdir: cannot create directory '/root': Permission denied` | Сменить `production-deploy-path` на `/opt/training-app`, отдать каталог `deploy` |
 | `Branch '…' != DEPLOY_BRANCH` / Skip deploy | Push в `develop` или выставить `DEPLOY_BRANCH` |
 | Build SUCCESS, но UI старый | Смотри раздел «не обновляется» — часто крутится старый compose из `/root` |
+| В логе `New IMAGE_TAG: 3` при `--image-tag 13` | Баг: `source .env` затирал тег (исправлено: CLI-тег восстанавливается после source) |
 
 ## Rollback
 

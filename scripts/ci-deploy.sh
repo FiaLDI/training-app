@@ -39,6 +39,9 @@ fi
 mkdir -p .deploy
 bash scripts/ssl-ensure-dummy.sh
 
+# CLI --image-tag must win over IMAGE_TAG from .env (set -a would overwrite it).
+DESIRED_TAG="$IMAGE_TAG"
+
 # Resolve health URL from APP_PORT if not provided
 if [[ -z "$HEALTH_URL" ]]; then
   # shellcheck disable=SC1091
@@ -48,6 +51,7 @@ if [[ -z "$HEALTH_URL" ]]; then
   set +a
   HEALTH_URL="http://127.0.0.1:${APP_PORT:-80}/api/health"
 fi
+IMAGE_TAG="$DESIRED_TAG"
 FRONTEND_URL="${HEALTH_URL%/api/health}/"
 
 previous_tag=""
