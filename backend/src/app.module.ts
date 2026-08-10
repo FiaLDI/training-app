@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common'
 
 import { AuthModule } from './modules/auth/auth.module'
 import { ExerciseModule } from './modules/exercise/exercise.module'
-import { EquipmentModule } from './modules/equipment/equipment.module'
 import { HealthModule } from './modules/health/health.module'
 import { ProgramModule } from './modules/program/program.module'
 import { SourceModule } from './modules/source/source.module'
@@ -21,7 +20,6 @@ import { LoggerModule } from './shared/logger/logger.module'
     HealthModule,
     AuthModule,
     ExerciseModule,
-    EquipmentModule,
     SourceModule,
     TemplateModule,
     TrainingModule,

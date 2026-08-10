@@ -58,7 +58,7 @@ function catalogKey(item: PendingCatalogItem) {
 
 function catalogOpLabel(item: PendingCatalogItem) {
   if (item.op === 'delete') return 'удаление'
-  return item.entity === 'exercise' ? 'упражнение' : 'инвентарь'
+  return 'упражнение'
 }
 
 export function SyncTrainingsDialog({ open, onClose, onCompleted }: Props) {
@@ -236,7 +236,7 @@ export function SyncTrainingsDialog({ open, onClose, onCompleted }: Props) {
           <ul className="mt-2 space-y-2">
             {pendingCatalog.length === 0 ? (
               <li className="rounded-xl border border-[var(--border)] px-3 py-3 text-sm text-[var(--muted)]">
-                Нет новых упражнений или инвентаря в очереди
+                Нет новых упражнений в очереди
               </li>
             ) : (
               pendingCatalog.map((item) => {

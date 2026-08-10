@@ -106,8 +106,8 @@ export function EditTemplateExerciseRow({
   if (!editing) {
     return (
       <li className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-        <div className="flex min-w-0 items-start gap-2">
-          <div className="flex shrink-0 flex-col gap-0.5 pt-0.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex shrink-0 flex-col gap-0.5">
             <button
               type="button"
               disabled={!canMoveUp || moving}

@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react'
 import { ExerciseCombobox } from '@/entities/exercise/ui/exercise-combobox'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 
@@ -56,75 +57,116 @@ export function AddTemplateExerciseForm({ templateId, nextOrder }: Props) {
     }
   }
 
+  const canSubmit = Boolean(exerciseId) && !saving
+
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 flex flex-wrap items-end gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4"
+      className="mt-4 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5"
     >
-      <label className="min-w-56 flex-1 space-y-1 text-xs text-[var(--muted)]">
-        Упражнение
+      <div className="space-y-1.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="font-[family-name:var(--font-display)] text-lg tracking-tight text-[var(--foreground)]">
+            Добавить упражнение
+          </h3>
+          <button
+            type="button"
+            onClick={() => setIsWarmup((value) => !value)}
+            className={cn(
+              'rounded-lg border px-2.5 py-1 text-xs transition',
+              isWarmup
+                ? 'border-sky-400/40 bg-sky-500/15 text-sky-300'
+                : 'border-[var(--border)] text-[var(--muted)] hover:border-[var(--border)]/80 hover:text-[var(--foreground)]',
+            )}
+          >
+            Разминка
+          </button>
+        </div>
         <ExerciseCombobox
           exercises={exercises}
           value={exerciseId}
           onChange={setExerciseId}
           placeholder="Найти упражнение…"
         />
-      </label>
-      <label className="space-y-1 text-xs text-[var(--muted)]">
-        Подходы
-        <Input
-          type="number"
-          min="1"
-          value={targetSets}
-          onChange={(e) => setTargetSets(e.target.value)}
-          className="w-20"
-        />
-      </label>
-      <label className="space-y-1 text-xs text-[var(--muted)]">
-        Мин. повт.
-        <Input
-          type="number"
-          min="0"
-          value={minReps}
-          onChange={(e) => setMinReps(e.target.value)}
-          className="w-20"
-        />
-      </label>
-      <label className="space-y-1 text-xs text-[var(--muted)]">
-        Макс. повт.
-        <Input
-          type="number"
-          min="0"
-          value={maxReps}
-          onChange={(e) => setMaxReps(e.target.value)}
-          className="w-20"
-        />
-      </label>
-      <label className="space-y-1 text-xs text-[var(--muted)]">
-        Вес (кг)
-        <Input
-          type="number"
-          min="0"
-          step="0.5"
-          value={targetWeight}
-          onChange={(e) => setTargetWeight(e.target.value)}
-          className="w-24"
-        />
-      </label>
-      <label className="flex items-center gap-2 pb-2 text-xs text-[var(--muted)]">
-        <input
-          type="checkbox"
-          checked={isWarmup}
-          onChange={(e) => setIsWarmup(e.target.checked)}
-          className="size-4 rounded border-[var(--border)]"
-        />
-        Разминка
-      </label>
-      <Button type="submit" disabled={saving || !exerciseId}>
-        <Plus className="size-4" />
-        Добавить
-      </Button>
-      {error ? <p className="w-full text-sm text-red-300">{error}</p> : null}
+      </div>
+
+      <div
+        className={cn(
+          'grid gap-3 transition',
+          exerciseId ? 'opacity-100' : 'opacity-60',
+        )}
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <label className="space-y-1.5 text-xs text-[var(--muted)]">
+            Подходы
+            <Input
+              type="number"
+              min="1"
+              value={targetSets}
+              onChange={(e) => setTargetSets(e.target.value)}
+              inputMode="numeric"
+            />
+          </label>
+
+          <div className="space-y-1.5 text-xs text-[var(--muted)]">
+            Повторы
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                min="0"
+                value={minReps}
+                onChange={(e) => setMinReps(e.target.value)}
+                inputMode="numeric"
+                aria-label="Минимум повторений"
+                className="min-w-0"
+              />
+              <span className="shrink-0 text-[var(--muted)]" aria-hidden>
+                –
+              </span>
+              <Input
+                type="number"
+                min="0"
+                value={maxReps}
+                onChange={(e) => setMaxReps(e.target.value)}
+                inputMode="numeric"
+                aria-label="Максимум повторений"
+                className="min-w-0"
+              />
+            </div>
+          </div>
+
+          <label className="col-span-2 space-y-1.5 text-xs text-[var(--muted)] sm:col-span-1">
+            Вес, кг
+            <Input
+              type="number"
+              min="0"
+              step="0.5"
+              value={targetWeight}
+              onChange={(e) => setTargetWeight(e.target.value)}
+              inputMode="decimal"
+              placeholder="необязательно"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {error ? (
+          <p className="text-sm text-red-300">{error}</p>
+        ) : (
+          <p className="text-xs text-[var(--muted)]">
+            {exerciseId
+              ? isWarmup
+                ? 'Добавится как разминочное'
+                : 'Параметры можно потом поправить в списке'
+              : 'Сначала выбери упражнение'}
+          </p>
+        )}
+        <Button type="submit" disabled={!canSubmit} className="sm:min-w-40">
+          <Plus className="size-4" />
+          {saving ? 'Добавление…' : 'Добавить'}
+        </Button>
+      </div>
     </form>
   )
 }

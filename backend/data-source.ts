@@ -8,7 +8,6 @@ import { DataSource } from 'typeorm'
 
 import { UserEntity } from './src/modules/auth/core/entity/user.entity'
 import { ExerciseEntity } from './src/modules/exercise/core/entity/exercise.entity'
-import { EquipmentEntity } from './src/modules/equipment/core/entity/equipment.entity'
 import { ExerciseSourceEntity } from './src/modules/source/core/entity/exercise-source.entity'
 import { ExerciseTimecodeEntity } from './src/modules/source/core/entity/exercise-timecode.entity'
 import { ProgramDayEntity } from './src/modules/program/core/entity/program-day.entity'
@@ -48,7 +47,6 @@ export default new DataSource({
   entities: [
     UserEntity,
     ExerciseEntity,
-    EquipmentEntity,
     ExerciseSourceEntity,
     ExerciseTimecodeEntity,
     WorkoutTemplateEntity,

@@ -18,18 +18,12 @@ function hasCatalogSyncedAt(metadata: Record<string, unknown> | undefined): bool
  */
 export function backfillPendingSync(): PendingSyncSummary {
   if (typeof window === 'undefined') {
-    return { trainings: 0, templates: 0, exercises: 0, equipment: 0, total: 0 }
+    return { trainings: 0, templates: 0, exercises: 0, total: 0 }
   }
 
   for (const exercise of localData.exercises.list()) {
     if (!hasCatalogSyncedAt(exercise.metadata)) {
       catalogSync.enqueueUpsert('exercise', exercise.id)
-    }
-  }
-
-  for (const equipment of localData.equipment.list()) {
-    if (!hasCatalogSyncedAt(equipment.metadata)) {
-      catalogSync.enqueueUpsert('equipment', equipment.id)
     }
   }
 

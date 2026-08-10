@@ -11,7 +11,6 @@ import {
   Home,
   LayoutTemplate,
   LogOut,
-  Package,
   MoreHorizontal,
 } from 'lucide-react'
 
@@ -29,7 +28,6 @@ const primaryLinks = [
 const moreLinks = [
   { href: '/plans', label: 'Планы', icon: LayoutTemplate },
   { href: '/exercises', label: 'Упражнения', icon: Dumbbell },
-  { href: '/equipment', label: 'Инвентарь', icon: Package },
 ]
 
 function isActive(pathname: string, href: string) {

@@ -54,7 +54,7 @@ export function AddTrainingExerciseForm({ trainingId, nextOrder }: Props) {
       onSubmit={onSubmit}
       className="mt-4 flex flex-wrap items-end gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4"
     >
-      <label className="min-w-56 flex-1 space-y-1 text-xs text-[var(--muted)]">
+      <div className="min-w-56 flex-1 space-y-1 text-xs text-[var(--muted)]">
         Упражнение
         <ExerciseCombobox
           exercises={exercises}
@@ -62,7 +62,7 @@ export function AddTrainingExerciseForm({ trainingId, nextOrder }: Props) {
           onChange={setExerciseId}
           placeholder="Найти упражнение…"
         />
-      </label>
+      </div>
       <label className="space-y-1 text-xs text-[var(--muted)]">
         Целевые подходы
         <Input

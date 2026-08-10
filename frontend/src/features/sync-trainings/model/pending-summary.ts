@@ -7,7 +7,6 @@ export type PendingSyncSummary = {
   trainings: number
   templates: number
   exercises: number
-  equipment: number
   total: number
 }
 
@@ -16,13 +15,11 @@ export function getPendingSyncSummary(): PendingSyncSummary {
   const trainings = listPendingTrainings().length
   const templates = listPendingTemplates().length
   const exercises = catalog.filter((item) => item.entity === 'exercise').length
-  const equipment = catalog.filter((item) => item.entity === 'equipment').length
   return {
     trainings,
     templates,
     exercises,
-    equipment,
-    total: trainings + templates + exercises + equipment,
+    total: trainings + templates + exercises,
   }
 }
 
@@ -39,11 +36,6 @@ export function formatPendingSummary(summary: PendingSyncSummary): string {
   if (summary.exercises > 0) {
     parts.push(
       summary.exercises === 1 ? '1 упражнение' : `${summary.exercises} упражнений`,
-    )
-  }
-  if (summary.equipment > 0) {
-    parts.push(
-      summary.equipment === 1 ? '1 инвентарь' : `${summary.equipment} позиций инвентаря`,
     )
   }
   return parts.join(', ')

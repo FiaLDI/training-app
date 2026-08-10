@@ -16,7 +16,6 @@ import {
 } from '@/entities/exercise/lib/primary-image'
 import { parseMuscleGroups } from '@/entities/exercise/model/muscle-groups'
 import { useExerciseStore } from '@/entities/exercise/model/store'
-import { parseEquipmentNames } from '@/entities/equipment/model/types'
 import { useSessionStore } from '@/entities/session/model/store'
 import { cn } from '@/shared/lib/cn'
 import { localData } from '@/shared/lib/local-data'
@@ -188,14 +187,6 @@ export function ExerciseDetailPage({ id }: Props) {
             className="rounded-md bg-[var(--surface-2)] px-2 py-1 text-[var(--foreground)]"
           >
             {group}
-          </span>
-        ))}
-        {parseEquipmentNames(current.equipment).map((item) => (
-          <span
-            key={item}
-            className="rounded-md border border-[var(--border)] px-2 py-1"
-          >
-            {item}
           </span>
         ))}
       </div>

@@ -324,7 +324,7 @@ export function StatsPage() {
               Максимальный вес и лучший подход
             </p>
           </div>
-          <label className="min-w-56 space-y-1 text-xs text-[var(--muted)]">
+          <div className="min-w-56 space-y-1 text-xs text-[var(--muted)]">
             Упражнение
             <ExerciseCombobox
               exercises={exercises}
@@ -333,7 +333,7 @@ export function StatsPage() {
               placeholder={exercises.length === 0 ? 'Нет упражнений' : 'Найти упражнение…'}
               disabled={exercises.length === 0}
             />
-          </label>
+          </div>
         </div>
 
         {selectedExercise ? (

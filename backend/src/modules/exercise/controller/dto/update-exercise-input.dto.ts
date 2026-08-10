@@ -21,11 +21,6 @@ export class UpdateExerciseInputDto {
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
-  equipment?: string | null
-
-  @ApiPropertyOptional({ nullable: true })
-  @IsOptional()
-  @IsString()
   difficulty?: string | null
 
   @ApiPropertyOptional({ type: 'object', additionalProperties: true })

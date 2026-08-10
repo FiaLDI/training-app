@@ -18,7 +18,6 @@ export interface CreateExerciseRepositoryInput {
   name: string
   description?: string | null
   muscleGroup?: string | null
-  equipment?: string | null
   difficulty?: string | null
   metadata?: Record<string, unknown>
 }
@@ -28,7 +27,6 @@ export interface UpdateExerciseRepositoryInput {
   name?: string
   description?: string | null
   muscleGroup?: string | null
-  equipment?: string | null
   difficulty?: string | null
   metadata?: Record<string, unknown>
 }

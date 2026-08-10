@@ -7,10 +7,6 @@ import type {
   UpdateExerciseInput,
 } from '@/entities/exercise/model/types'
 import type {
-  CreateEquipmentInput,
-  Equipment,
-} from '@/entities/equipment/model/types'
-import type {
   CreateSourceInput,
   ExerciseSource,
 } from '@/entities/source/model/types'
@@ -46,7 +42,6 @@ import type {
 } from '@/entities/stats/model/types'
 
 const exercisesDb = createLocalCollection<Exercise>('ironlog:local:exercises')
-const equipmentDb = createLocalCollection<Equipment>('ironlog:local:equipment')
 const sourcesDb = createLocalCollection<ExerciseSource>('ironlog:local:sources')
 const templatesDb = createLocalCollection<WorkoutTemplate>('ironlog:local:templates')
 const templateExercisesDb = createLocalCollection<TemplateExercise>(
@@ -82,7 +77,6 @@ export const localData = {
         name: input.name,
         description: input.description ?? null,
         muscleGroup: input.muscleGroup ?? null,
-        equipment: input.equipment ?? null,
         difficulty: input.difficulty ?? null,
         metadata: input.metadata ?? {},
         createdAt: stamp,
@@ -100,7 +94,6 @@ export const localData = {
         ...input,
         description: input.description === undefined ? current.description : input.description,
         muscleGroup: input.muscleGroup === undefined ? current.muscleGroup : input.muscleGroup,
-        equipment: input.equipment === undefined ? current.equipment : input.equipment,
         difficulty: input.difficulty === undefined ? current.difficulty : input.difficulty,
         metadata: input.metadata === undefined ? current.metadata : input.metadata,
         updatedAt: nowIso(),
@@ -108,35 +101,6 @@ export const localData = {
     },
     remove(id: string) {
       return exercisesDb.remove(id)
-    },
-  },
-
-  equipment: {
-    list() {
-      return equipmentDb.list().sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-    },
-    get(id: string) {
-      return equipmentDb.get(id)
-    },
-    create(input: CreateEquipmentInput): Equipment {
-      const stamp = nowIso()
-      return equipmentDb.upsert({
-        id: input.id ?? createLocalId(),
-        name: input.name.trim(),
-        metadata: input.metadata ?? {},
-        createdAt: stamp,
-        updatedAt: stamp,
-      })
-    },
-    upsert(equipment: Equipment): Equipment {
-      return equipmentDb.upsert(equipment)
-    },
-    replaceId(oldId: string, next: Equipment): Equipment {
-      equipmentDb.remove(oldId)
-      return equipmentDb.upsert(next)
-    },
-    remove(id: string) {
-      return equipmentDb.remove(id)
     },
   },
 

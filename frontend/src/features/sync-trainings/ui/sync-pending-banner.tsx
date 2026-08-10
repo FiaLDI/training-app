@@ -52,7 +52,7 @@ export function SyncPendingBanner() {
               </p>
               {summary.total > 0 ? (
                 <p className="mt-1 text-xs text-[var(--muted)]">
-                  Можно выбрать планы, упражнения, инвентарь и тренировки перед отправкой.
+                  Можно выбрать планы, упражнения и тренировки перед отправкой.
                 </p>
               ) : null}
             </div>

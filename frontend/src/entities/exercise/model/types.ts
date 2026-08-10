@@ -3,7 +3,6 @@ export type Exercise = {
   name: string
   description: string | null
   muscleGroup: string | null
-  equipment: string | null
   difficulty: string | null
   metadata: Record<string, unknown>
   createdAt: string
@@ -15,7 +14,6 @@ export type CreateExerciseInput = {
   name: string
   description?: string | null
   muscleGroup?: string | null
-  equipment?: string | null
   difficulty?: string | null
   metadata?: Record<string, unknown>
 }

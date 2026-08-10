@@ -21,9 +21,6 @@ export class ExerciseEntity {
   muscleGroup!: string | null
 
   @Column({ type: 'text', nullable: true })
-  equipment!: string | null
-
-  @Column({ type: 'text', nullable: true })
   difficulty!: string | null
 
   @Column({ type: 'jsonb', default: {} })

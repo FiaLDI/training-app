@@ -25,7 +25,6 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
       name: entity.name,
       description: entity.description,
       muscleGroup: entity.muscleGroup,
-      equipment: entity.equipment,
       difficulty: entity.difficulty,
       metadata: entity.metadata ?? {},
       createdAt: entity.createdAt.toISOString(),
@@ -67,7 +66,6 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
       name: input.name,
       description: input.description ?? null,
       muscleGroup: input.muscleGroup ?? null,
-      equipment: input.equipment ?? null,
       difficulty: input.difficulty ?? null,
       metadata: input.metadata ?? {},
     })
@@ -85,7 +83,6 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
     if (input.name !== undefined) entity.name = input.name
     if (input.description !== undefined) entity.description = input.description
     if (input.muscleGroup !== undefined) entity.muscleGroup = input.muscleGroup
-    if (input.equipment !== undefined) entity.equipment = input.equipment
     if (input.difficulty !== undefined) entity.difficulty = input.difficulty
     if (input.metadata !== undefined) entity.metadata = input.metadata
 

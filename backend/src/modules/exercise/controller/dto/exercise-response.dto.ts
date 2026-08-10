@@ -14,9 +14,6 @@ export class ExerciseResponseDto {
   muscleGroup!: string | null
 
   @ApiPropertyOptional({ nullable: true })
-  equipment!: string | null
-
-  @ApiPropertyOptional({ nullable: true })
   difficulty!: string | null
 
   @ApiProperty({ type: 'object', additionalProperties: true })

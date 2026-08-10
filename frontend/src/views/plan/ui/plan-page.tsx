@@ -2,17 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Play } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { useProgramStore } from '@/entities/program/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
-import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
-import type { Training } from '@/entities/training/model/types'
 import { cn } from '@/shared/lib/cn'
-import { Button } from '@/shared/ui/button'
+import { PageHeader } from '@/shared/ui/page-header'
 import { Select } from '@/shared/ui/select'
 import { ListSkeleton } from '@/shared/ui/skeleton'
 
@@ -36,10 +33,10 @@ function sameDay(a: Date, b: Date) {
   return toDateKey(a) === toDateKey(b)
 }
 
-function formatDayMonth(date: Date) {
+function formatShortDate(date: Date) {
   return date.toLocaleDateString('ru-RU', {
-    month: 'long',
-    year: 'numeric',
+    day: 'numeric',
+    month: 'short',
   })
 }
 
@@ -87,7 +84,6 @@ function scheduledAtNoonUtc(date: Date) {
 }
 
 export function PlanPage() {
-  const router = useRouter()
   const todayWeek = useMemo(() => startOfWeekMonday(new Date()), [])
   const [weekStart, setWeekStart] = useState(() => todayWeek)
   const trainings = useTrainingStore((s) => s.items)
@@ -95,7 +91,6 @@ export function PlanPage() {
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
   const create = useTrainingStore((s) => s.create)
   const update = useTrainingStore((s) => s.update)
-  const start = useTrainingStore((s) => s.start)
   const programs = useProgramStore((s) => s.items)
   const currentProgram = useProgramStore((s) => s.current)
   const fetchPrograms = useProgramStore((s) => s.fetchList)
@@ -112,7 +107,6 @@ export function PlanPage() {
   const [savingDay, setSavingDay] = useState<number | null>(null)
   const [dayOverrides, setDayOverrides] = useState<Record<string, string>>({})
   const [dayErrors, setDayErrors] = useState<Record<string, string>>({})
-  const [busy, setBusy] = useState(false)
   const appliedKey = useRef<string | null>(null)
   const ensuringProgram = useRef(false)
 
@@ -129,7 +123,6 @@ export function PlanPage() {
   }, [weekStart])
 
   const isCurrentWeek = sameDay(weekStart, todayWeek)
-  const offset = weekOffsetFromCurrent(weekStart)
 
   useEffect(() => {
     void fetchTrainings({ from, to, limit: 100 })
@@ -186,15 +179,6 @@ export function PlanPage() {
     setDayOverrides({})
     setDayErrors({})
     setWeekStart(startOfWeekMonday(next))
-  }
-
-  function templateName(templateId: string | null) {
-    if (!templateId) return 'Тренировка'
-    return templates.find((t) => t.id === templateId)?.name ?? 'Тренировка'
-  }
-
-  function trainingLabel(training: Training) {
-    return templateName(training.templateId) || training.notes || 'Тренировка'
   }
 
   function trainingsForDay(date: Date) {
@@ -389,49 +373,11 @@ export function PlanPage() {
     }
   }
 
-  async function onStart(id: string) {
-    setBusy(true)
-    try {
-      const training = await start(id)
-      router.push(`/trainings/${training.id}`)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function startTodayPlan(templateId: string) {
-    setBusy(true)
-    try {
-      const training = await create({
-        templateId,
-        status: 'in_progress',
-        startedAt: new Date().toISOString(),
-      })
-      router.push(`/trainings/${training.id}`)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const scheduleReady = Boolean(currentProgram && currentProgram.id === programId)
 
   return (
     <div>
-      <div className="mb-6">
-        <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Планирование</p>
-        <h1 className="mt-1 font-[family-name:var(--font-display)] text-3xl tracking-tight">
-          {weekTitle(weekStart)}
-        </h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">{formatWeekRange(weekStart)}</p>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          План дня действует только на эту неделю. Чтобы повторять каждую неделю — «Как каждую
-          неделю» или{' '}
-          <Link href={programId ? `/programs/${programId}` : '/programs'} className="text-[var(--accent)] hover:underline">
-            программа
-          </Link>
-          .
-        </p>
-      </div>
+      <PageHeader title={weekTitle(weekStart)} description={formatWeekRange(weekStart)} />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="inline-flex items-center gap-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1">
@@ -465,20 +411,9 @@ export function PlanPage() {
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          {offset !== 0 ? (
-            <button
-              type="button"
-              onClick={() => goToWeek(todayWeek)}
-              className="text-[var(--accent)] hover:underline"
-            >
-              Вернуться к текущей
-            </button>
-          ) : null}
-          <Link href="/plans" className="text-[var(--muted)] hover:text-[var(--foreground)]">
-            Планы
-          </Link>
-        </div>
+        <Link href="/plans" className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]">
+          Планы
+        </Link>
       </div>
 
       {templates.length === 0 ? (
@@ -493,7 +428,7 @@ export function PlanPage() {
 
       {loading && trainings.length === 0 ? <ListSkeleton count={3} /> : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+      <ul className="space-y-2">
         {days.map(({ label, date, dayOfWeek }) => {
           const key = toDateKey(date)
           const dayTrainings = trainingsForDay(date)
@@ -511,44 +446,32 @@ export function PlanPage() {
           const differsFromProgram =
             (hasEditable || !visiblePrimary) && selectedPlan !== programPlan
           const hasInProgress = dayTrainings.some((t) => t.status === 'in_progress')
-          const isRest = !selectedPlan && !visiblePrimary
           const dayError = dayErrors[key]
 
           return (
-            <article
+            <li
               key={key}
               className={cn(
-                'flex flex-col rounded-2xl border bg-[var(--surface)] p-4 transition',
+                'flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3',
                 isToday
-                  ? 'border-[var(--accent)]/45 bg-[var(--accent)]/5 shadow-[0_0_0_1px_rgba(163,230,53,0.12)]'
-                  : 'border-[var(--border)] hover:border-[var(--border)]/80',
-                isRest && !isToday && 'opacity-80',
+                  ? 'border-[var(--accent)]/45 bg-[var(--accent)]/5'
+                  : 'border-[var(--border)] bg-[var(--surface)]',
               )}
             >
-              <header className="mb-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p
-                      className={cn(
-                        'text-[11px] font-medium uppercase tracking-[0.14em]',
-                        isToday ? 'text-[var(--accent)]' : 'text-[var(--muted)]',
-                      )}
-                    >
-                      {label}
-                      {isToday ? ' · сегодня' : ''}
-                    </p>
-                    <p className="mt-1 font-[family-name:var(--font-display)] text-xl leading-none tracking-tight">
-                      {date.getDate()}
-                    </p>
-                    <p className="mt-1 text-xs capitalize text-[var(--muted)]">
-                      {formatDayMonth(date)}
-                    </p>
-                  </div>
-                </div>
-              </header>
+              <div className="w-24 shrink-0 sm:w-28">
+                <p
+                  className={cn(
+                    'text-sm font-medium',
+                    isToday ? 'text-[var(--accent)]' : 'text-[var(--foreground)]',
+                  )}
+                >
+                  {label}
+                  {isToday ? ' · сегодня' : ''}
+                </p>
+                <p className="text-xs capitalize text-[var(--muted)]">{formatShortDate(date)}</p>
+              </div>
 
-              <label className="mb-1 block space-y-1.5 text-[11px] text-[var(--muted)]">
-                План на день
+              <div className="min-w-48 flex-1 space-y-1">
                 <Select
                   value={selectedPlan}
                   disabled={!scheduleReady || savingDay === dayOfWeek || hasInProgress}
@@ -562,85 +485,23 @@ export function PlanPage() {
                     </option>
                   ))}
                 </Select>
-              </label>
-
-              {dayError ? <p className="mb-2 text-[11px] text-red-300">{dayError}</p> : null}
+                {dayError ? <p className="text-[11px] text-red-300">{dayError}</p> : null}
+              </div>
 
               {differsFromProgram && scheduleReady ? (
                 <button
                   type="button"
                   disabled={savingDay === dayOfWeek || hasInProgress}
                   onClick={() => void saveDayToProgram(dayOfWeek, date)}
-                  className="mb-3 text-left text-[11px] text-[var(--accent)] hover:underline disabled:opacity-50"
+                  className="shrink-0 text-left text-xs text-[var(--accent)] hover:underline disabled:opacity-50"
                 >
                   Как каждую неделю
                 </button>
-              ) : (
-                <div className="mb-3 h-[16px]" aria-hidden />
-              )}
-
-              <div className="mt-auto space-y-3 pt-1">
-                {visiblePrimary ? (
-                  <>
-                    <Link
-                      href={`/trainings/${visiblePrimary.id}`}
-                      className="block truncate text-sm font-medium hover:text-[var(--accent)]"
-                    >
-                      {trainingLabel(visiblePrimary)}
-                    </Link>
-                    <div className="flex items-center justify-between gap-2">
-                      <TrainingStatusBadge status={visiblePrimary.status} />
-                      {visiblePrimary.status === 'planned' ? (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent)]/15 px-2.5 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--accent)]/25 disabled:opacity-50"
-                          onClick={() => void onStart(visiblePrimary.id)}
-                        >
-                          <Play className="size-3" />
-                          Старт
-                        </button>
-                      ) : visiblePrimary.status === 'in_progress' ? (
-                        <Link
-                          href={`/trainings/${visiblePrimary.id}`}
-                          className="text-xs font-medium text-[var(--accent)] hover:underline"
-                        >
-                          Открыть
-                        </Link>
-                      ) : visiblePrimary.status === 'finished' && visiblePrimary.templateId ? (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          className="inline-flex items-center gap-1 rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--border)]/40 disabled:opacity-50"
-                          onClick={() => void startTodayPlan(visiblePrimary.templateId!)}
-                        >
-                          <Play className="size-3" />
-                          Ещё раз
-                        </button>
-                      ) : null}
-                    </div>
-                  </>
-                ) : selectedPlan ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="w-full"
-                    disabled={busy}
-                    onClick={() => void startTodayPlan(selectedPlan)}
-                  >
-                    <Play className="size-4" />
-                    Начать
-                  </Button>
-                ) : (
-                  <p className="rounded-lg bg-[var(--surface-2)] px-3 py-2 text-center text-xs text-[var(--muted)]">
-                    Отдых
-                  </p>
-                )}
-              </div>
-            </article>
+              ) : null}
+            </li>
           )
         })}
-      </div>
+      </ul>
     </div>
   )
 }
