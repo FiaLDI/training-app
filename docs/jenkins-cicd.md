@@ -5,11 +5,12 @@
 ```text
 GitHub push → webhook → Jenkins
   → checkout → docker build
-  → smoke (compose + /api/health)
   → docker save | gzip → SCP
   → production: docker load → compose up --no-build
   → healthcheck → cleanup на Jenkins
 ```
+
+> **Важно (один сервер):** если Jenkins в Docker с `/var/run/docker.sock` на той же машине, что и приложение, **нельзя** делать `docker compose up/down` из workspace Jenkins — это те же `container_name` (`workout-*`) и те же volume. Стадия smoke на агенте убрана; проверка — только на production в `ci-deploy.sh`.
 
 При провале healthcheck на production: rollback на предыдущий `IMAGE_TAG`, Jenkins — **FAILURE**.
 
@@ -33,6 +34,68 @@ GitHub push → webhook → Jenkins
 - Docker + Docker Compose plugin/CLI (`docker compose`)
 - `curl`, `gzip`, `ssh`, `scp`, `tar`
 - Доступ к Docker socket (сборка и локальный smoke)
+
+Jenkins **не** входит в `docker-compose.yml` приложения — это отдельный сервис.
+
+Запуск в Docker (на хосте, где уже есть Docker):
+
+```bash
+docker run -d --name jenkins \
+  -p 8080:8080 -p 50000:50000 \
+  -v jenkins_home:/var/jenkins_home \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  jenkins/jenkins:lts
+```
+
+Образ `jenkins/jenkins:lts` **не содержит** Docker CLI. Сокет сам по себе недостаточно — поставь CLI внутри контейнера:
+
+```bash
+docker exec -u root jenkins bash -c '
+  set -e
+  apt-get update
+  apt-get install -y ca-certificates curl gnupg
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+  chmod a+r /etc/apt/keyrings/docker.asc
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" \
+    > /etc/apt/sources.list.d/docker.list
+  apt-get update
+  apt-get install -y docker-ce-cli docker-compose-plugin
+'
+
+# Права на docker.sock (GID хоста)
+SOCK_GID=$(stat -c '%g' /var/run/docker.sock)
+docker exec -u root jenkins bash -c "groupadd -f -g ${SOCK_GID} dockerhost && usermod -aG dockerhost jenkins"
+docker restart jenkins
+```
+
+Проверка:
+
+```bash
+docker exec -u jenkins jenkins docker version
+docker exec -u jenkins jenkins docker compose version
+```
+
+- `-p 8080:8080` — UI и GitHub webhook (`/github-webhook/`)
+- `-v /var/run/docker.sock:...` — сборка через Docker **хоста**
+- данные Jenkins в volume `jenkins_home`
+
+Открыть порт (пример для ufw):
+
+```bash
+sudo ufw allow 8080/tcp
+sudo ufw reload
+```
+
+Если VPS за облачным firewall — добавь inbound TCP **8080** и там.
+
+Первый вход:
+
+```bash
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+```
+
+Открой `http://<IP>:8080`, вставь пароль, поставь плагины (Pipeline, Git, GitHub, SSH Credentials).
 
 ### Production
 

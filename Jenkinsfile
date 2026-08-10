@@ -21,10 +21,24 @@ pipeline {
         checkout scm
         script {
           env.GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-          env.GIT_BRANCH_NAME = sh(
-            script: "git rev-parse --abbrev-ref HEAD | sed 's#^origin/##'",
-            returnStdout: true
-          ).trim()
+          def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+          branch = branch.replaceAll('^origin/', '').trim()
+          if (!branch || branch == 'HEAD') {
+            branch = sh(
+              script: """
+                git name-rev --name-only HEAD 2>/dev/null \
+                  | sed 's#^remotes/origin/##' | sed 's#^tags/##' | sed 's#~.*##' | sed 's#\\^.*##'
+              """.stripIndent().trim(),
+              returnStdout: true
+            ).trim()
+          }
+          if (!branch || branch == 'HEAD' || branch == 'undefined') {
+            branch = sh(
+              script: "git branch -a --contains HEAD | sed 's/^[* ]*//' | grep -v HEAD | head -1 | sed 's#^remotes/origin/##'",
+              returnStdout: true
+            ).trim()
+          }
+          env.GIT_BRANCH_NAME = branch ?: 'unknown'
         }
         echo "Commit: ${env.GIT_COMMIT_SHORT}"
         echo "Branch: ${env.GIT_BRANCH_NAME}"
@@ -50,33 +64,9 @@ pipeline {
       }
     }
 
-    stage('Docker image validation') {
-      steps {
-        sh '''
-          set -euo pipefail
-          if [ ! -f .env ]; then cp .env.example .env; fi
-          bash scripts/ssl-ensure-dummy.sh
-          # Preserve Jenkins build tag; .env may contain IMAGE_TAG=local
-          BUILD_IMAGE_TAG="${IMAGE_TAG}"
-          set -a
-          # shellcheck disable=SC1091
-          . ./.env
-          set +a
-          export IMAGE_TAG="${BUILD_IMAGE_TAG}"
-          docker compose up -d --no-build
-          bash scripts/ci-healthcheck.sh --timeout 120 --url "http://127.0.0.1:${APP_PORT:-80}/api/health"
-          bash scripts/ci-healthcheck.sh --timeout 60 --url "http://127.0.0.1:${APP_PORT:-80}/" --expect-body ""
-          docker compose down -v --remove-orphans
-          echo "Docker image validation: SUCCESS"
-        '''
-      }
-      post {
-        failure {
-          sh 'docker compose down -v --remove-orphans || true'
-          echo 'Docker image validation: FAILURE'
-        }
-      }
-    }
+    // NOTE: do NOT run `docker compose up/down` here when Jenkins shares the
+    // host Docker daemon with production (same container_name / volumes).
+    // Smoke + healthcheck happen on production in ci-deploy.sh.
 
     stage('Export image') {
       steps {
