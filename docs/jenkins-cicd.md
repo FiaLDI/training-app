@@ -118,7 +118,7 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 
 Опционально в Job / Folder env:
 
-- `DEPLOY_BRANCH` — ветка для деплоя (по умолчанию `main`)
+- `DEPLOY_BRANCH` — ветка для деплоя (по умолчанию `develop`)
 
 ## Создание Pipeline job
 
@@ -135,7 +135,7 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 4. Events: **Just the push event** (или Pushes).
 5. На Jenkins: плагин **GitHub** / **GitHub Branch Source**; job должен быть связан с репозиторием.
 
-После push в `main` (или `DEPLOY_BRANCH`): checkout → проверки → образы → transfer → deploy → healthcheck → SUCCESS.
+После push в `develop` (или `DEPLOY_BRANCH`): checkout → проверки → образы → transfer → deploy → healthcheck → SUCCESS.
 
 ## Первичная подготовка production
 

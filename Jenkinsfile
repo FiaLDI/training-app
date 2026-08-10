@@ -84,7 +84,7 @@ pipeline {
     stage('Transfer & Deploy') {
       when {
         expression {
-          def deployBranch = env.DEPLOY_BRANCH ?: 'main'
+          def deployBranch = env.DEPLOY_BRANCH ?: 'develop'
           return env.BRANCH_NAME == deployBranch || env.GIT_BRANCH_NAME == deployBranch
         }
       }
@@ -140,7 +140,7 @@ pipeline {
     stage('Skip deploy (non-deploy branch)') {
       when {
         expression {
-          def deployBranch = env.DEPLOY_BRANCH ?: 'main'
+          def deployBranch = env.DEPLOY_BRANCH ?: 'develop'
           return !(env.BRANCH_NAME == deployBranch || env.GIT_BRANCH_NAME == deployBranch)
         }
       }
