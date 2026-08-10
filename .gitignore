@@ -70,6 +70,9 @@ web_modules/
 .env.*
 !.env.example
 
+# CI/CD deploy artifacts / state on production (kept on server only)
+.deploy/
+
 # Let's Encrypt / certbot material (keep directory placeholders)
 certbot/conf/**
 !certbot/conf/.gitkeep

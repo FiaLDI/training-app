@@ -17,7 +17,10 @@ services:
       timeout: 5s
       retries: 10
 
+  # Local:  docker compose up --build  → tags workout-*:${IMAGE_TAG:-local}
+  # Prod:   docker compose up --no-build with IMAGE_TAG from .env (pre-loaded images)
   backend:
+    image: workout-backend:${IMAGE_TAG:-local}
     build:
       context: ./backend
     container_name: workout-backend
@@ -38,6 +41,7 @@ services:
       - "3000"
 
   frontend:
+    image: workout-frontend:${IMAGE_TAG:-local}
     build:
       context: ./frontend
       args:

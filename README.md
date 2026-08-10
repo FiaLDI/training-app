@@ -71,6 +71,7 @@ Docker Compose читает корневой `.env`. Backend при локаль
 
 Основные переменные:
 
+- `IMAGE_TAG` — тег образов `workout-backend` / `workout-frontend` (`local` при `npm run up --build`; на production выставляет Jenkins)
 - `APP_PORT` / `HTTPS_PORT` — порты nginx на хосте (`80` / `443`)
 - `CERTBOT_IP` — для `npm run ssl:issue` (`CERTBOT_EMAIL` опционален)
 - `POSTGRES_*` / `DATABASE_URL` — база
@@ -133,14 +134,22 @@ UI: `http://localhost:3001` (проксирует `/api` на backend через
 | `npm run ssl:renew` | Обновить сертификаты и reload nginx |
 | `cd backend && npm run migration:run` | Миграции вручную |
 
+## CI/CD (Jenkins)
+
+Production получает уже собранные образы `workout-backend` / `workout-frontend` по SSH (без Registry и без `docker build` на сервере). После успешного деплоя Jenkins удаляет локальный image и tar; на production хранятся текущий и предыдущий тег для rollback.
+
+Подробности: [docs/jenkins-cicd.md](docs/jenkins-cicd.md).
+
 ## Структура
 
 ```
 ├── .env.example      # общий шаблон env
+├── Jenkinsfile       # CI/CD pipeline
 ├── docker-compose.yml
+├── docs/             # в т.ч. jenkins-cicd.md
 ├── nginx/            # reverse proxy
 ├── certbot/          # LE webroot + certificates (gitignored)
-├── scripts/          # ssl-issue / ssl-renew / dummy cert
+├── scripts/          # ssl + ci-deploy / ci-healthcheck
 ├── backend/          # NestJS API
 └── frontend/         # Next.js UI
 ```
