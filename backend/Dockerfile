@@ -28,4 +28,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=10 \
   CMD node -e "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["sh", "-c", "npm run migration:run && node dist/main.js"]
+CMD ["sh", "-c", "npm run migration:run && if [ -f dist/main.js ]; then node dist/main.js; else node dist/src/main.js; fi"]
