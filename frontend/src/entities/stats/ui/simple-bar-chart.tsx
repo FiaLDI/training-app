@@ -13,6 +13,7 @@ type Props = {
   /** Подпись единицы: «кг», «кг×повт.» */
   unit?: string
   emptyText?: string
+  footnote?: string | null
 }
 
 const CHART_HEIGHT = 160
@@ -34,6 +35,7 @@ export function SimpleBarChart({
   className,
   unit = '',
   emptyText = 'Нет данных за этот период.',
+  footnote,
 }: Props) {
   const visible = points
     .map((point) => ({ point, value: Number(point.value) || 0 }))
@@ -94,13 +96,11 @@ export function SimpleBarChart({
         </div>
       </div>
 
-      {unit ? (
+      {footnote !== null ? (
         <p className="text-xs text-[var(--muted)]">
-          Единица: {unit} · без учёта разминки
+          {footnote ?? (unit ? `Единица: ${unit} · без учёта разминки` : 'Без учёта разминки')}
         </p>
-      ) : (
-        <p className="text-xs text-[var(--muted)]">Без учёта разминки</p>
-      )}
+      ) : null}
     </div>
   )
 }

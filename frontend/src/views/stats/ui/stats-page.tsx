@@ -3,12 +3,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
+import { BodyWeightSection } from '@/entities/body-measurement/ui/body-weight-section'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { ExerciseCombobox } from '@/entities/exercise/ui/exercise-combobox'
 import { useSessionStore } from '@/entities/session/model/store'
 import { statsApi } from '@/entities/stats/api/stats-api'
+import { LastTrainingSummary } from '@/entities/stats/ui/last-training-summary'
 import type { ExerciseProgressPoint, VolumeStatPoint } from '@/entities/stats/model/types'
 import { SimpleBarChart } from '@/entities/stats/ui/simple-bar-chart'
+import { trainingApi } from '@/entities/training/api/training-api'
+import type { TrainingWithDetails } from '@/entities/training/model/types'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
@@ -77,13 +81,14 @@ export function StatsPage() {
   const [progress, setProgress] = useState<ExerciseProgressPoint[]>([])
   const [exerciseId, setExerciseId] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [lastTrainingDetails, setLastTrainingDetails] = useState<TrainingWithDetails | null>(null)
   const range = useMemo(() => defaultRange(), [])
 
   useEffect(() => {
     void fetchExercises('')
     void fetchTemplates()
-    void fetchTrainings({ from: range.from, to: range.to, limit: 100 })
-  }, [fetchExercises, fetchTemplates, fetchTrainings, range.from, range.to])
+    void fetchTrainings({ limit: 100 })
+  }, [fetchExercises, fetchTemplates, fetchTrainings])
 
   useEffect(() => {
     if (!exerciseId && exercises.length > 0) {
@@ -179,6 +184,48 @@ export function StatsPage() {
       })
   }, [sessions])
 
+  const lastFinishedTraining = useMemo(() => {
+    return trainings
+      .filter((t) => t.status === 'finished')
+      .sort((a, b) => {
+        const aKey = a.finishedAt ?? a.startedAt ?? a.createdAt
+        const bKey = b.finishedAt ?? b.startedAt ?? b.createdAt
+        return bKey.localeCompare(aKey)
+      })[0] ?? null
+  }, [trainings])
+
+  useEffect(() => {
+    if (!lastFinishedTraining) {
+      setLastTrainingDetails(null)
+      return
+    }
+
+    const local = localData.trainings.get(lastFinishedTraining.id)
+    if (local && local.exercises.length > 0) {
+      setLastTrainingDetails(local)
+      return
+    }
+
+    if (mode === 'local') {
+      setLastTrainingDetails(local)
+      return
+    }
+
+    let cancelled = false
+    void trainingApi
+      .getById(lastFinishedTraining.id)
+      .then((details) => {
+        if (!cancelled) setLastTrainingDetails(details)
+      })
+      .catch(() => {
+        if (!cancelled) setLastTrainingDetails(local)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [lastFinishedTraining, mode])
+
   function trainingLabel(templateId: string | null) {
     if (!templateId) return 'Тренировка'
     return templates.find((t) => t.id === templateId)?.name ?? 'Тренировка'
@@ -247,6 +294,10 @@ export function StatsPage() {
     }
   }, [progress])
 
+  function resolveExerciseName(exerciseId: string) {
+    return exercises.find((item) => item.id === exerciseId)?.name ?? 'Упражнение'
+  }
+
   const selectedExercise = exercises.find((e) => e.id === exerciseId)
 
   const volumeChart = volume.map((p) => ({ date: p.date, value: p.volume }))
@@ -267,6 +318,17 @@ export function StatsPage() {
       />
 
       {error ? <p className="mb-4 text-sm text-red-300">{error}</p> : null}
+
+      <LastTrainingSummary
+        training={lastFinishedTraining}
+        details={lastTrainingDetails}
+        title={lastFinishedTraining ? trainingLabel(lastFinishedTraining.templateId) : 'Тренировка'}
+        resolveExerciseName={resolveExerciseName}
+        formatDuration={formatDuration}
+        formatNumber={formatNumber}
+      />
+
+      <BodyWeightSection from={range.from} to={range.to} formatNumber={formatNumber} />
 
       <section className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard

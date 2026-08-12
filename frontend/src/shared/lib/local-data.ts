@@ -2,6 +2,10 @@ import { createLocalCollection } from '@/shared/lib/local-db'
 import { createLocalId } from '@/shared/lib/local-id'
 
 import type {
+  BodyMeasurement,
+  CreateBodyMeasurementInput,
+} from '@/entities/body-measurement/model/types'
+import type {
   CreateExerciseInput,
   Exercise,
   UpdateExerciseInput,
@@ -55,6 +59,7 @@ const trainingExercisesDb = createLocalCollection<TrainingExercise>(
   'ironlog:local:training-exercises',
 )
 const trainingSetsDb = createLocalCollection<TrainingSet>('ironlog:local:training-sets')
+const bodyMeasurementsDb = createLocalCollection<BodyMeasurement>('ironlog:local:body-measurements')
 
 function nowIso() {
   return new Date().toISOString()
@@ -319,6 +324,35 @@ export const localData = {
         created.push(training)
       }
       return { created, skipped }
+    },
+  },
+
+  bodyMeasurements: {
+    list(from?: string, to?: string) {
+      let items = bodyMeasurementsDb.list()
+      if (from || to) {
+        const fromMs = from ? new Date(from).getTime() : -Infinity
+        const toMs = to ? new Date(to).getTime() : Infinity
+        items = items.filter((item) => {
+          const ms = new Date(item.measuredAt).getTime()
+          return ms >= fromMs && ms <= toMs
+        })
+      }
+      return items.sort((a, b) => b.measuredAt.localeCompare(a.measuredAt))
+    },
+    create(input: CreateBodyMeasurementInput): BodyMeasurement {
+      return bodyMeasurementsDb.upsert({
+        id: input.id ?? createLocalId(),
+        weight: input.weight,
+        measuredAt: input.measuredAt ?? nowIso(),
+        metadata: input.metadata ?? {},
+      })
+    },
+    upsert(item: BodyMeasurement): BodyMeasurement {
+      return bodyMeasurementsDb.upsert(item)
+    },
+    remove(id: string) {
+      return bodyMeasurementsDb.remove(id)
     },
   },
 
@@ -614,6 +648,7 @@ export const LOCAL_STORAGE_KEYS = [
   'ironlog:local:trainings',
   'ironlog:local:training-exercises',
   'ironlog:local:training-sets',
+  'ironlog:local:body-measurements',
   'ironlog:local:catalog-outbox',
 ] as const
 

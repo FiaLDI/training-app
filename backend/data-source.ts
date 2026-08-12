@@ -6,6 +6,7 @@ import { config } from 'dotenv'
 import { existsSync } from 'fs'
 import { DataSource } from 'typeorm'
 
+import { BodyMeasurementEntity } from './src/modules/body-measurement/core/entity/body-measurement.entity'
 import { UserEntity } from './src/modules/auth/core/entity/user.entity'
 import { ExerciseEntity } from './src/modules/exercise/core/entity/exercise.entity'
 import { ExerciseSourceEntity } from './src/modules/source/core/entity/exercise-source.entity'
@@ -46,6 +47,7 @@ export default new DataSource({
 
   entities: [
     UserEntity,
+    BodyMeasurementEntity,
     ExerciseEntity,
     ExerciseSourceEntity,
     ExerciseTimecodeEntity,
