@@ -101,6 +101,7 @@ export const localData = {
       })
     },
     remove(id: string) {
+      sourcesDb.save(sourcesDb.list().filter((item) => item.exerciseId !== id))
       return exercisesDb.remove(id)
     },
   },

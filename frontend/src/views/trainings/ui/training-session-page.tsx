@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle2, Play, Timer, Trash2 } from 'lucide-react'
 import { AddTrainingExerciseForm } from '@/features/add-training-exercise/ui/add-training-exercise-form'
 import { EditSetRow } from '@/features/edit-set/ui/edit-set-row'
 import { EditTrainingExerciseRow } from '@/features/edit-training-exercise/ui/edit-training-exercise-row'
+import { RemoveTrainingExerciseButton } from '@/features/remove-training-exercise/ui/remove-training-exercise-button'
 import { LogSetForm } from '@/features/log-set/ui/log-set-form'
 import { RestTimerBar, SessionClock } from '@/features/rest-timer/ui/rest-timer-bar'
 import { useExerciseStore } from '@/entities/exercise/model/store'
@@ -97,6 +98,10 @@ export function TrainingSessionPage({ id }: Props) {
   }
 
   const canEditStructure = current.status === 'in_progress' || current.status === 'planned'
+  const canRemoveExercise =
+    current.status === 'in_progress' ||
+    current.status === 'planned' ||
+    current.status === 'finished'
   const canEditSets =
     current.status === 'in_progress' ||
     current.status === 'planned' ||
@@ -208,25 +213,34 @@ export function TrainingSessionPage({ id }: Props) {
                   neighborBelowOrder={sortedExercises[index + 1]?.exerciseOrder}
                 />
               ) : (
-                <div>
-                  <h3 className="font-[family-name:var(--font-display)] text-lg">
-                    {exerciseName(exercise.exerciseId)}
-                    {exercise.isWarmup ? (
-                      <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
-                        Разминка
-                      </span>
-                    ) : null}
-                  </h3>
-                  <p className="text-xs text-[var(--muted)]">
-                    Цель: {exercise.targetSets} подходов
-                    {exercise.minReps != null || exercise.maxReps != null
-                      ? ` · ${exercise.minReps ?? '?'}–${exercise.maxReps ?? '?'} повт.`
-                      : ''}
-                    {typeof exercise.metadata?.targetWeight === 'number'
-                      ? ` · ${exercise.metadata.targetWeight} кг`
-                      : ''}
-                    {exercise.restSeconds != null ? ` · отдых ${exercise.restSeconds}с` : ''}
-                  </p>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-[family-name:var(--font-display)] text-lg">
+                      {exerciseName(exercise.exerciseId)}
+                      {exercise.isWarmup ? (
+                        <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
+                          Разминка
+                        </span>
+                      ) : null}
+                    </h3>
+                    <p className="text-xs text-[var(--muted)]">
+                      Цель: {exercise.targetSets} подходов
+                      {exercise.minReps != null || exercise.maxReps != null
+                        ? ` · ${exercise.minReps ?? '?'}–${exercise.maxReps ?? '?'} повт.`
+                        : ''}
+                      {typeof exercise.metadata?.targetWeight === 'number'
+                        ? ` · ${exercise.metadata.targetWeight} кг`
+                        : ''}
+                      {exercise.restSeconds != null ? ` · отдых ${exercise.restSeconds}с` : ''}
+                    </p>
+                  </div>
+                  {canRemoveExercise ? (
+                    <RemoveTrainingExerciseButton
+                      trainingId={id}
+                      exerciseRowId={exercise.id}
+                      exerciseName={exerciseName(exercise.exerciseId)}
+                    />
+                  ) : null}
                 </div>
               )}
 

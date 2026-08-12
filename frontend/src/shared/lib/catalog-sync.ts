@@ -156,9 +156,14 @@ export const catalogSync = {
   },
 
   async mergeFromServer() {
+    const pendingDeletes = new Set(
+      readOutbox().filter((entry) => entry.op === 'delete').map((entry) => entry.id),
+    )
     try {
       const exercises = await exerciseApi.list({ limit: 200 })
+      const serverIds = new Set(exercises.items.map((item) => item.id))
       for (const item of exercises.items) {
+        if (pendingDeletes.has(item.id)) continue
         const local = localData.exercises.get(item.id)
         if (!local || local.updatedAt <= item.updatedAt) {
           localData.exercises.upsert({
@@ -170,6 +175,11 @@ export const catalogSync = {
                 new Date().toISOString(),
             },
           })
+        }
+      }
+      for (const local of localData.exercises.list()) {
+        if (!serverIds.has(local.id) && local.metadata?.catalogSyncedAt) {
+          localData.exercises.remove(local.id)
         }
       }
     } catch {

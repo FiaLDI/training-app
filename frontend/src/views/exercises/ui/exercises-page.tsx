@@ -56,7 +56,11 @@ export function ExercisesPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((exercise) => (
-            <ExerciseCard key={exercise.id} exercise={exercise} />
+            <ExerciseCard
+              key={exercise.id}
+              exercise={exercise}
+              onDeleted={() => void fetchList(query)}
+            />
           ))}
         </div>
       )}

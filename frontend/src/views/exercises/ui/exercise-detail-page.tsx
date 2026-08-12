@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ExternalLink, Pencil, Star, Trash2 } from 'lucide-react'
 
+import { DeleteExerciseButton } from '@/features/delete-exercise/ui/delete-exercise-button'
 import { EditExerciseForm } from '@/features/edit-exercise/ui/edit-exercise-form'
 import { sourceApi } from '@/entities/source/api/source-api'
 import type { ExerciseSource } from '@/entities/source/model/types'
@@ -35,7 +36,6 @@ export function ExerciseDetailPage({ id }: Props) {
   const error = useExerciseStore((s) => s.error)
   const fetchOne = useExerciseStore((s) => s.fetchOne)
   const update = useExerciseStore((s) => s.update)
-  const remove = useExerciseStore((s) => s.remove)
   const mode = useSessionStore((s) => s.mode)
   const [sources, setSources] = useState<ExerciseSource[]>([])
   const [editing, setEditing] = useState(false)
@@ -140,18 +140,13 @@ export function ExerciseDetailPage({ id }: Props) {
                 Изменить
               </Button>
             ) : null}
-            <Button
-              variant="danger"
-              type="button"
-              onClick={() =>
-                void remove(id).then(() => {
-                  window.location.href = '/exercises'
-                })
-              }
-            >
-              <Trash2 className="size-4" />
-              Удалить
-            </Button>
+            <DeleteExerciseButton
+              exerciseId={id}
+              exerciseName={current.name}
+              onDeleted={() => {
+                window.location.href = '/exercises'
+              }}
+            />
           </div>
         }
       />

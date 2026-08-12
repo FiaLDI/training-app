@@ -1,9 +1,10 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, ChevronDown, ChevronUp, Pencil, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Pencil, X } from 'lucide-react'
 
 import type { TrainingExercise, TrainingSet } from '@/entities/training/model/types'
+import { RemoveTrainingExerciseButton } from '@/features/remove-training-exercise/ui/remove-training-exercise-button'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -39,7 +40,6 @@ export function EditTrainingExerciseRow({
   neighborBelowOrder,
 }: Props) {
   const updateExercise = useTrainingStore((s) => s.updateExercise)
-  const removeExercise = useTrainingStore((s) => s.removeExercise)
   const [editing, setEditing] = useState(false)
   const [targetSets, setTargetSets] = useState(String(item.targetSets))
   const [minReps, setMinReps] = useState(item.minReps == null ? '' : String(item.minReps))
@@ -165,13 +165,11 @@ export function EditTrainingExerciseRow({
           <Button type="button" variant="ghost" onClick={() => setEditing(true)}>
             <Pencil className="size-4" />
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => void removeExercise(trainingId, item.id)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          <RemoveTrainingExerciseButton
+            trainingId={trainingId}
+            exerciseRowId={item.id}
+            exerciseName={exerciseName}
+          />
         </div>
       </div>
     )
