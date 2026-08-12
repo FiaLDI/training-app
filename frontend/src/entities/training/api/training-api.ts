@@ -10,6 +10,7 @@ import type {
   TrainingSet,
   TrainingStatus,
   TrainingWithDetails,
+  UpdateTrainingExerciseInput,
 } from '../model/types'
 
 type RequestExtras = {
@@ -71,6 +72,18 @@ export const trainingApi = {
   ) {
     return apiRequest<TrainingExercise>(`/trainings/${trainingId}/exercises`, {
       method: 'POST',
+      body: input,
+      ...extras,
+    })
+  },
+
+  updateExercise(
+    exerciseId: string,
+    input: UpdateTrainingExerciseInput,
+    extras: RequestExtras = {},
+  ) {
+    return apiRequest<TrainingExercise>(`/trainings/exercises/${exerciseId}`, {
+      method: 'PATCH',
       body: input,
       ...extras,
     })

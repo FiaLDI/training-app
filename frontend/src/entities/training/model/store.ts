@@ -20,6 +20,7 @@ import type {
   CreateTrainingSetInput,
   Training,
   TrainingWithDetails,
+  UpdateTrainingExerciseInput,
 } from './types'
 
 const WRITE_TIMEOUT_MS = 5000
@@ -64,7 +65,18 @@ type TrainingStore = {
   finish: (id: string) => Promise<void>
   remove: (id: string) => Promise<void>
   addExercise: (trainingId: string, input: CreateTrainingExerciseInput) => Promise<void>
+  updateExercise: (
+    trainingId: string,
+    exerciseRowId: string,
+    input: UpdateTrainingExerciseInput,
+  ) => Promise<void>
+  removeExercise: (trainingId: string, exerciseRowId: string) => Promise<void>
   addSet: (trainingId: string, exerciseId: string, input: CreateTrainingSetInput) => Promise<void>
+  updateSet: (
+    trainingId: string,
+    setId: string,
+    input: Partial<CreateTrainingSetInput>,
+  ) => Promise<void>
   removeSet: (trainingId: string, setId: string) => Promise<void>
 }
 
@@ -426,6 +438,68 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     }
   },
 
+  async updateExercise(trainingId, exerciseRowId, input) {
+    const localInput = { ...input }
+    const apiInput: UpdateTrainingExerciseInput & { metadata?: Record<string, unknown> } = {
+      ...input,
+    }
+    if (input.targetWeight !== undefined) {
+      delete apiInput.targetWeight
+      const current = get().current?.exercises.find((item) => item.id === exerciseRowId)
+      const metadata = { ...(current?.metadata ?? {}), ...(input.metadata ?? {}) }
+      if (input.targetWeight == null) {
+        delete metadata.targetWeight
+      } else {
+        metadata.targetWeight = input.targetWeight
+      }
+      apiInput.metadata = metadata
+    }
+
+    if (isLocalMode()) {
+      localData.trainings.updateExercise(exerciseRowId, localInput)
+      markTrainingPending(trainingId, 'local_mode')
+      set({ current: localData.trainings.get(trainingId) })
+      return
+    }
+
+    try {
+      await trainingApi.updateExercise(exerciseRowId, apiInput, { timeoutMs: WRITE_TIMEOUT_MS })
+      const current = await trainingApi.getById(trainingId, { timeoutMs: WRITE_TIMEOUT_MS })
+      mirrorTrainingLocally(current, 'synced')
+      set({ current })
+    } catch (error) {
+      if (!isRetriableWriteError(error)) throw error
+      ensureLocalTrainingShell(trainingId, get().current)
+      localData.trainings.updateExercise(exerciseRowId, localInput)
+      markTrainingPending(trainingId, syncFailReason(error))
+      notifyLocalSave()
+      set({ current: localData.trainings.get(trainingId) })
+    }
+  },
+
+  async removeExercise(trainingId, exerciseRowId) {
+    if (isLocalMode()) {
+      localData.trainings.removeExercise(exerciseRowId)
+      markTrainingPending(trainingId, 'local_mode')
+      set({ current: localData.trainings.get(trainingId) })
+      return
+    }
+
+    try {
+      await trainingApi.removeExercise(exerciseRowId, { timeoutMs: WRITE_TIMEOUT_MS })
+      const current = await trainingApi.getById(trainingId, { timeoutMs: WRITE_TIMEOUT_MS })
+      mirrorTrainingLocally(current, 'synced')
+      set({ current })
+    } catch (error) {
+      if (!isRetriableWriteError(error)) throw error
+      ensureLocalTrainingShell(trainingId, get().current)
+      localData.trainings.removeExercise(exerciseRowId)
+      markTrainingPending(trainingId, syncFailReason(error))
+      notifyLocalSave()
+      set({ current: localData.trainings.get(trainingId) })
+    }
+  },
+
   async addSet(trainingId, exerciseId, input) {
     const payload = { ...input, id: input.id ?? createLocalId() }
 
@@ -445,6 +519,29 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       if (!isRetriableWriteError(error)) throw error
       ensureLocalTrainingShell(trainingId, get().current)
       localData.trainings.addSet(exerciseId, payload)
+      markTrainingPending(trainingId, syncFailReason(error))
+      notifyLocalSave()
+      set({ current: localData.trainings.get(trainingId) })
+    }
+  },
+
+  async updateSet(trainingId, setId, input) {
+    if (isLocalMode()) {
+      localData.trainings.updateSet(setId, input)
+      markTrainingPending(trainingId, 'local_mode')
+      set({ current: localData.trainings.get(trainingId) })
+      return
+    }
+
+    try {
+      await trainingApi.updateSet(setId, input, { timeoutMs: WRITE_TIMEOUT_MS })
+      const current = await trainingApi.getById(trainingId, { timeoutMs: WRITE_TIMEOUT_MS })
+      mirrorTrainingLocally(current, 'synced')
+      set({ current })
+    } catch (error) {
+      if (!isRetriableWriteError(error)) throw error
+      ensureLocalTrainingShell(trainingId, get().current)
+      localData.trainings.updateSet(setId, input)
       markTrainingPending(trainingId, syncFailReason(error))
       notifyLocalSave()
       set({ current: localData.trainings.get(trainingId) })

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, Play, Timer, Trash2 } from 'lucide-react'
 
 import { AddTrainingExerciseForm } from '@/features/add-training-exercise/ui/add-training-exercise-form'
+import { EditSetRow } from '@/features/edit-set/ui/edit-set-row'
+import { EditTrainingExerciseRow } from '@/features/edit-training-exercise/ui/edit-training-exercise-row'
 import { LogSetForm } from '@/features/log-set/ui/log-set-form'
 import { RestTimerBar, SessionClock } from '@/features/rest-timer/ui/rest-timer-bar'
 import { useExerciseStore } from '@/entities/exercise/model/store'
@@ -31,7 +33,6 @@ export function TrainingSessionPage({ id }: Props) {
   const start = useTrainingStore((s) => s.start)
   const finish = useTrainingStore((s) => s.finish)
   const remove = useTrainingStore((s) => s.remove)
-  const removeSet = useTrainingStore((s) => s.removeSet)
   const exercises = useExerciseStore((s) => s.items)
   const fetchExercises = useExerciseStore((s) => s.fetchList)
 
@@ -95,7 +96,14 @@ export function TrainingSessionPage({ id }: Props) {
     return <p className="text-sm text-red-300">{error ?? 'Тренировка не найдена'}</p>
   }
 
-  const canEdit = current.status === 'in_progress' || current.status === 'planned'
+  const canEditStructure = current.status === 'in_progress' || current.status === 'planned'
+  const canEditSets =
+    current.status === 'in_progress' ||
+    current.status === 'planned' ||
+    current.status === 'finished'
+  const sortedExercises = [...current.exercises].sort(
+    (a, b) => a.exerciseOrder - b.exerciseOrder,
+  )
   const whenLabel =
     current.status === 'planned' && current.scheduledAt
       ? `Запланировано ${new Date(current.scheduledAt).toLocaleString('ru-RU')}`
@@ -149,7 +157,7 @@ export function TrainingSessionPage({ id }: Props) {
                 Старт
               </Button>
             ) : null}
-            {canEdit && current.status === 'in_progress' ? (
+            {canEditStructure && current.status === 'in_progress' ? (
               <Button
                 type="button"
                 onClick={() =>
@@ -177,16 +185,29 @@ export function TrainingSessionPage({ id }: Props) {
         }
       />
 
-      {current.exercises.length === 0 ? (
+      {sortedExercises.length === 0 ? (
         <EmptyState>Добавь упражнения, чтобы записывать подходы.</EmptyState>
       ) : (
         <div className="space-y-4">
-          {current.exercises.map((exercise) => (
+          {sortedExercises.map((exercise, index) => (
             <section
               key={exercise.id}
               className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5"
             >
-              <div className="flex flex-wrap items-start justify-between gap-2">
+              {canEditStructure ? (
+                <EditTrainingExerciseRow
+                  trainingId={id}
+                  item={exercise}
+                  exerciseName={exerciseName(exercise.exerciseId)}
+                  displayIndex={index + 1}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < sortedExercises.length - 1}
+                  neighborAboveId={sortedExercises[index - 1]?.id}
+                  neighborAboveOrder={sortedExercises[index - 1]?.exerciseOrder}
+                  neighborBelowId={sortedExercises[index + 1]?.id}
+                  neighborBelowOrder={sortedExercises[index + 1]?.exerciseOrder}
+                />
+              ) : (
                 <div>
                   <h3 className="font-[family-name:var(--font-display)] text-lg">
                     {exerciseName(exercise.exerciseId)}
@@ -207,37 +228,24 @@ export function TrainingSessionPage({ id }: Props) {
                     {exercise.restSeconds != null ? ` · отдых ${exercise.restSeconds}с` : ''}
                   </p>
                 </div>
-              </div>
+              )}
 
               {exercise.sets.length > 0 ? (
                 <ul className="mt-4 space-y-2">
                   {exercise.sets.map((set) => (
-                    <li
+                    <EditSetRow
                       key={set.id}
-                      className="flex items-center justify-between rounded-lg bg-[var(--surface-2)] px-3 py-2 text-sm"
-                    >
-                      <span>
-                        Подход {set.setNumber}
-                        {set.weight != null ? ` · ${set.weight} кг` : ''}
-                        {set.reps != null ? ` · ${set.reps} повт.` : ''}
-                      </span>
-                      {canEdit ? (
-                        <button
-                          type="button"
-                          className="text-[var(--muted)] hover:text-red-300"
-                          onClick={() => void removeSet(id, set.id)}
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      ) : null}
-                    </li>
+                      trainingId={id}
+                      set={set}
+                      canEdit={canEditSets}
+                    />
                   ))}
                 </ul>
               ) : (
                 <p className="mt-3 text-sm text-[var(--muted)]">Пока нет подходов.</p>
               )}
 
-              {canEdit ? (
+              {canEditStructure ? (
                 <LogSetForm
                   trainingId={id}
                   exerciseId={exercise.id}
@@ -257,7 +265,7 @@ export function TrainingSessionPage({ id }: Props) {
         </div>
       )}
 
-      {canEdit ? (
+      {canEditStructure ? (
         <AddTrainingExerciseForm
           trainingId={id}
           nextOrder={current.exercises.length}

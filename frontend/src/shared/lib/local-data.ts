@@ -35,6 +35,7 @@ import type {
   TrainingSet,
   TrainingSyncMeta,
   TrainingWithDetails,
+  UpdateTrainingExerciseInput,
 } from '@/entities/training/model/types'
 import type {
   ExerciseProgressPoint,
@@ -523,6 +524,41 @@ export const localData = {
     upsertExercise(exercise: TrainingExercise): TrainingExercise {
       return trainingExercisesDb.upsert(exercise)
     },
+    updateExercise(
+      exerciseRowId: string,
+      input: UpdateTrainingExerciseInput,
+    ): TrainingExercise | null {
+      const current = trainingExercisesDb.get(exerciseRowId)
+      if (!current) return null
+      let metadata = { ...current.metadata }
+      if (input.targetWeight !== undefined) {
+        if (input.targetWeight == null) {
+          delete metadata.targetWeight
+        } else {
+          metadata = { ...metadata, targetWeight: input.targetWeight }
+        }
+      }
+      if (input.metadata !== undefined) {
+        metadata = { ...metadata, ...input.metadata }
+      }
+      return trainingExercisesDb.upsert({
+        ...current,
+        exerciseOrder: input.exerciseOrder ?? current.exerciseOrder,
+        targetSets: input.targetSets ?? current.targetSets,
+        isWarmup: input.isWarmup === undefined ? current.isWarmup : input.isWarmup,
+        minReps: input.minReps === undefined ? current.minReps : input.minReps,
+        maxReps: input.maxReps === undefined ? current.maxReps : input.maxReps,
+        restSeconds: input.restSeconds === undefined ? current.restSeconds : input.restSeconds,
+        notes: input.notes === undefined ? current.notes : input.notes,
+        metadata,
+      })
+    },
+    removeExercise(exerciseRowId: string) {
+      trainingSetsDb.save(
+        trainingSetsDb.list().filter((set) => set.trainingExerciseId !== exerciseRowId),
+      )
+      return trainingExercisesDb.remove(exerciseRowId)
+    },
     addSet(
       exerciseId: string,
       input: CreateTrainingSetInput,
@@ -543,6 +579,23 @@ export const localData = {
     },
     upsertSet(set: TrainingSet): TrainingSet {
       return trainingSetsDb.upsert(set)
+    },
+    updateSet(
+      setId: string,
+      input: Partial<CreateTrainingSetInput>,
+    ): TrainingSet | null {
+      const current = trainingSetsDb.get(setId)
+      if (!current) return null
+      return trainingSetsDb.upsert({
+        ...current,
+        setNumber: input.setNumber ?? current.setNumber,
+        weight: input.weight === undefined ? current.weight : input.weight,
+        reps: input.reps === undefined ? current.reps : input.reps,
+        rir: input.rir === undefined ? current.rir : input.rir,
+        rpe: input.rpe === undefined ? current.rpe : input.rpe,
+        completed: input.completed === undefined ? current.completed : input.completed,
+        metadata: input.metadata === undefined ? current.metadata : input.metadata,
+      })
     },
     removeSet(setId: string) {
       return trainingSetsDb.remove(setId)
