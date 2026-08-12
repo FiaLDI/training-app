@@ -98,7 +98,7 @@ export function SimpleBarChart({
 
       {footnote !== null ? (
         <p className="text-xs text-[var(--muted)]">
-          {footnote ?? (unit ? `Единица: ${unit} · без учёта разминки` : 'Без учёта разминки')}
+          {footnote ?? (unit ? `Единица: ${unit} · без учёта разминочных подходов` : 'Без учёта разминочных подходов')}
         </p>
       ) : null}
     </div>

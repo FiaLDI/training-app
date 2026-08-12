@@ -42,7 +42,6 @@ export function EditTemplateExerciseRow({
   const [targetWeight, setTargetWeight] = useState(
     item.targetWeight == null ? '' : String(item.targetWeight),
   )
-  const [isWarmup, setIsWarmup] = useState(item.isWarmup ?? false)
   const [saving, setSaving] = useState(false)
   const [moving, setMoving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,7 +51,6 @@ export function EditTemplateExerciseRow({
     setMinReps(item.minReps == null ? '' : String(item.minReps))
     setMaxReps(item.maxReps == null ? '' : String(item.maxReps))
     setTargetWeight(item.targetWeight == null ? '' : String(item.targetWeight))
-    setIsWarmup(item.isWarmup ?? false)
   }, [item])
 
   function cancelEdit() {
@@ -60,7 +58,6 @@ export function EditTemplateExerciseRow({
     setMinReps(item.minReps == null ? '' : String(item.minReps))
     setMaxReps(item.maxReps == null ? '' : String(item.maxReps))
     setTargetWeight(item.targetWeight == null ? '' : String(item.targetWeight))
-    setIsWarmup(item.isWarmup ?? false)
     setError(null)
     setEditing(false)
   }
@@ -75,7 +72,6 @@ export function EditTemplateExerciseRow({
         minReps: minReps === '' ? null : Number(minReps),
         maxReps: maxReps === '' ? null : Number(maxReps),
         targetWeight: targetWeight === '' ? null : Number(targetWeight),
-        isWarmup,
       })
       setEditing(false)
     } catch (err) {
@@ -128,14 +124,7 @@ export function EditTemplateExerciseRow({
             </button>
           </div>
           <div className="min-w-0">
-            <p className="text-sm text-[var(--foreground)]">
-              {exerciseName}
-              {item.isWarmup ? (
-                <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
-                  Разминка
-                </span>
-              ) : null}
-            </p>
+            <p className="text-sm text-[var(--foreground)]">{exerciseName}</p>
             <p className="text-xs text-[var(--muted)]">
               #{displayIndex} · {item.targetSets} подходов
               {item.minReps != null || item.maxReps != null
@@ -202,15 +191,6 @@ export function EditTemplateExerciseRow({
             onChange={(e) => setTargetWeight(e.target.value)}
             className="w-24"
           />
-        </label>
-        <label className="flex items-center gap-2 pb-2 text-xs text-[var(--muted)]">
-          <input
-            type="checkbox"
-            checked={isWarmup}
-            onChange={(e) => setIsWarmup(e.target.checked)}
-            className="size-4 rounded border-[var(--border)]"
-          />
-          Разминка
         </label>
         <Button type="submit" disabled={saving}>
           <Check className="size-4" />

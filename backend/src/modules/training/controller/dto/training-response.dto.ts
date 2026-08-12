@@ -25,6 +25,9 @@ export class TrainingSetResponseDto {
   @ApiProperty()
   completed!: boolean
 
+  @ApiProperty()
+  isWarmup!: boolean
+
   @ApiProperty({ type: 'object', additionalProperties: true })
   metadata!: Record<string, unknown>
 

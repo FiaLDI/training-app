@@ -39,6 +39,11 @@ export class CreateTrainingSetInputDto {
   @IsBoolean()
   completed?: boolean
 
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isWarmup?: boolean
+
   @ApiPropertyOptional({ type: 'object', additionalProperties: true })
   @IsOptional()
   @IsObject()

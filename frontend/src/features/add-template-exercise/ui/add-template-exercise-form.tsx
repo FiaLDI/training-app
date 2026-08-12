@@ -24,7 +24,6 @@ export function AddTemplateExerciseForm({ templateId, nextOrder }: Props) {
   const [minReps, setMinReps] = useState('8')
   const [maxReps, setMaxReps] = useState('12')
   const [targetWeight, setTargetWeight] = useState('')
-  const [isWarmup, setIsWarmup] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -45,11 +44,9 @@ export function AddTemplateExerciseForm({ templateId, nextOrder }: Props) {
         minReps: minReps === '' ? null : Number(minReps),
         maxReps: maxReps === '' ? null : Number(maxReps),
         targetWeight: targetWeight === '' ? null : Number(targetWeight),
-        isWarmup,
       })
       setExerciseId('')
       setTargetWeight('')
-      setIsWarmup(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось добавить упражнение')
     } finally {
@@ -65,23 +62,9 @@ export function AddTemplateExerciseForm({ templateId, nextOrder }: Props) {
       className="mt-4 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5"
     >
       <div className="space-y-1.5">
-        <div className="flex items-baseline justify-between gap-3">
-          <h3 className="font-[family-name:var(--font-display)] text-lg tracking-tight text-[var(--foreground)]">
-            Добавить упражнение
-          </h3>
-          <button
-            type="button"
-            onClick={() => setIsWarmup((value) => !value)}
-            className={cn(
-              'rounded-lg border px-2.5 py-1 text-xs transition',
-              isWarmup
-                ? 'border-sky-400/40 bg-sky-500/15 text-sky-300'
-                : 'border-[var(--border)] text-[var(--muted)] hover:border-[var(--border)]/80 hover:text-[var(--foreground)]',
-            )}
-          >
-            Разминка
-          </button>
-        </div>
+        <h3 className="font-[family-name:var(--font-display)] text-lg tracking-tight text-[var(--foreground)]">
+          Добавить упражнение
+        </h3>
         <ExerciseCombobox
           exercises={exercises}
           value={exerciseId}
@@ -156,9 +139,7 @@ export function AddTemplateExerciseForm({ templateId, nextOrder }: Props) {
         ) : (
           <p className="text-xs text-[var(--muted)]">
             {exerciseId
-              ? isWarmup
-                ? 'Добавится как разминочное'
-                : 'Параметры можно потом поправить в списке'
+              ? 'Параметры можно потом поправить в списке'
               : 'Сначала выбери упражнение'}
           </p>
         )}

@@ -14,23 +14,34 @@ type Props = {
   canEdit: boolean
 }
 
+function WarmupBadge() {
+  return (
+    <span className="ml-1.5 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
+      разм.
+    </span>
+  )
+}
+
 export function EditSetRow({ trainingId, set, canEdit }: Props) {
   const updateSet = useTrainingStore((s) => s.updateSet)
   const removeSet = useTrainingStore((s) => s.removeSet)
   const [editing, setEditing] = useState(false)
   const [weight, setWeight] = useState(set.weight == null ? '' : String(set.weight))
   const [reps, setReps] = useState(set.reps == null ? '' : String(set.reps))
+  const [isWarmup, setIsWarmup] = useState(set.isWarmup ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setWeight(set.weight == null ? '' : String(set.weight))
     setReps(set.reps == null ? '' : String(set.reps))
+    setIsWarmup(set.isWarmup ?? false)
   }, [set])
 
   function cancelEdit() {
     setWeight(set.weight == null ? '' : String(set.weight))
     setReps(set.reps == null ? '' : String(set.reps))
+    setIsWarmup(set.isWarmup ?? false)
     setError(null)
     setEditing(false)
   }
@@ -43,6 +54,7 @@ export function EditSetRow({ trainingId, set, canEdit }: Props) {
       await updateSet(trainingId, set.id, {
         weight: weight === '' ? null : Number(weight),
         reps: reps === '' ? null : Number(reps),
+        isWarmup,
       })
       setEditing(false)
     } catch (err) {
@@ -52,14 +64,19 @@ export function EditSetRow({ trainingId, set, canEdit }: Props) {
     }
   }
 
+  const setLabel = (
+    <>
+      Подход {set.setNumber}
+      {set.weight != null ? ` · ${set.weight} кг` : ''}
+      {set.reps != null ? ` · ${set.reps} повт.` : ''}
+      {set.isWarmup ? <WarmupBadge /> : null}
+    </>
+  )
+
   if (!canEdit) {
     return (
       <li className="flex items-center justify-between rounded-lg bg-[var(--surface-2)] px-3 py-2 text-sm">
-        <span>
-          Подход {set.setNumber}
-          {set.weight != null ? ` · ${set.weight} кг` : ''}
-          {set.reps != null ? ` · ${set.reps} повт.` : ''}
-        </span>
+        <span>{setLabel}</span>
       </li>
     )
   }
@@ -90,6 +107,15 @@ export function EditSetRow({ trainingId, set, canEdit }: Props) {
               className="w-20"
             />
           </label>
+          <label className="flex items-center gap-2 pb-2 text-xs text-[var(--muted)]">
+            <input
+              type="checkbox"
+              checked={isWarmup}
+              onChange={(e) => setIsWarmup(e.target.checked)}
+              className="size-4 rounded border-[var(--border)]"
+            />
+            Разминка
+          </label>
           <Button type="submit" disabled={saving} className="h-[42px]">
             <Check className="size-4" />
           </Button>
@@ -103,12 +129,12 @@ export function EditSetRow({ trainingId, set, canEdit }: Props) {
   }
 
   return (
-    <li className="flex items-center justify-between rounded-lg bg-[var(--surface-2)] px-3 py-2 text-sm">
-      <span>
-        Подход {set.setNumber}
-        {set.weight != null ? ` · ${set.weight} кг` : ''}
-        {set.reps != null ? ` · ${set.reps} повт.` : ''}
-      </span>
+    <li
+      className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
+        set.isWarmup ? 'bg-sky-500/5' : 'bg-[var(--surface-2)]'
+      }`}
+    >
+      <span>{setLabel}</span>
       <div className="flex gap-1">
         <button
           type="button"

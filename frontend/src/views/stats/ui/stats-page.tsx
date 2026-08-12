@@ -314,7 +314,7 @@ export function StatsPage() {
     <div>
       <PageHeader
         title="Статистика"
-        description="Сводка за последние 28 дней. Разминка не учитывается."
+        description="Сводка за последние 28 дней. Разминочные подходы не учитываются."
       />
 
       {error ? <p className="mb-4 text-sm text-red-300">{error}</p> : null}

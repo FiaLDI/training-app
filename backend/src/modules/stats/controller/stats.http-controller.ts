@@ -30,7 +30,7 @@ export class StatsHttpController {
   ) {}
 
   @Get('volume')
-  @ApiOperation({ summary: 'Training volume over time (excludes warm-up exercises)' })
+  @ApiOperation({ summary: 'Training volume over time (excludes warm-up sets)' })
   @ApiQuery({ name: 'from', required: true })
   @ApiQuery({ name: 'to', required: true })
   async volume(
@@ -42,7 +42,7 @@ export class StatsHttpController {
   }
 
   @Get('exercise-progress')
-  @ApiOperation({ summary: 'Exercise progress over time (excludes warm-up exercises)' })
+  @ApiOperation({ summary: 'Exercise progress over time (excludes warm-up sets)' })
   @ApiQuery({ name: 'exerciseId', required: true })
   @ApiQuery({ name: 'from', required: true })
   @ApiQuery({ name: 'to', required: true })

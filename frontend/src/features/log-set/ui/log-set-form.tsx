@@ -27,6 +27,7 @@ export function LogSetForm({
     defaultWeight == null ? '' : String(defaultWeight),
   )
   const [reps, setReps] = useState('')
+  const [isWarmup, setIsWarmup] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -40,9 +41,11 @@ export function LogSetForm({
         weight: weight === '' ? null : Number(weight),
         reps: reps === '' ? null : Number(reps),
         completed: true,
+        isWarmup,
       })
       setWeight(defaultWeight == null ? '' : String(defaultWeight))
       setReps('')
+      setIsWarmup(false)
       onLogged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось записать подход')
@@ -73,6 +76,15 @@ export function LogSetForm({
           onChange={(e) => setReps(e.target.value)}
           className="w-20"
         />
+      </label>
+      <label className="flex items-center gap-2 pb-2 text-xs text-[var(--muted)]">
+        <input
+          type="checkbox"
+          checked={isWarmup}
+          onChange={(e) => setIsWarmup(e.target.checked)}
+          className="size-4 rounded border-[var(--border)]"
+        />
+        Разминка
       </label>
       <Button type="submit" disabled={saving} className="h-[42px]">
         <Plus className="size-4" />

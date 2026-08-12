@@ -217,11 +217,6 @@ export function TrainingSessionPage({ id }: Props) {
                   <div>
                     <h3 className="font-[family-name:var(--font-display)] text-lg">
                       {exerciseName(exercise.exerciseId)}
-                      {exercise.isWarmup ? (
-                        <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
-                          Разминка
-                        </span>
-                      ) : null}
                     </h3>
                     <p className="text-xs text-[var(--muted)]">
                       Цель: {exercise.targetSets} подходов

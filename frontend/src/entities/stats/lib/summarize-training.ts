@@ -4,12 +4,12 @@ export type SetSummary = {
   setNumber: number
   weight: number | null
   reps: number | null
+  isWarmup: boolean
 }
 
 export type ExerciseSummary = {
   id: string
   name: string
-  isWarmup: boolean
   sets: SetSummary[]
 }
 
@@ -21,12 +21,17 @@ export type TrainingSummary = {
 }
 
 function formatSet(set: SetSummary) {
+  let line: string
   if (set.weight != null && set.reps != null) {
-    return `${set.weight}×${set.reps}`
+    line = `${set.weight}×${set.reps}`
+  } else if (set.weight != null) {
+    line = `${set.weight} кг`
+  } else if (set.reps != null) {
+    line = `${set.reps} повт.`
+  } else {
+    line = `#${set.setNumber}`
   }
-  if (set.weight != null) return `${set.weight} кг`
-  if (set.reps != null) return `${set.reps} повт.`
-  return `#${set.setNumber}`
+  return set.isWarmup ? `${line} (разм.)` : line
 }
 
 export function formatSetLine(sets: SetSummary[]) {
@@ -45,8 +50,6 @@ export function summarizeTraining(
   let setCount = 0
 
   for (const exercise of sorted) {
-    if (exercise.isWarmup) continue
-
     const sets = exercise.sets
       .filter((set) => set.completed)
       .sort((a, b) => a.setNumber - b.setNumber)
@@ -54,9 +57,13 @@ export function summarizeTraining(
         setNumber: set.setNumber,
         weight: set.weight,
         reps: set.reps,
+        isWarmup: set.isWarmup ?? false,
       }))
 
+    if (sets.length === 0) continue
+
     for (const set of sets) {
+      if (set.isWarmup) continue
       setCount += 1
       if (set.weight != null && set.reps != null) {
         volume += set.weight * set.reps
@@ -66,7 +73,6 @@ export function summarizeTraining(
     exercises.push({
       id: exercise.id,
       name: resolveExerciseName(exercise.exerciseId),
-      isWarmup: exercise.isWarmup,
       sets,
     })
   }

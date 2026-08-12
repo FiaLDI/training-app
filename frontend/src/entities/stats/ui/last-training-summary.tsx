@@ -85,11 +85,6 @@ export function LastTrainingSummary({
                   >
                     <p className="text-sm font-medium text-[var(--foreground)]">
                       {exercise.name}
-                      {exercise.isWarmup ? (
-                        <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
-                          Разминка
-                        </span>
-                      ) : null}
                     </p>
                     <p className="mt-1 text-sm tabular-nums text-[var(--muted)]">
                       {formatSetLine(exercise.sets)}

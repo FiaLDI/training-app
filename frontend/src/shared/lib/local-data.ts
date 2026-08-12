@@ -369,12 +369,18 @@ export const localData = {
         const key = when.slice(0, 10)
         const exercises = trainingExercisesDb
           .list()
-          .filter((e) => e.trainingId === training.id && !e.isWarmup)
+          .filter((e) => e.trainingId === training.id)
         let volume = 0
         for (const exercise of exercises) {
           for (const set of trainingSetsDb
             .list()
-            .filter((s) => s.trainingExerciseId === exercise.id && s.completed)) {
+            .filter(
+              (s) =>
+                s.trainingExerciseId === exercise.id &&
+                s.completed &&
+                !(s.isWarmup ?? false) &&
+                !(exercise.isWarmup ?? false),
+            )) {
             if (set.weight != null && set.reps != null) volume += set.weight * set.reps
           }
         }
@@ -396,12 +402,18 @@ export const localData = {
         const key = when.slice(0, 10)
         const exercises = trainingExercisesDb
           .list()
-          .filter((e) => e.trainingId === training.id && e.exerciseId === exerciseId && !e.isWarmup)
+          .filter((e) => e.trainingId === training.id && e.exerciseId === exerciseId)
         for (const exercise of exercises) {
           const point = byDate.get(key) ?? { date: key, maxWeight: null, bestVolume: 0 }
           for (const set of trainingSetsDb
             .list()
-            .filter((s) => s.trainingExerciseId === exercise.id && s.completed)) {
+            .filter(
+              (s) =>
+                s.trainingExerciseId === exercise.id &&
+                s.completed &&
+                !(s.isWarmup ?? false) &&
+                !(exercise.isWarmup ?? false),
+            )) {
             if (set.weight != null) {
               point.maxWeight =
                 point.maxWeight == null ? set.weight : Math.max(point.maxWeight, set.weight)
@@ -444,7 +456,11 @@ export const localData = {
           sets: trainingSetsDb
             .list()
             .filter((set) => set.trainingExerciseId === exercise.id)
-            .sort((a, b) => a.setNumber - b.setNumber),
+            .sort((a, b) => a.setNumber - b.setNumber)
+            .map((set) => ({
+              ...set,
+              isWarmup: set.isWarmup ?? (exercise.isWarmup ? true : false),
+            })),
         }))
       return { ...training, exercises }
     },
@@ -608,6 +624,7 @@ export const localData = {
         rir: input.rir ?? null,
         rpe: input.rpe ?? null,
         completed: input.completed ?? true,
+        isWarmup: input.isWarmup ?? false,
         metadata: input.metadata ?? {},
         createdAt: nowIso(),
       })
@@ -629,6 +646,7 @@ export const localData = {
         rir: input.rir === undefined ? current.rir : input.rir,
         rpe: input.rpe === undefined ? current.rpe : input.rpe,
         completed: input.completed === undefined ? current.completed : input.completed,
+        isWarmup: input.isWarmup === undefined ? (current.isWarmup ?? false) : input.isWarmup,
         metadata: input.metadata === undefined ? current.metadata : input.metadata,
       })
     },

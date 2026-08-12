@@ -90,6 +90,7 @@ export interface CreateTrainingSetRepositoryInput {
   rir?: number | null
   rpe?: number | null
   completed?: boolean
+  isWarmup?: boolean
   metadata?: Record<string, unknown>
 }
 
@@ -102,6 +103,7 @@ export interface UpdateTrainingSetRepositoryInput {
   rir?: number | null
   rpe?: number | null
   completed?: boolean
+  isWarmup?: boolean
   metadata?: Record<string, unknown>
 }
 

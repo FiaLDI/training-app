@@ -51,7 +51,6 @@ export function EditTrainingExerciseRow({
   const [restSeconds, setRestSeconds] = useState(
     item.restSeconds == null ? '' : String(item.restSeconds),
   )
-  const [isWarmup, setIsWarmup] = useState(item.isWarmup ?? false)
   const [saving, setSaving] = useState(false)
   const [moving, setMoving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,7 +62,6 @@ export function EditTrainingExerciseRow({
     const weight = targetWeightFrom(item)
     setTargetWeight(weight == null ? '' : String(weight))
     setRestSeconds(item.restSeconds == null ? '' : String(item.restSeconds))
-    setIsWarmup(item.isWarmup ?? false)
   }, [item])
 
   function cancelEdit() {
@@ -73,7 +71,6 @@ export function EditTrainingExerciseRow({
     const weight = targetWeightFrom(item)
     setTargetWeight(weight == null ? '' : String(weight))
     setRestSeconds(item.restSeconds == null ? '' : String(item.restSeconds))
-    setIsWarmup(item.isWarmup ?? false)
     setError(null)
     setEditing(false)
   }
@@ -89,7 +86,6 @@ export function EditTrainingExerciseRow({
         maxReps: maxReps === '' ? null : Number(maxReps),
         targetWeight: targetWeight === '' ? null : Number(targetWeight),
         restSeconds: restSeconds === '' ? null : Number(restSeconds),
-        isWarmup,
       })
       setEditing(false)
     } catch (err) {
@@ -144,11 +140,6 @@ export function EditTrainingExerciseRow({
           <div className="min-w-0">
             <h3 className="font-[family-name:var(--font-display)] text-lg">
               {exerciseName}
-              {item.isWarmup ? (
-                <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
-                  Разминка
-                </span>
-              ) : null}
             </h3>
             <p className="text-xs text-[var(--muted)]">
               #{displayIndex} · Цель: {item.targetSets} подходов
@@ -229,15 +220,6 @@ export function EditTrainingExerciseRow({
             onChange={(e) => setRestSeconds(e.target.value)}
             className="w-20"
           />
-        </label>
-        <label className="flex items-center gap-2 pb-2 text-xs text-[var(--muted)]">
-          <input
-            type="checkbox"
-            checked={isWarmup}
-            onChange={(e) => setIsWarmup(e.target.checked)}
-            className="size-4 rounded border-[var(--border)]"
-          />
-          Разминка
         </label>
         <Button type="submit" disabled={saving}>
           <Check className="size-4" />

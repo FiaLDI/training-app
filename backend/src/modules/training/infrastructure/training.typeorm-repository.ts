@@ -82,6 +82,7 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       rir: entity.rir,
       rpe: entity.rpe === null ? null : Number(entity.rpe),
       completed: entity.completed,
+      isWarmup: entity.isWarmup ?? false,
       metadata: entity.metadata ?? {},
       createdAt: entity.createdAt.toISOString(),
     }
@@ -341,6 +342,7 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       rir: input.rir ?? null,
       rpe: input.rpe === undefined || input.rpe === null ? null : String(input.rpe),
       completed: input.completed ?? true,
+      isWarmup: input.isWarmup ?? false,
       metadata: input.metadata ?? {},
     })
     return this.mapSet(await this.trainingSets.save(entity))
@@ -360,6 +362,7 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       entity.rpe = input.rpe === null ? null : String(input.rpe)
     }
     if (input.completed !== undefined) entity.completed = input.completed
+    if (input.isWarmup !== undefined) entity.isWarmup = input.isWarmup
     if (input.metadata !== undefined) entity.metadata = input.metadata
 
     return this.mapSet(await this.trainingSets.save(entity))
@@ -379,7 +382,8 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
         to_char(DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at)), 'YYYY-MM-DD') AS date,
         COALESCE(SUM(
           CASE
-            WHEN COALESCE(te.is_warmup, false) = false
+            WHEN COALESCE(ts.is_warmup, false) = false
+              AND COALESCE(te.is_warmup, false) = false
               AND ts.completed = true
               AND ts.weight IS NOT NULL
               AND ts.reps IS NOT NULL
@@ -397,7 +401,8 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       GROUP BY DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at))
       HAVING COALESCE(SUM(
           CASE
-            WHEN COALESCE(te.is_warmup, false) = false
+            WHEN COALESCE(ts.is_warmup, false) = false
+              AND COALESCE(te.is_warmup, false) = false
               AND ts.completed = true
               AND ts.weight IS NOT NULL
               AND ts.reps IS NOT NULL
@@ -423,10 +428,11 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       `
       SELECT
         to_char(DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at)), 'YYYY-MM-DD') AS date,
-        MAX(CASE WHEN COALESCE(te.is_warmup, false) = false AND ts.completed = true THEN ts.weight::numeric END)::float AS max_weight,
+        MAX(CASE WHEN COALESCE(ts.is_warmup, false) = false AND COALESCE(te.is_warmup, false) = false AND ts.completed = true THEN ts.weight::numeric END)::float AS max_weight,
         COALESCE(MAX(
           CASE
-            WHEN COALESCE(te.is_warmup, false) = false
+            WHEN COALESCE(ts.is_warmup, false) = false
+              AND COALESCE(te.is_warmup, false) = false
               AND ts.completed = true
               AND ts.weight IS NOT NULL
               AND ts.reps IS NOT NULL
@@ -439,7 +445,6 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       LEFT JOIN training_sets ts ON ts.training_exercise_id = te.id
       WHERE t.user_id = $1
         AND te.exercise_id = $2
-        AND COALESCE(te.is_warmup, false) = false
         AND t.status IN ('finished', 'in_progress')
         AND COALESCE(t.started_at, t.scheduled_at, t.created_at) >= $3::timestamptz
         AND COALESCE(t.started_at, t.scheduled_at, t.created_at) <= $4::timestamptz

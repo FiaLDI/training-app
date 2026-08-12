@@ -31,6 +31,9 @@ export class TrainingSetEntity {
   @Column({ type: 'boolean', default: true })
   completed!: boolean
 
+  @Column({ name: 'is_warmup', type: 'boolean', default: false })
+  isWarmup!: boolean
+
   @Column({ type: 'jsonb', default: {} })
   metadata!: Record<string, unknown>
 

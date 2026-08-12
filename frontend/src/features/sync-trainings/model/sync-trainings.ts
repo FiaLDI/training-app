@@ -103,6 +103,7 @@ async function uploadTraining(training: TrainingWithDetails) {
         rir: set.rir,
         rpe: set.rpe,
         completed: set.completed,
+        isWarmup: set.isWarmup ?? false,
         metadata: set.metadata,
       })
     }

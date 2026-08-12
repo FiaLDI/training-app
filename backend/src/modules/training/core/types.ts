@@ -38,6 +38,7 @@ export interface TrainingSet {
   rir: number | null
   rpe: number | null
   completed: boolean
+  isWarmup: boolean
   metadata: Record<string, unknown>
   createdAt: string
 }

@@ -114,6 +114,7 @@ export function mirrorTrainingLocally(
         rir: set.rir,
         rpe: set.rpe,
         completed: set.completed,
+        isWarmup: set.isWarmup ?? false,
         metadata: set.metadata ?? {},
         createdAt: set.createdAt,
       })
