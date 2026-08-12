@@ -2,9 +2,10 @@
 
 import { create } from 'zustand'
 
-import { useSyncNoticeStore } from '@/features/sync-trainings/model/sync-notice-store'
+import { afterLocalCloudWrite } from '@/features/sync-trainings/model/background-sync'
+import { deleteOutbox } from '@/features/sync-trainings/model/delete-outbox'
 import { useSessionStore } from '@/entities/session/model/store'
-import { ApiError, isRetriableWriteError, syncFailReason } from '@/shared/api/client'
+import { ApiError } from '@/shared/api/client'
 import { createLocalId } from '@/shared/lib/local-id'
 import { localData } from '@/shared/lib/local-data'
 import {
@@ -23,14 +24,18 @@ import type {
   UpdateTrainingExerciseInput,
 } from './types'
 
-const WRITE_TIMEOUT_MS = 5000
+const READ_TIMEOUT_MS = 8000
 
 function isLocalMode() {
   return useSessionStore.getState().mode === 'local'
 }
 
-function notifyLocalSave() {
-  useSyncNoticeStore.getState().notifySavedLocally()
+function isCloudMode() {
+  return useSessionStore.getState().mode === 'cloud'
+}
+
+function pendingReason() {
+  return isLocalMode() ? ('local_mode' as const) : ('queued' as const)
 }
 
 function mergeCloudWithPending(cloudItems: Training[]): Training[] {
@@ -50,6 +55,10 @@ function ensureLocalTrainingShell(id: string, fallback?: TrainingWithDetails | n
   if (fallback?.id === id) {
     mirrorTrainingLocally(fallback, 'pending')
   }
+}
+
+function scheduleCloudSync() {
+  afterLocalCloudWrite()
 }
 
 type TrainingStore = {
@@ -102,10 +111,12 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
           limit: params?.limit ?? 100,
           from: params?.from,
           to: params?.to,
-          timeoutMs: WRITE_TIMEOUT_MS,
+          timeoutMs: READ_TIMEOUT_MS,
         })
         for (const item of result.items) {
-          if (!localData.trainings.get(item.id)) {
+          const local = localData.trainings.get(item.id)
+          if (local && isTrainingPendingSync(local)) continue
+          if (!local) {
             localData.trainings.upsert({
               ...item,
               metadata: {
@@ -142,12 +153,18 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
         set({ current: localData.trainings.get(id), loading: false })
         return
       }
+
+      const local = localData.trainings.get(id)
+      if (local && isTrainingPendingSync(local)) {
+        set({ current: local, loading: false })
+        return
+      }
+
       try {
-        const current = await trainingApi.getById(id, { timeoutMs: WRITE_TIMEOUT_MS })
+        const current = await trainingApi.getById(id, { timeoutMs: READ_TIMEOUT_MS })
         const mirrored = mirrorTrainingLocally(current, 'synced')
         set({ current: mirrored, loading: false })
       } catch (error) {
-        const local = localData.trainings.get(id)
         if (local) {
           set({
             current: local,
@@ -171,403 +188,147 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
 
   async create(input) {
     const id = input.id ?? createLocalId()
-    if (isLocalMode()) {
-      const training = localData.trainings.create({
-        ...input,
-        id,
-        metadata: {
-          ...(input.metadata ?? {}),
-          sync: { status: 'pending', reason: 'local_mode' },
-        },
-      })
-      set((state) => ({ items: [training, ...state.items] }))
-      return training
-    }
-
-    try {
-      const training = await trainingApi.create({ ...input, id }, { timeoutMs: WRITE_TIMEOUT_MS })
-      mirrorTrainingLocally(training, 'synced')
-      set((state) => ({ items: [training, ...state.items] }))
-      return training
-    } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      const training = localData.trainings.create({
-        ...input,
-        id,
-        metadata: {
-          ...(input.metadata ?? {}),
-          sync: {
-            status: 'pending',
-            reason: syncFailReason(error),
-            failedAt: new Date().toISOString(),
-          },
-        },
-      })
-      notifyLocalSave()
-      set((state) => ({ items: [training, ...state.items] }))
-      return training
-    }
+    const training = localData.trainings.create({
+      ...input,
+      id,
+      metadata: {
+        ...(input.metadata ?? {}),
+        sync: { status: 'pending', reason: pendingReason() },
+      },
+    })
+    set((state) => ({ items: [training, ...state.items] }))
+    if (isCloudMode()) scheduleCloudSync()
+    return training
   },
 
   async update(id, input) {
-    if (isLocalMode()) {
-      const existing = localData.trainings.get(id)
-      localData.trainings.update(id, {
-        ...input,
-        metadata: {
-          ...(existing?.metadata ?? {}),
-          sync: { status: 'pending', reason: 'local_mode' },
-        },
-      })
-      const current = localData.trainings.get(id)
-      set((state) => ({
-        current,
-        items: state.items.map((item) => (item.id === id && current ? current : item)),
-      }))
-      return
-    }
-
-    try {
-      await trainingApi.update(id, input, { timeoutMs: WRITE_TIMEOUT_MS })
-      const current = await trainingApi.getById(id, { timeoutMs: WRITE_TIMEOUT_MS })
-      mirrorTrainingLocally(current, 'synced')
-      set((state) => ({
-        current,
-        items: state.items.map((item) => (item.id === id ? current : item)),
-      }))
-    } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      ensureLocalTrainingShell(id, get().current)
-      localData.trainings.update(id, input)
-      markTrainingPending(id, syncFailReason(error))
-      notifyLocalSave()
-      const current = localData.trainings.get(id)
-      set((state) => ({
-        current,
-        items: state.items.map((item) => (item.id === id && current ? current : item)),
-      }))
-    }
+    ensureLocalTrainingShell(id, get().current)
+    localData.trainings.update(id, input)
+    markTrainingPending(id, pendingReason())
+    const current = localData.trainings.get(id)
+    set((state) => ({
+      current,
+      items: state.items.map((item) => (item.id === id && current ? current : item)),
+    }))
+    if (isCloudMode()) scheduleCloudSync()
   },
 
   async start(id) {
-    if (isLocalMode()) {
-      const existing = localData.trainings.get(id)
-      if (!existing) throw new Error('Тренировка не найдена')
-      if (existing.status === 'finished' || existing.status === 'cancelled') {
-        const training = localData.trainings.create({
-          templateId: existing.templateId,
-          status: 'in_progress',
-          startedAt: new Date().toISOString(),
-        })
-        set((state) => ({
-          items: [training, ...state.items],
-          current: localData.trainings.get(training.id),
-        }))
-        return training
-      }
-      localData.trainings.update(id, {
+    ensureLocalTrainingShell(id, get().current)
+    const existing = localData.trainings.get(id)
+    if (!existing) throw new Error('Тренировка не найдена')
+
+    if (existing.status === 'finished' || existing.status === 'cancelled') {
+      const training = localData.trainings.create({
+        templateId: existing.templateId,
         status: 'in_progress',
         startedAt: new Date().toISOString(),
         metadata: {
-          ...existing.metadata,
-          sync: { status: 'pending', reason: 'local_mode' },
+          sync: { status: 'pending', reason: pendingReason() },
         },
       })
-      const current = localData.trainings.get(id)
       set((state) => ({
-        current,
-        items: state.items.map((item) => (item.id === id && current ? current : item)),
+        items: [training, ...state.items],
+        current: localData.trainings.get(training.id),
       }))
-      return current!
+      if (isCloudMode()) scheduleCloudSync()
+      return training
     }
 
-    try {
-      const existing = await trainingApi.getById(id, { timeoutMs: WRITE_TIMEOUT_MS })
-      if (existing.status === 'finished' || existing.status === 'cancelled') {
-        const training = await trainingApi.create(
-          {
-            id: createLocalId(),
-            templateId: existing.templateId,
-            status: 'in_progress',
-            startedAt: new Date().toISOString(),
-          },
-          { timeoutMs: WRITE_TIMEOUT_MS },
-        )
-        mirrorTrainingLocally(training, 'synced')
-        set((state) => ({ items: [training, ...state.items], current: training }))
-        return training
-      }
-
-      await trainingApi.update(
-        id,
-        { status: 'in_progress', startedAt: new Date().toISOString() },
-        { timeoutMs: WRITE_TIMEOUT_MS },
-      )
-      const current = await trainingApi.getById(id, { timeoutMs: WRITE_TIMEOUT_MS })
-      mirrorTrainingLocally(current, 'synced')
-      set((state) => ({
-        current,
-        items: state.items.map((item) => (item.id === id ? current : item)),
-      }))
-      return current
-    } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      ensureLocalTrainingShell(id, get().current)
-      const existing = localData.trainings.get(id)
-      if (!existing) throw error
-      if (existing.status === 'finished' || existing.status === 'cancelled') {
-        const training = localData.trainings.create({
-          templateId: existing.templateId,
-          status: 'in_progress',
-          startedAt: new Date().toISOString(),
-          metadata: {
-            sync: {
-              status: 'pending',
-              reason: syncFailReason(error),
-              failedAt: new Date().toISOString(),
-            },
-          },
-        })
-        notifyLocalSave()
-        set((state) => ({
-          items: [training, ...state.items],
-          current: localData.trainings.get(training.id),
-        }))
-        return training
-      }
-      localData.trainings.update(id, {
-        status: 'in_progress',
-        startedAt: new Date().toISOString(),
-      })
-      markTrainingPending(id, syncFailReason(error))
-      notifyLocalSave()
-      const current = localData.trainings.get(id)
-      set((state) => ({
-        current,
-        items: state.items.map((item) => (item.id === id && current ? current : item)),
-      }))
-      return current!
-    }
+    localData.trainings.update(id, {
+      status: 'in_progress',
+      startedAt: new Date().toISOString(),
+    })
+    markTrainingPending(id, pendingReason())
+    const current = localData.trainings.get(id)
+    set((state) => ({
+      current,
+      items: state.items.map((item) => (item.id === id && current ? current : item)),
+    }))
+    if (isCloudMode()) scheduleCloudSync()
+    return current!
   },
 
   async finish(id) {
-    if (isLocalMode()) {
-      localData.trainings.finish(id)
-      markTrainingPending(id, 'local_mode')
-      const current = localData.trainings.get(id)
-      set((state) => ({
-        current,
-        items: state.items.map((item) => (item.id === id && current ? current : item)),
-      }))
-      return
-    }
-
-    try {
-      await trainingApi.update(
-        id,
-        { status: 'finished', finishedAt: new Date().toISOString() },
-        { timeoutMs: WRITE_TIMEOUT_MS },
-      )
-      const current = await trainingApi.getById(id, { timeoutMs: WRITE_TIMEOUT_MS })
-      mirrorTrainingLocally(current, 'synced')
-      set((state) => ({
-        current,
-        items: state.items.map((item) => (item.id === id ? current : item)),
-      }))
-    } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      ensureLocalTrainingShell(id, get().current)
-      localData.trainings.finish(id)
-      markTrainingPending(id, syncFailReason(error))
-      notifyLocalSave()
-      const current = localData.trainings.get(id)
-      set((state) => ({
-        current,
-        items: state.items.map((item) => (item.id === id && current ? current : item)),
-      }))
-    }
+    ensureLocalTrainingShell(id, get().current)
+    localData.trainings.finish(id)
+    markTrainingPending(id, pendingReason())
+    const current = localData.trainings.get(id)
+    set((state) => ({
+      current,
+      items: state.items.map((item) => (item.id === id && current ? current : item)),
+    }))
+    if (isCloudMode()) scheduleCloudSync()
   },
 
   async remove(id) {
-    if (isLocalMode()) {
-      localData.trainings.remove(id)
-      set((state) => ({
-        items: state.items.filter((item) => item.id !== id),
-        current: state.current?.id === id ? null : state.current,
-      }))
-      return
-    }
+    localData.trainings.remove(id)
+    set((state) => ({
+      items: state.items.filter((item) => item.id !== id),
+      current: state.current?.id === id ? null : state.current,
+    }))
+    if (!isCloudMode()) return
 
+    deleteOutbox.enqueue('training', id)
     try {
-      await trainingApi.remove(id, { timeoutMs: WRITE_TIMEOUT_MS })
-      localData.trainings.remove(id)
-      set((state) => ({
-        items: state.items.filter((item) => item.id !== id),
-        current: state.current?.id === id ? null : state.current,
-      }))
+      await trainingApi.remove(id)
+      deleteOutbox.dequeue('training', id)
     } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      throw error instanceof ApiError
-        ? error
-        : new Error('Не удалось удалить на сервере. Попробуйте позже.')
+      if (error instanceof ApiError && error.status === 404) {
+        deleteOutbox.dequeue('training', id)
+        return
+      }
+      scheduleCloudSync()
     }
   },
 
   async addExercise(trainingId, input) {
     const payload = { ...input, id: input.id ?? createLocalId() }
-
-    if (isLocalMode()) {
-      localData.trainings.addExercise(trainingId, payload)
-      markTrainingPending(trainingId, 'local_mode')
-      set({ current: localData.trainings.get(trainingId) })
-      return
-    }
-
-    try {
-      await trainingApi.addExercise(trainingId, payload, { timeoutMs: WRITE_TIMEOUT_MS })
-      const current = await trainingApi.getById(trainingId, { timeoutMs: WRITE_TIMEOUT_MS })
-      mirrorTrainingLocally(current, 'synced')
-      set({ current })
-    } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      ensureLocalTrainingShell(trainingId, get().current)
-      localData.trainings.addExercise(trainingId, payload)
-      markTrainingPending(trainingId, syncFailReason(error))
-      notifyLocalSave()
-      set({ current: localData.trainings.get(trainingId) })
-    }
+    ensureLocalTrainingShell(trainingId, get().current)
+    localData.trainings.addExercise(trainingId, payload)
+    markTrainingPending(trainingId, pendingReason())
+    set({ current: localData.trainings.get(trainingId) })
+    if (isCloudMode()) scheduleCloudSync()
   },
 
   async updateExercise(trainingId, exerciseRowId, input) {
-    const localInput = { ...input }
-    const apiInput: UpdateTrainingExerciseInput & { metadata?: Record<string, unknown> } = {
-      ...input,
-    }
-    if (input.targetWeight !== undefined) {
-      delete apiInput.targetWeight
-      const current = get().current?.exercises.find((item) => item.id === exerciseRowId)
-      const metadata = { ...(current?.metadata ?? {}), ...(input.metadata ?? {}) }
-      if (input.targetWeight == null) {
-        delete metadata.targetWeight
-      } else {
-        metadata.targetWeight = input.targetWeight
-      }
-      apiInput.metadata = metadata
-    }
-
-    if (isLocalMode()) {
-      localData.trainings.updateExercise(exerciseRowId, localInput)
-      markTrainingPending(trainingId, 'local_mode')
-      set({ current: localData.trainings.get(trainingId) })
-      return
-    }
-
-    try {
-      await trainingApi.updateExercise(exerciseRowId, apiInput, { timeoutMs: WRITE_TIMEOUT_MS })
-      const current = await trainingApi.getById(trainingId, { timeoutMs: WRITE_TIMEOUT_MS })
-      mirrorTrainingLocally(current, 'synced')
-      set({ current })
-    } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      ensureLocalTrainingShell(trainingId, get().current)
-      localData.trainings.updateExercise(exerciseRowId, localInput)
-      markTrainingPending(trainingId, syncFailReason(error))
-      notifyLocalSave()
-      set({ current: localData.trainings.get(trainingId) })
-    }
+    ensureLocalTrainingShell(trainingId, get().current)
+    localData.trainings.updateExercise(exerciseRowId, input)
+    markTrainingPending(trainingId, pendingReason())
+    set({ current: localData.trainings.get(trainingId) })
+    if (isCloudMode()) scheduleCloudSync()
   },
 
   async removeExercise(trainingId, exerciseRowId) {
-    if (isLocalMode()) {
-      localData.trainings.removeExercise(exerciseRowId)
-      markTrainingPending(trainingId, 'local_mode')
-      set({ current: localData.trainings.get(trainingId) })
-      return
-    }
-
-    try {
-      await trainingApi.removeExercise(exerciseRowId, { timeoutMs: WRITE_TIMEOUT_MS })
-      const current = await trainingApi.getById(trainingId, { timeoutMs: WRITE_TIMEOUT_MS })
-      mirrorTrainingLocally(current, 'synced')
-      set({ current })
-    } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      ensureLocalTrainingShell(trainingId, get().current)
-      localData.trainings.removeExercise(exerciseRowId)
-      markTrainingPending(trainingId, syncFailReason(error))
-      notifyLocalSave()
-      set({ current: localData.trainings.get(trainingId) })
-    }
+    ensureLocalTrainingShell(trainingId, get().current)
+    localData.trainings.removeExercise(exerciseRowId)
+    markTrainingPending(trainingId, pendingReason())
+    set({ current: localData.trainings.get(trainingId) })
+    if (isCloudMode()) scheduleCloudSync()
   },
 
   async addSet(trainingId, exerciseId, input) {
     const payload = { ...input, id: input.id ?? createLocalId() }
-
-    if (isLocalMode()) {
-      localData.trainings.addSet(exerciseId, payload)
-      markTrainingPending(trainingId, 'local_mode')
-      set({ current: localData.trainings.get(trainingId) })
-      return
-    }
-
-    try {
-      await trainingApi.addSet(exerciseId, payload, { timeoutMs: WRITE_TIMEOUT_MS })
-      const current = await trainingApi.getById(trainingId, { timeoutMs: WRITE_TIMEOUT_MS })
-      mirrorTrainingLocally(current, 'synced')
-      set({ current })
-    } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      ensureLocalTrainingShell(trainingId, get().current)
-      localData.trainings.addSet(exerciseId, payload)
-      markTrainingPending(trainingId, syncFailReason(error))
-      notifyLocalSave()
-      set({ current: localData.trainings.get(trainingId) })
-    }
+    ensureLocalTrainingShell(trainingId, get().current)
+    localData.trainings.addSet(exerciseId, payload)
+    markTrainingPending(trainingId, pendingReason())
+    set({ current: localData.trainings.get(trainingId) })
+    if (isCloudMode()) scheduleCloudSync()
   },
 
   async updateSet(trainingId, setId, input) {
-    if (isLocalMode()) {
-      localData.trainings.updateSet(setId, input)
-      markTrainingPending(trainingId, 'local_mode')
-      set({ current: localData.trainings.get(trainingId) })
-      return
-    }
-
-    try {
-      await trainingApi.updateSet(setId, input, { timeoutMs: WRITE_TIMEOUT_MS })
-      const current = await trainingApi.getById(trainingId, { timeoutMs: WRITE_TIMEOUT_MS })
-      mirrorTrainingLocally(current, 'synced')
-      set({ current })
-    } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      ensureLocalTrainingShell(trainingId, get().current)
-      localData.trainings.updateSet(setId, input)
-      markTrainingPending(trainingId, syncFailReason(error))
-      notifyLocalSave()
-      set({ current: localData.trainings.get(trainingId) })
-    }
+    ensureLocalTrainingShell(trainingId, get().current)
+    localData.trainings.updateSet(setId, input)
+    markTrainingPending(trainingId, pendingReason())
+    set({ current: localData.trainings.get(trainingId) })
+    if (isCloudMode()) scheduleCloudSync()
   },
 
   async removeSet(trainingId, setId) {
-    if (isLocalMode()) {
-      localData.trainings.removeSet(setId)
-      markTrainingPending(trainingId, 'local_mode')
-      set({ current: localData.trainings.get(trainingId) })
-      return
-    }
-
-    try {
-      await trainingApi.removeSet(setId, { timeoutMs: WRITE_TIMEOUT_MS })
-      const current = await trainingApi.getById(trainingId, { timeoutMs: WRITE_TIMEOUT_MS })
-      mirrorTrainingLocally(current, 'synced')
-      set({ current })
-    } catch (error) {
-      if (!isRetriableWriteError(error)) throw error
-      ensureLocalTrainingShell(trainingId, get().current)
-      localData.trainings.removeSet(setId)
-      markTrainingPending(trainingId, syncFailReason(error))
-      notifyLocalSave()
-      set({ current: localData.trainings.get(trainingId) })
-    }
+    ensureLocalTrainingShell(trainingId, get().current)
+    localData.trainings.removeSet(setId)
+    markTrainingPending(trainingId, pendingReason())
+    set({ current: localData.trainings.get(trainingId) })
+    if (isCloudMode()) scheduleCloudSync()
   },
 }))

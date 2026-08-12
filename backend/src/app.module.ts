@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common'
 import { AuthModule } from './modules/auth/auth.module'
 import { BodyMeasurementModule } from './modules/body-measurement/body-measurement.module'
 import { ExerciseModule } from './modules/exercise/exercise.module'
+import { FeedbackModule } from './modules/feedback/feedback.module'
 import { HealthModule } from './modules/health/health.module'
 import { ProgramModule } from './modules/program/program.module'
 import { SourceModule } from './modules/source/source.module'
@@ -21,6 +22,7 @@ import { LoggerModule } from './shared/logger/logger.module'
     HealthModule,
     AuthModule,
     BodyMeasurementModule,
+    FeedbackModule,
     ExerciseModule,
     SourceModule,
     TemplateModule,

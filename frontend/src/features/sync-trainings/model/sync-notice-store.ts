@@ -25,7 +25,7 @@ export const useSyncNoticeStore = create<SyncNoticeState>((set) => ({
 
   notifySavedLocally() {
     set({
-      message: 'Сохранено на устройстве. Можно отправить на сервер позже.',
+      message: 'Сохранено на устройстве. Отправим на сервер, когда появится сеть.',
       showBanner: true,
     })
   },

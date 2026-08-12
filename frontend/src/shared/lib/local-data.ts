@@ -6,6 +6,11 @@ import type {
   CreateBodyMeasurementInput,
 } from '@/entities/body-measurement/model/types'
 import type {
+  CreateFeedbackInput,
+  FeedbackSyncStatus,
+  LocalFeedback,
+} from '@/entities/feedback/model/types'
+import type {
   CreateExerciseInput,
   Exercise,
   UpdateExerciseInput,
@@ -60,6 +65,7 @@ const trainingExercisesDb = createLocalCollection<TrainingExercise>(
 )
 const trainingSetsDb = createLocalCollection<TrainingSet>('ironlog:local:training-sets')
 const bodyMeasurementsDb = createLocalCollection<BodyMeasurement>('ironlog:local:body-measurements')
+const feedbacksDb = createLocalCollection<LocalFeedback>('ironlog:local:feedbacks')
 
 function nowIso() {
   return new Date().toISOString()
@@ -353,6 +359,64 @@ export const localData = {
     },
     remove(id: string) {
       return bodyMeasurementsDb.remove(id)
+    },
+  },
+
+  feedbacks: {
+    list() {
+      return feedbacksDb
+        .list()
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    },
+    listPending() {
+      return this.list().filter((item) => item.sync.status === 'pending' || item.sync.status === 'error')
+    },
+    get(id: string) {
+      return feedbacksDb.get(id)
+    },
+    create(
+      input: CreateFeedbackInput & { syncStatus?: FeedbackSyncStatus },
+    ): LocalFeedback {
+      const stamp = nowIso()
+      return feedbacksDb.upsert({
+        id: input.id ?? createLocalId(),
+        userId: null,
+        category: input.category,
+        message: input.message,
+        rating: input.rating ?? null,
+        status: 'new',
+        clientMeta: input.clientMeta ?? {},
+        createdAt: stamp,
+        sync: { status: input.syncStatus ?? 'pending' },
+      })
+    },
+    upsert(item: LocalFeedback): LocalFeedback {
+      return feedbacksDb.upsert(item)
+    },
+    markSynced(id: string, patch?: Partial<LocalFeedback>): LocalFeedback | null {
+      const current = feedbacksDb.get(id)
+      if (!current) return null
+      return feedbacksDb.upsert({
+        ...current,
+        ...patch,
+        sync: { status: 'synced' },
+      })
+    },
+    markPending(id: string, reason?: 'network' | 'server' | 'timeout'): LocalFeedback | null {
+      const current = feedbacksDb.get(id)
+      if (!current) return null
+      return feedbacksDb.upsert({
+        ...current,
+        sync: { status: 'pending', reason },
+      })
+    },
+    markError(id: string, reason?: 'network' | 'server' | 'timeout'): LocalFeedback | null {
+      const current = feedbacksDb.get(id)
+      if (!current) return null
+      return feedbacksDb.upsert({
+        ...current,
+        sync: { status: 'error', reason },
+      })
     },
   },
 
@@ -667,7 +731,9 @@ export const LOCAL_STORAGE_KEYS = [
   'ironlog:local:training-exercises',
   'ironlog:local:training-sets',
   'ironlog:local:body-measurements',
+  'ironlog:local:feedbacks',
   'ironlog:local:catalog-outbox',
+  'ironlog:local:entity-delete-outbox',
 ] as const
 
 export function clearAllLocalData() {

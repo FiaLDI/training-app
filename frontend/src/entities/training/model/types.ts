@@ -50,7 +50,7 @@ export type TrainingSyncStatus = 'pending' | 'synced' | 'error'
 
 export type TrainingSyncMeta = {
   status: TrainingSyncStatus
-  reason?: 'local_mode' | 'timeout' | 'network' | 'server'
+  reason?: 'local_mode' | 'queued' | 'timeout' | 'network' | 'server'
   serverSyncedAt?: string
   error?: string
   failedAt?: string

@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 import { backfillPendingSync } from '@/features/sync-trainings/model/backfill-pending-sync'
+import { requestBackgroundSync } from '@/features/sync-trainings/model/background-sync'
 import { useSyncNoticeStore } from '@/features/sync-trainings/model/sync-notice-store'
 
 import { authApi, type AuthUser } from '../api/auth-api'
@@ -14,9 +15,10 @@ function afterEnterCloud() {
   if (summary.total > 0) {
     useSyncNoticeStore.getState().setShowBanner(true)
     useSyncNoticeStore.getState().setMessage(
-      'Есть локальные данные. Можно отправить их на сервер.',
+      'Есть локальные данные — отправим на сервер автоматически.',
     )
   }
+  requestBackgroundSync()
 }
 
 export type AppMode = 'local' | 'cloud'

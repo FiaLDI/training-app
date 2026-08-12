@@ -1,5 +1,8 @@
-import { ReactNode } from 'react'
+'use client'
 
+import { ReactNode, useEffect } from 'react'
+
+import { startBackgroundSyncListeners } from '@/features/sync-trainings/model/background-sync'
 import { SyncPendingBanner } from '@/features/sync-trainings/ui/sync-pending-banner'
 
 import { Sidebar } from './sidebar'
@@ -9,6 +12,10 @@ type Props = {
 }
 
 export function AppShell({ children }: Props) {
+  useEffect(() => {
+    startBackgroundSyncListeners()
+  }, [])
+
   return (
     <div className="relative min-h-screen md:flex md:items-stretch">
       <div

@@ -141,6 +141,8 @@ export function syncReasonLabel(reason?: TrainingSyncMeta['reason']): string {
   switch (reason) {
     case 'local_mode':
       return 'локальный режим'
+    case 'queued':
+      return 'ожидает отправки'
     case 'timeout':
       return 'не успели отправить'
     case 'network':

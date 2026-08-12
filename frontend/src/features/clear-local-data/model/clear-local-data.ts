@@ -2,6 +2,7 @@ import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useProgramStore } from '@/entities/program/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
+import { deleteOutbox } from '@/features/sync-trainings/model/delete-outbox'
 import { useSyncNoticeStore } from '@/features/sync-trainings/model/sync-notice-store'
 import { catalogSync } from '@/shared/lib/catalog-sync'
 import { clearAllLocalData, localData } from '@/shared/lib/local-data'
@@ -52,6 +53,7 @@ export function clearPendingLocalChanges() {
     }
   }
   catalogSync.clearOutbox()
+  deleteOutbox.clear()
 }
 
 export async function clearAllLocalDataAndReset(refreshFromServer = false) {
