@@ -12,6 +12,7 @@ import {
   LayoutTemplate,
   LogOut,
   MoreHorizontal,
+  Settings,
 } from 'lucide-react'
 
 import { useSessionStore } from '@/entities/session/model/store'
@@ -28,6 +29,7 @@ const primaryLinks = [
 const moreLinks = [
   { href: '/plans', label: 'Планы', icon: LayoutTemplate },
   { href: '/exercises', label: 'Упражнения', icon: Dumbbell },
+  { href: '/settings', label: 'Профиль', icon: Settings },
 ]
 
 function isActive(pathname: string, href: string) {
@@ -137,9 +139,17 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto border-t border-[var(--border)] pt-4">
-        <p className="truncate text-xs text-[var(--muted)]">
+        <Link
+          href="/settings"
+          className={cn(
+            'mb-2 block truncate rounded-lg px-2 py-1.5 text-xs transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
+            isActive(pathname, '/settings')
+              ? 'text-[var(--accent)]'
+              : 'text-[var(--muted)]',
+          )}
+        >
           {mode === 'local' ? 'Локальный режим' : user?.email ?? 'Облако'}
-        </p>
+        </Link>
         <SyncSidebarButton />
         <Button
           type="button"

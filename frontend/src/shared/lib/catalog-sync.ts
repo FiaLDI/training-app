@@ -30,6 +30,10 @@ function writeOutbox(entries: OutboxEntry[]) {
   localStorage.setItem(OUTBOX_KEY, JSON.stringify(entries))
 }
 
+function clearOutboxStorage() {
+  writeOutbox([])
+}
+
 function enqueue(entry: OutboxEntry) {
   const items = readOutbox().filter(
     (item) => !(item.entity === entry.entity && item.id === entry.id),
@@ -116,6 +120,10 @@ export const catalogSync = {
           (entry.op === 'delete' ? 'Упражнение (удаление)' : 'Упражнение'),
       }
     })
+  },
+
+  clearOutbox() {
+    clearOutboxStorage()
   },
 
   async flush(

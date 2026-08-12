@@ -602,3 +602,23 @@ export const localData = {
     },
   },
 }
+
+export const LOCAL_STORAGE_KEYS = [
+  'ironlog:local:exercises',
+  'ironlog:local:sources',
+  'ironlog:local:templates',
+  'ironlog:local:template-exercises',
+  'ironlog:local:programs',
+  'ironlog:local:program-days',
+  'ironlog:local:trainings',
+  'ironlog:local:training-exercises',
+  'ironlog:local:training-sets',
+  'ironlog:local:catalog-outbox',
+] as const
+
+export function clearAllLocalData() {
+  if (typeof window === 'undefined') return
+  for (const key of LOCAL_STORAGE_KEYS) {
+    localStorage.removeItem(key)
+  }
+}
