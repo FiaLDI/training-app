@@ -51,7 +51,7 @@ pipeline {
       steps {
         sh '''
           set +e
-          bash scripts/ci-cleanup.sh --agent --keep-image-tags 5
+          bash scripts/ci-cleanup.sh --agent --aggressive
         '''
       }
     }
@@ -199,7 +199,7 @@ pipeline {
       sh '''
         set +e
         echo "Post-build cleanup on Jenkins agent"
-        bash scripts/ci-cleanup.sh --agent --keep-image-tags 5 || true
+        bash scripts/ci-cleanup.sh --agent --aggressive || true
         rm -f "${ARTIFACT_PATH}"
       '''
     }

@@ -150,10 +150,11 @@ if [[ -n "$previous_tag" && "$KEEP_PREVIOUS" -eq 1 ]]; then
   keep_csv="${IMAGE_TAG},${previous_tag}"
 fi
 echo "Running post-deploy cleanup (protected tags: ${keep_csv})…"
+# Do NOT pass --aggressive: `docker image prune -a` would delete the previous
+# rollback tag because it is no longer attached to a running container.
 bash scripts/ci-cleanup.sh \
   --deploy-path "$(pwd)" \
-  --skip-builder-prune \
-  --keep-image-tags 2 \
+  --keep-image-tags 0 \
   --keep-tags "${keep_csv}" \
   || true
 

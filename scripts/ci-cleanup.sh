@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 # Safe disk cleanup on hosts running Docker (+ Jenkins and/or production).
-# Does NOT stop running containers or remove named volumes.
+# Never stops running containers or removes named volumes.
 #
 # Usage:
-#   bash scripts/ci-cleanup.sh                          # general / production
-#   bash scripts/ci-cleanup.sh --agent                  # Jenkins agent before build
-#   bash scripts/ci-cleanup.sh --aggressive             # also prune unused images
-#   bash scripts/ci-cleanup.sh --keep-tags 24,23        # never remove these tags
+#   bash scripts/ci-cleanup.sh
+#   bash scripts/ci-cleanup.sh --agent
+#   bash scripts/ci-cleanup.sh --aggressive
+#   bash scripts/ci-cleanup.sh --deploy-path ~/training-app --keep-tags 20
 set -euo pipefail
 
 AGGRESSIVE=0
 AGENT=0
 SKIP_ARTIFACTS=0
 SKIP_BUILDER_PRUNE=0
-DEPLOY_PATH="${DEPLOY_PATH:-/opt/training-app}"
+DEPLOY_PATH="${DEPLOY_PATH:-}"
 BACKEND_IMAGE="${BACKEND_IMAGE:-workout-backend}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-workout-frontend}"
-KEEP_ARTIFACTS="${KEEP_ARTIFACTS:-3}"
-KEEP_IMAGE_TAGS="${KEEP_IMAGE_TAGS:-3}"
+KEEP_ARTIFACTS="${KEEP_ARTIFACTS:-2}"
+KEEP_IMAGE_TAGS="${KEEP_IMAGE_TAGS:-2}"
 KEEP_TAGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -26,7 +26,7 @@ while [[ $# -gt 0 ]]; do
     --agent)
       AGENT=1
       SKIP_ARTIFACTS=1
-      KEEP_IMAGE_TAGS="${KEEP_IMAGE_TAGS:-5}"
+      KEEP_IMAGE_TAGS=2
       shift
       ;;
     --skip-artifacts) SKIP_ARTIFACTS=1; shift ;;
@@ -41,9 +41,40 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Resolve deploy path: explicit > cwd if it looks like the app > common defaults
+if [[ -z "$DEPLOY_PATH" ]]; then
+  if [[ -f .env && -f docker-compose.yml ]]; then
+    DEPLOY_PATH="$(pwd)"
+  elif [[ -d /opt/training-app ]]; then
+    DEPLOY_PATH=/opt/training-app
+  elif [[ -d "${HOME}/training-app" ]]; then
+    DEPLOY_PATH="${HOME}/training-app"
+  else
+    DEPLOY_PATH="$(pwd)"
+  fi
+fi
+
+# Images currently used by any container (running or stopped) — never delete.
+declare -A IN_USE=()
+while read -r img; do
+  [[ -n "$img" ]] && IN_USE["$img"]=1
+done < <(docker ps -a --format '{{.Image}}' 2>/dev/null || true)
+
+image_in_use() {
+  local ref="$1"
+  [[ -n "${IN_USE[$ref]:-}" ]] && return 0
+  # Also match by image id if ref is name:tag
+  local id
+  id="$(docker images -q "$ref" 2>/dev/null | head -1 || true)"
+  [[ -z "$id" ]] && return 1
+  while read -r running_id; do
+    [[ -n "$running_id" && "$running_id" == "$id"* ]] && return 0
+  done < <(docker ps -a --format '{{.ImageID}}' 2>/dev/null | sed 's/^sha256://' || true)
+  return 1
+}
+
 tag_is_protected() {
   local tag="$1"
-  [[ -z "$tag" || "$tag" == "<none>" ]] && return 0
   for protected in "${KEEP_TAGS[@]}"; do
     [[ -n "$protected" && "$tag" == "$protected" ]] && return 0
   done
@@ -51,44 +82,73 @@ tag_is_protected() {
 }
 
 echo "===== Before ====="
-df -h / /var/lib/docker 2>/dev/null || df -h /
+df -h / 2>/dev/null || true
 docker system df 2>/dev/null || true
+echo "Deploy path: ${DEPLOY_PATH}"
+echo "In-use images:"
+docker ps --format '  {{.Names}} → {{.Image}}' 2>/dev/null || true
 echo
 
 if [[ "$SKIP_BUILDER_PRUNE" -eq 0 ]]; then
-  echo "1) Docker build cache…"
+  echo "1) Docker build cache (often the biggest hog)…"
   docker builder prune -af || true
 else
   echo "1) Skip builder prune"
 fi
 
-echo "2) Dangling images / stopped containers / unused networks…"
+echo "2) Stopped containers / unused networks / dangling layers…"
 docker container prune -f || true
 docker network prune -f || true
 docker image prune -f || true
 
-echo "3) Old ${BACKEND_IMAGE}/${FRONTEND_IMAGE} tags (keep newest ${KEEP_IMAGE_TAGS} + --keep-tags)…"
+echo "3) Old app tags (keep ${KEEP_IMAGE_TAGS} newest unused + protected + in-use)…"
 for repo in "$BACKEND_IMAGE" "$FRONTEND_IMAGE"; do
-  mapfile -t tags < <(docker images "$repo" --format '{{.CreatedAt}}\t{{.Tag}}' | sort -r | awk '{print $NF}')
-  idx=0
+  # Prefer numeric build tags (newest first); fall back to CreatedAt.
+  mapfile -t tags < <(
+    docker images "$repo" --format '{{.Tag}}' 2>/dev/null \
+      | grep -E '^[0-9]+$' \
+      | sort -nr
+  )
+  if [[ ${#tags[@]} -eq 0 ]]; then
+    mapfile -t tags < <(
+      docker images "$repo" --format '{{.CreatedAt}}|{{.Tag}}' 2>/dev/null \
+        | sort -r \
+        | awk -F'|' '{print $2}'
+    )
+  fi
+
+  kept=0
   for tag in "${tags[@]}"; do
-    tag_is_protected "$tag" && continue
     [[ -z "$tag" || "$tag" == "<none>" ]] && continue
-    idx=$((idx + 1))
-    if [[ "$idx" -gt "$KEEP_IMAGE_TAGS" ]]; then
-      echo "  docker rmi ${repo}:${tag}"
-      docker rmi "${repo}:${tag}" 2>/dev/null || true
-    else
-      echo "  keep ${repo}:${tag}"
+    ref="${repo}:${tag}"
+
+    if image_in_use "$ref" || tag_is_protected "$tag"; then
+      echo "  keep ${ref} (in-use/protected)"
+      continue
     fi
-  done
-  for protected in "${KEEP_TAGS[@]}"; do
-    [[ -n "$protected" ]] && echo "  protected ${repo}:${protected}"
+
+    kept=$((kept + 1))
+    if [[ "$kept" -le "$KEEP_IMAGE_TAGS" ]]; then
+      echo "  keep ${ref} (rollback slot ${kept}/${KEEP_IMAGE_TAGS})"
+    else
+      echo "  docker rmi ${ref}"
+      docker rmi "$ref" 2>/dev/null || true
+    fi
   done
 done
 
+echo "3b) Legacy training-app-* images (if not in use)…"
+for ref in $(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E '^training-app-(backend|frontend):' || true); do
+  if image_in_use "$ref"; then
+    echo "  keep ${ref} (in-use)"
+  else
+    echo "  docker rmi ${ref}"
+    docker rmi "$ref" 2>/dev/null || true
+  fi
+done
+
 if [[ "$SKIP_ARTIFACTS" -eq 0 ]]; then
-  echo "4) Old deploy artifacts in ${DEPLOY_PATH}/.deploy (keep ${KEEP_ARTIFACTS})…"
+  echo "4) Deploy artifacts in ${DEPLOY_PATH}/.deploy (keep ${KEEP_ARTIFACTS})…"
   if [[ -d "${DEPLOY_PATH}/.deploy" ]]; then
     mapfile -t arts < <(ls -1t "${DEPLOY_PATH}/.deploy"/workout-images-*.tar.gz 2>/dev/null || true)
     idx=0
@@ -102,34 +162,32 @@ if [[ "$SKIP_ARTIFACTS" -eq 0 ]]; then
       fi
     done
   else
-    echo "  (no ${DEPLOY_PATH}/.deploy — skip)"
+    echo "  (no ${DEPLOY_PATH}/.deploy)"
   fi
 else
-  echo "4) Skip deploy artifacts cleanup"
+  echo "4) Skip deploy-path artifacts"
 fi
 
-if [[ "$AGENT" -eq 1 && -d "${WORKSPACE:-}/.deploy" ]]; then
-  echo "4b) Old Jenkins workspace artifacts (keep ${KEEP_ARTIFACTS})…"
-  mapfile -t arts < <(ls -1t "${WORKSPACE}/.deploy"/workout-images-*.tar.gz 2>/dev/null || true)
-  idx=0
-  for art in "${arts[@]}"; do
-    idx=$((idx + 1))
-    if [[ "$idx" -gt "$KEEP_ARTIFACTS" ]]; then
-      echo "  rm ${art}"
-      rm -f "${art}"
-    fi
+echo "4b) Loose image tarballs in workspace / deploy root…"
+for dir in "${WORKSPACE:-}" "${DEPLOY_PATH}" "$(pwd)"; do
+  [[ -z "$dir" || ! -d "$dir" ]] && continue
+  for art in "$dir"/workout-images-*.tar "$dir"/workout-images-*.tar.gz; do
+    [[ -e "$art" ]] || continue
+    echo "  rm ${art}"
+    rm -f "$art"
   done
-fi
+done
 
 if [[ "$AGGRESSIVE" -eq 1 ]]; then
-  echo "5) Aggressive: unused images not referenced by containers…"
+  echo "5) Aggressive: all unused images (still keeps anything attached to a container)…"
   docker image prune -a -f || true
 else
-  echo "5) Skip aggressive unused-image prune (pass --aggressive to enable)"
+  echo "5) Skip full unused-image prune (pass --aggressive)"
 fi
 
 echo
 echo "===== After ====="
-df -h / /var/lib/docker 2>/dev/null || df -h /
+df -h / 2>/dev/null || true
 docker system df 2>/dev/null || true
+docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}' 2>/dev/null || true
 echo "Cleanup done. Running containers were not touched."
