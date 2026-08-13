@@ -144,25 +144,17 @@ EOF
 rm -f "$ARTIFACT"
 echo "Removed temporary artifact ${ARTIFACT}"
 
-# Safe cleanup: drop unused workout-* images except current and previous
-echo "Pruning unused app images (keeping current${previous_tag:+ and previous})…"
-keep_tags=("${IMAGE_TAG}")
+# Safe cleanup: keep current (+ previous) tags, prune cache/artifacts on shared host
+keep_csv="${IMAGE_TAG}"
 if [[ -n "$previous_tag" && "$KEEP_PREVIOUS" -eq 1 ]]; then
-  keep_tags+=("$previous_tag")
+  keep_csv="${IMAGE_TAG},${previous_tag}"
 fi
-
-for repo in "$BACKEND_IMAGE" "$FRONTEND_IMAGE"; do
-  while read -r tag; do
-    [[ -z "$tag" || "$tag" == "<none>" ]] && continue
-    skip=0
-    for k in "${keep_tags[@]}"; do
-      if [[ "$tag" == "$k" ]]; then skip=1; break; fi
-    done
-    if [[ "$skip" -eq 0 ]]; then
-      echo "  docker rmi ${repo}:${tag}"
-      docker rmi "${repo}:${tag}" 2>/dev/null || true
-    fi
-  done < <(docker images "$repo" --format '{{.Tag}}')
-done
+echo "Running post-deploy cleanup (protected tags: ${keep_csv})…"
+bash scripts/ci-cleanup.sh \
+  --deploy-path "$(pwd)" \
+  --skip-builder-prune \
+  --keep-image-tags 2 \
+  --keep-tags "${keep_csv}" \
+  || true
 
 echo "Deploy SUCCESS: ${BACKEND_IMAGE}:${IMAGE_TAG} + ${FRONTEND_IMAGE}:${IMAGE_TAG}"

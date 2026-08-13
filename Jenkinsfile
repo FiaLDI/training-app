@@ -47,6 +47,15 @@ pipeline {
       }
     }
 
+    stage('Pre-cleanup') {
+      steps {
+        sh '''
+          set +e
+          bash scripts/ci-cleanup.sh --agent --keep-image-tags 5
+        '''
+      }
+    }
+
     stage('Docker build') {
       steps {
         retry(2) {
@@ -68,9 +77,6 @@ pipeline {
 
             docker image inspect "${BACKEND_IMAGE}:${IMAGE_TAG}" >/dev/null
             docker image inspect "${FRONTEND_IMAGE}:${IMAGE_TAG}" >/dev/null
-
-            # Drop intermediate build cache to reduce pressure before docker save.
-            docker builder prune -f --filter until=1h >/dev/null 2>&1 || true
 
             echo "Built images:"
             echo "  ${BACKEND_IMAGE}:${IMAGE_TAG}"
@@ -192,10 +198,9 @@ pipeline {
     success {
       sh '''
         set +e
-        echo "Cleanup Jenkins local images/artifacts for tag ${IMAGE_TAG}"
-        docker rmi "${BACKEND_IMAGE}:${IMAGE_TAG}" "${FRONTEND_IMAGE}:${IMAGE_TAG}" 2>/dev/null
+        echo "Post-build cleanup on Jenkins agent"
+        bash scripts/ci-cleanup.sh --agent --keep-image-tags 5 || true
         rm -f "${ARTIFACT_PATH}"
-        # Do not run docker system prune -af
       '''
     }
     failure {
