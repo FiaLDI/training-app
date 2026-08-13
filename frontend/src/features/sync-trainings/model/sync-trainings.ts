@@ -69,8 +69,7 @@ async function upsertExercise(
   trainingId: string,
   exercise: TrainingExercise & { sets: TrainingSet[] },
 ) {
-  const body = {
-    exerciseId: exercise.exerciseId,
+  const updateBody = {
     exerciseOrder: exercise.exerciseOrder,
     targetSets: exercise.targetSets,
     isWarmup: exercise.isWarmup,
@@ -82,10 +81,14 @@ async function upsertExercise(
   }
 
   try {
-    await trainingApi.updateExercise(exercise.id, body)
+    await trainingApi.updateExercise(exercise.id, updateBody)
   } catch (error) {
     if (!(error instanceof ApiError && error.status === 404)) throw error
-    await trainingApi.addExercise(trainingId, { id: exercise.id, ...body })
+    await trainingApi.addExercise(trainingId, {
+      id: exercise.id,
+      exerciseId: exercise.exerciseId,
+      ...updateBody,
+    })
   }
 
   for (const set of exercise.sets) {

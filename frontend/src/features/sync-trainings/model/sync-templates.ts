@@ -49,8 +49,7 @@ async function ensureTemplateShell(template: WorkoutTemplateWithExercises) {
 }
 
 async function upsertTemplateExercise(templateId: string, exercise: TemplateExercise) {
-  const body = {
-    exerciseId: exercise.exerciseId,
+  const updateBody = {
     exerciseOrder: exercise.exerciseOrder,
     targetSets: exercise.targetSets,
     isWarmup: exercise.isWarmup,
@@ -63,10 +62,14 @@ async function upsertTemplateExercise(templateId: string, exercise: TemplateExer
   }
 
   try {
-    await templateApi.updateExercise(exercise.id, body)
+    await templateApi.updateExercise(exercise.id, updateBody)
   } catch (error) {
     if (!(error instanceof ApiError && error.status === 404)) throw error
-    await templateApi.addExercise(templateId, { id: exercise.id, ...body })
+    await templateApi.addExercise(templateId, {
+      id: exercise.id,
+      exerciseId: exercise.exerciseId,
+      ...updateBody,
+    })
   }
 }
 
