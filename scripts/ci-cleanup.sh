@@ -55,21 +55,22 @@ if [[ -z "$DEPLOY_PATH" ]]; then
 fi
 
 # Images currently used by any container (running or stopped) — never delete.
-declare -A IN_USE=()
+# Fallback if bash lacks associative arrays.
+IN_USE_LIST=""
 while read -r img; do
-  [[ -n "$img" ]] && IN_USE["$img"]=1
+  [[ -n "$img" ]] && IN_USE_LIST="${IN_USE_LIST}"$'\n'"${img}"
 done < <(docker ps -a --format '{{.Image}}' 2>/dev/null || true)
 
 image_in_use() {
   local ref="$1"
-  [[ -n "${IN_USE[$ref]:-}" ]] && return 0
-  # Also match by image id if ref is name:tag
+  printf '%s\n' "$IN_USE_LIST" | grep -Fxq -- "$ref" 2>/dev/null && return 0
   local id
   id="$(docker images -q "$ref" 2>/dev/null | head -1 || true)"
   [[ -z "$id" ]] && return 1
   while read -r running_id; do
-    [[ -n "$running_id" && "$running_id" == "$id"* ]] && return 0
-  done < <(docker ps -a --format '{{.ImageID}}' 2>/dev/null | sed 's/^sha256://' || true)
+    running_id="${running_id#sha256:}"
+    [[ -n "$running_id" && "$id" == "$running_id"* ]] && return 0
+  done < <(docker ps -a --format '{{.ImageID}}' 2>/dev/null || true)
   return 1
 }
 
@@ -104,17 +105,18 @@ docker image prune -f || true
 echo "3) Old app tags (keep ${KEEP_IMAGE_TAGS} newest unused + protected + in-use)…"
 for repo in "$BACKEND_IMAGE" "$FRONTEND_IMAGE"; do
   # Prefer numeric build tags (newest first); fall back to CreatedAt.
+  # `grep` exits 1 when empty — must not abort under pipefail.
   mapfile -t tags < <(
     docker images "$repo" --format '{{.Tag}}' 2>/dev/null \
-      | grep -E '^[0-9]+$' \
+      | { grep -E '^[0-9]+$' || true; } \
       | sort -nr
-  )
+  ) || true
   if [[ ${#tags[@]} -eq 0 ]]; then
     mapfile -t tags < <(
       docker images "$repo" --format '{{.CreatedAt}}|{{.Tag}}' 2>/dev/null \
         | sort -r \
         | awk -F'|' '{print $2}'
-    )
+    ) || true
   fi
 
   kept=0
