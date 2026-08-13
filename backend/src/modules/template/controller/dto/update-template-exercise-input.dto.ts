@@ -1,7 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger'
-import { IsBoolean, IsInt, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator'
+import { IsBoolean, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUID, Min } from 'class-validator'
 
 export class UpdateTemplateExerciseInputDto {
+  /** Ignored — older clients may still send it. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  exerciseId?: string
+
   @ApiPropertyOptional({ minimum: 0 })
   @IsOptional()
   @IsInt()

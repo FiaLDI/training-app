@@ -75,15 +75,16 @@ async function upsertExercise(
   trainingId: string,
   exercise: TrainingExercise & { sets: TrainingSet[] },
 ) {
+  // Explicit whitelist — never send catalog exerciseId on PATCH (older deploys rejected it).
   const updateBody = {
     exerciseOrder: exercise.exerciseOrder,
     targetSets: exercise.targetSets,
-    isWarmup: exercise.isWarmup,
-    minReps: exercise.minReps,
-    maxReps: exercise.maxReps,
-    restSeconds: exercise.restSeconds,
-    notes: exercise.notes,
-    metadata: exercise.metadata,
+    isWarmup: exercise.isWarmup ?? false,
+    minReps: exercise.minReps ?? null,
+    maxReps: exercise.maxReps ?? null,
+    restSeconds: exercise.restSeconds ?? null,
+    notes: exercise.notes ?? null,
+    metadata: exercise.metadata ?? {},
   }
 
   // Server create is idempotent by id — creates or returns existing.
@@ -96,8 +97,15 @@ async function upsertExercise(
     },
     writeExtras,
   )
-  // Apply latest fields (create no-ops when the row already exists).
-  await trainingApi.updateExercise(exercise.id, updateBody, writeExtras)
+
+  try {
+    await trainingApi.updateExercise(exercise.id, updateBody, writeExtras)
+  } catch (error) {
+    // Create already applied fields for new rows; ignore update failures from stale clients/servers.
+    if (!(error instanceof ApiError && (error.status === 400 || error.status === 404))) {
+      throw error
+    }
+  }
 
   for (const set of exercise.sets) {
     await upsertSet(exercise.id, set)

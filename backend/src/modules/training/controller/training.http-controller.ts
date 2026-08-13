@@ -168,10 +168,11 @@ export class TrainingHttpController {
     @Param('exerciseId', ParseUUIDPipe) exerciseId: string,
     @Body() dto: UpdateTrainingExerciseInputDto,
   ) {
+    const { exerciseId: _ignoredCatalogExerciseId, ...patch } = dto
     const result = await this.updateExerciseUseCase.execute({
       id: exerciseId,
       userId: user.id,
-      ...dto,
+      ...patch,
     })
     if (!result.exercise) throw new NotFoundException('Training exercise not found')
     return result.exercise

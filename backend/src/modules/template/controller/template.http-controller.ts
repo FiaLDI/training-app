@@ -145,10 +145,11 @@ export class TemplateHttpController {
     @Param('exerciseId', ParseUUIDPipe) exerciseId: string,
     @Body() dto: UpdateTemplateExerciseInputDto,
   ) {
+    const { exerciseId: _ignoredCatalogExerciseId, ...patch } = dto
     const result = await this.updateExerciseUseCase.execute({
       id: exerciseId,
       userId: user.id,
-      ...dto,
+      ...patch,
     })
     if (!result.exercise) throw new NotFoundException('Template exercise not found')
     return result.exercise
