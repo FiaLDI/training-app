@@ -26,6 +26,7 @@ import type {
 } from './types'
 
 const READ_TIMEOUT_MS = 8000
+const BACKGROUND_READ_TIMEOUT_MS = 4000
 
 function isLocalMode() {
   return useSessionStore.getState().mode === 'local'
@@ -156,38 +157,45 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
   },
 
   async fetchOne(id) {
-    set({ loading: true, error: null })
+    // Local-first: open training immediately from device, refresh in background.
+    const local = localData.trainings.get(id)
+    if (isLocalMode()) {
+      set({ current: local, loading: false, error: null })
+      return
+    }
+
+    if (local) {
+      set({ current: local, loading: false, error: null })
+    } else {
+      set({ loading: true, error: null, current: null })
+    }
+
+    // Pending local edits are source of truth — never block on network.
+    if (local && isTrainingPendingSync(local)) {
+      return
+    }
+
     try {
-      if (isLocalMode()) {
-        set({ current: localData.trainings.get(id), loading: false })
+      const remote = await trainingApi.getById(id, {
+        timeoutMs: local ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
+      })
+      // Don't clobber newer local writes that arrived while the request was in flight.
+      const latestLocal = localData.trainings.get(id)
+      if (latestLocal && isTrainingPendingSync(latestLocal)) {
+        set({ current: latestLocal, loading: false })
         return
       }
-
-      const local = localData.trainings.get(id)
-      if (local && isTrainingPendingSync(local)) {
-        set({ current: local, loading: false })
-        return
-      }
-
-      try {
-        const current = await trainingApi.getById(id, { timeoutMs: READ_TIMEOUT_MS })
-        const mirrored = mirrorTrainingLocally(current, 'synced')
-        set({ current: mirrored, loading: false })
-      } catch (error) {
-        if (local) {
-          set({
-            current: local,
-            loading: false,
-            error:
-              error instanceof Error
-                ? `${error.message}. Открыта локальная копия.`
-                : 'Сеть недоступна. Открыта локальная копия.',
-          })
-          return
-        }
-        throw error
-      }
+      const mirrored = mirrorTrainingLocally(remote, 'synced')
+      set({ current: mirrored, loading: false, error: null })
     } catch (error) {
+      if (local) {
+        set({
+          current: localData.trainings.get(id) ?? local,
+          loading: false,
+          error: null,
+        })
+        return
+      }
       set({
         loading: false,
         error: error instanceof Error ? error.message : 'Не удалось загрузить тренировку',
@@ -313,7 +321,9 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     localData.trainings.removeExercise(exerciseRowId)
     markTrainingPending(trainingId, pendingReason())
     set({ current: localData.trainings.get(trainingId) })
-    if (isCloudMode()) scheduleCloudSync()
+    if (!isCloudMode()) return
+    deleteOutbox.enqueue('training-exercise', exerciseRowId)
+    scheduleCloudSync()
   },
 
   async addSet(trainingId, exerciseId, input) {
@@ -338,6 +348,8 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     localData.trainings.removeSet(setId)
     markTrainingPending(trainingId, pendingReason())
     set({ current: localData.trainings.get(trainingId) })
-    if (isCloudMode()) scheduleCloudSync()
+    if (!isCloudMode()) return
+    deleteOutbox.enqueue('training-set', setId)
+    scheduleCloudSync()
   },
 }))

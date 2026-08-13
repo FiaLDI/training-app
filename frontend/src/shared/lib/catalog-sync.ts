@@ -47,8 +47,9 @@ function dequeue(entity: OutboxEntity, id: string) {
 }
 
 async function pushExercise(id: string, op: OutboxOp) {
+  const writeExtras = { timeoutMs: 12000 }
   if (op === 'delete') {
-    await exerciseApi.remove(id)
+    await exerciseApi.remove(id, writeExtras)
     dequeue('exercise', id)
     return
   }
@@ -58,24 +59,31 @@ async function pushExercise(id: string, op: OutboxOp) {
     return
   }
   try {
-    await exerciseApi.getById(id)
-    await exerciseApi.update(id, {
-      name: local.name,
-      description: local.description,
-      muscleGroup: local.muscleGroup,
-      difficulty: local.difficulty,
-      metadata: local.metadata,
-    })
+    await exerciseApi.getById(id, { timeoutMs: 5000 })
+    await exerciseApi.update(
+      id,
+      {
+        name: local.name,
+        description: local.description,
+        muscleGroup: local.muscleGroup,
+        difficulty: local.difficulty,
+        metadata: local.metadata,
+      },
+      writeExtras,
+    )
   } catch (error) {
     if (error instanceof ApiError && error.status !== 404) throw error
-    await exerciseApi.create({
-      id: local.id,
-      name: local.name,
-      description: local.description,
-      muscleGroup: local.muscleGroup,
-      difficulty: local.difficulty,
-      metadata: local.metadata,
-    })
+    await exerciseApi.create(
+      {
+        id: local.id,
+        name: local.name,
+        description: local.description,
+        muscleGroup: local.muscleGroup,
+        difficulty: local.difficulty,
+        metadata: local.metadata,
+      },
+      writeExtras,
+    )
   }
   const synced = localData.exercises.get(id)
   if (synced) {
@@ -155,12 +163,15 @@ export const catalogSync = {
     }
   },
 
-  async mergeFromServer() {
+  async mergeFromServer(options?: { timeoutMs?: number }) {
     const pendingDeletes = new Set(
       readOutbox().filter((entry) => entry.op === 'delete').map((entry) => entry.id),
     )
     try {
-      const exercises = await exerciseApi.list({ limit: 200 })
+      const exercises = await exerciseApi.list({
+        limit: 200,
+        timeoutMs: options?.timeoutMs ?? 5000,
+      })
       const serverIds = new Set(exercises.items.map((item) => item.id))
       for (const item of exercises.items) {
         if (pendingDeletes.has(item.id)) continue
@@ -183,7 +194,7 @@ export const catalogSync = {
         }
       }
     } catch {
-      // offline — keep local catalog
+      // offline / slow — keep local catalog
     }
     await catalogSync.flush()
   },

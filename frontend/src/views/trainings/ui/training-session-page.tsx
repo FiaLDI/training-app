@@ -11,6 +11,10 @@ import { EditTrainingExerciseRow } from '@/features/edit-training-exercise/ui/ed
 import { RemoveTrainingExerciseButton } from '@/features/remove-training-exercise/ui/remove-training-exercise-button'
 import { LogSetForm } from '@/features/log-set/ui/log-set-form'
 import { RestTimerBar, SessionClock } from '@/features/rest-timer/ui/rest-timer-bar'
+import {
+  pauseBackgroundSync,
+  resumeBackgroundSync,
+} from '@/features/sync-trainings/model/background-sync'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
@@ -47,6 +51,13 @@ export function TrainingSessionPage({ id }: Props) {
     void fetchOne(id)
     void fetchExercises()
   }, [id, fetchOne, fetchExercises])
+
+  useEffect(() => {
+    pauseBackgroundSync()
+    return () => {
+      resumeBackgroundSync()
+    }
+  }, [])
 
   useEffect(() => {
     if (!timerOpen || !timerRunning || secondsLeft <= 0) return

@@ -8,28 +8,45 @@ import type {
 } from '../model/types'
 
 export const exerciseApi = {
-  list(params: { page?: number; limit?: number; q?: string } = {}) {
+  list(
+    params: {
+      page?: number
+      limit?: number
+      q?: string
+      timeoutMs?: number
+    } = {},
+  ) {
+    const { timeoutMs, ...query } = params
     const search = new URLSearchParams()
-    if (params.page) search.set('page', String(params.page))
-    if (params.limit) search.set('limit', String(params.limit))
-    if (params.q) search.set('q', params.q)
+    if (query.page) search.set('page', String(query.page))
+    if (query.limit) search.set('limit', String(query.limit))
+    if (query.q) search.set('q', query.q)
     const qs = search.toString()
-    return apiRequest<ListExercisesResult>(`/exercises${qs ? `?${qs}` : ''}`)
+    return apiRequest<ListExercisesResult>(`/exercises${qs ? `?${qs}` : ''}`, {
+      timeoutMs,
+    })
   },
 
-  getById(id: string) {
-    return apiRequest<Exercise>(`/exercises/${id}`)
+  getById(id: string, extras: { timeoutMs?: number } = {}) {
+    return apiRequest<Exercise>(`/exercises/${id}`, extras)
   },
 
-  create(input: CreateExerciseInput) {
-    return apiRequest<Exercise>('/exercises', { method: 'POST', body: input })
+  create(input: CreateExerciseInput, extras: { timeoutMs?: number } = {}) {
+    return apiRequest<Exercise>('/exercises', { method: 'POST', body: input, ...extras })
   },
 
-  update(id: string, input: UpdateExerciseInput) {
-    return apiRequest<Exercise>(`/exercises/${id}`, { method: 'PATCH', body: input })
+  update(id: string, input: UpdateExerciseInput, extras: { timeoutMs?: number } = {}) {
+    return apiRequest<Exercise>(`/exercises/${id}`, {
+      method: 'PATCH',
+      body: input,
+      ...extras,
+    })
   },
 
-  remove(id: string) {
-    return apiRequest<{ deleted: boolean }>(`/exercises/${id}`, { method: 'DELETE' })
+  remove(id: string, extras: { timeoutMs?: number } = {}) {
+    return apiRequest<{ deleted: boolean }>(`/exercises/${id}`, {
+      method: 'DELETE',
+      ...extras,
+    })
   },
 }

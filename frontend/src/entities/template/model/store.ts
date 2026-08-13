@@ -225,6 +225,8 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
     localData.templates.removeExercise(exerciseRowId)
     markTemplatePending(templateId, pendingReason())
     set({ current: localData.templates.get(templateId) })
-    if (isCloudMode()) scheduleCloudSync()
+    if (!isCloudMode()) return
+    deleteOutbox.enqueue('template-exercise', exerciseRowId)
+    scheduleCloudSync()
   },
 }))

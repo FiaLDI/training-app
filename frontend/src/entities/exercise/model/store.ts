@@ -7,6 +7,8 @@ import { localData } from '@/shared/lib/local-data'
 
 import type { CreateExerciseInput, Exercise, UpdateExerciseInput } from './types'
 
+const CATALOG_READ_TIMEOUT_MS = 4000
+
 type ExerciseStore = {
   items: Exercise[]
   total: number
@@ -35,31 +37,46 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
   },
 
   async fetchList(q) {
-    set({ loading: true, error: null })
+    const query = (q ?? get().query) || undefined
+    // Local-first: show catalog immediately, refresh in background.
+    const localItems = localData.exercises.list(query)
+    set({
+      items: localItems,
+      total: localItems.length,
+      loading: localItems.length === 0,
+      error: null,
+    })
+
     try {
-      const query = (q ?? get().query) || undefined
-      await catalogSync.mergeFromServer()
+      await catalogSync.mergeFromServer({ timeoutMs: CATALOG_READ_TIMEOUT_MS })
       const items = localData.exercises.list(query)
       set({ items, total: items.length, loading: false })
     } catch (error) {
-      const items = localData.exercises.list((q ?? get().query) || undefined)
+      const items = localData.exercises.list(query)
       set({
         items,
         total: items.length,
         loading: false,
-        error: error instanceof Error ? error.message : 'Не удалось загрузить упражнения',
+        error:
+          items.length === 0 && error instanceof Error
+            ? error.message
+            : items.length === 0
+              ? 'Не удалось загрузить упражнения'
+              : null,
       })
     }
   },
 
   async fetchOne(id) {
-    set({ loading: true, error: null })
+    const local = localData.exercises.get(id)
+    set({ current: local, loading: !local, error: null })
+
     try {
-      await catalogSync.mergeFromServer()
+      await catalogSync.mergeFromServer({ timeoutMs: CATALOG_READ_TIMEOUT_MS })
       set({ current: localData.exercises.get(id), loading: false })
     } catch (error) {
       set({
-        current: localData.exercises.get(id),
+        current: localData.exercises.get(id) ?? local,
         loading: false,
         error: error instanceof Error ? error.message : 'Не удалось загрузить упражнение',
       })
@@ -68,7 +85,10 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
 
   async create(input) {
     const exercise = await catalogSync.createExercise(input)
-    set((state) => ({ items: [exercise, ...state.items.filter((item) => item.id !== exercise.id)], total: state.total + 1 }))
+    set((state) => ({
+      items: [exercise, ...state.items.filter((item) => item.id !== exercise.id)],
+      total: state.total + 1,
+    }))
     return exercise
   },
 

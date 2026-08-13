@@ -1,11 +1,24 @@
 const OUTBOX_KEY = 'ironlog:local:entity-delete-outbox'
 
-export type DeleteOutboxEntity = 'training' | 'template'
+export type DeleteOutboxEntity =
+  | 'training'
+  | 'template'
+  | 'training-exercise'
+  | 'training-set'
+  | 'template-exercise'
 
 export type DeleteOutboxEntry = {
   entity: DeleteOutboxEntity
   id: string
 }
+
+const ENTITIES = new Set<DeleteOutboxEntity>([
+  'training',
+  'template',
+  'training-exercise',
+  'training-set',
+  'template-exercise',
+])
 
 function readOutbox(): DeleteOutboxEntry[] {
   if (typeof window === 'undefined') return []
@@ -14,9 +27,7 @@ function readOutbox(): DeleteOutboxEntry[] {
     if (!raw) return []
     const parsed = JSON.parse(raw) as DeleteOutboxEntry[]
     return parsed.filter(
-      (item) =>
-        (item.entity === 'training' || item.entity === 'template') &&
-        typeof item.id === 'string',
+      (item) => ENTITIES.has(item.entity) && typeof item.id === 'string',
     )
   } catch {
     return []

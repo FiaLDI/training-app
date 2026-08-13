@@ -23,15 +23,18 @@ export type SyncTrainingProgress = {
 }
 
 const MAX_STABLE_UPLOAD_ATTEMPTS = 5
+const SYNC_WRITE_TIMEOUT_MS = 12000
 
 function stripSyncMeta(metadata: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(metadata).filter(([key]) => key !== 'sync'))
 }
 
+const writeExtras = { timeoutMs: SYNC_WRITE_TIMEOUT_MS }
+
 async function ensureTrainingShell(training: TrainingWithDetails, templateId: string | null) {
   let remote: TrainingWithDetails | null = null
   try {
-    remote = await trainingApi.getById(training.id)
+    remote = await trainingApi.getById(training.id, writeExtras)
   } catch (error) {
     if (!(error instanceof ApiError && error.status === 404)) throw error
   }
@@ -50,18 +53,21 @@ async function ensureTrainingShell(training: TrainingWithDetails, templateId: st
   }
 
   if (remote) {
-    await trainingApi.update(training.id, payload)
+    await trainingApi.update(training.id, payload, writeExtras)
     return
   }
 
-  await trainingApi.create({
-    id: training.id,
-    ...payload,
-    // Create without template linkage first so we fully control exercise ids.
-    templateId: null,
-  })
+  await trainingApi.create(
+    {
+      id: training.id,
+      ...payload,
+      // Create without template linkage first so we fully control exercise ids.
+      templateId: null,
+    },
+    writeExtras,
+  )
   if (templateId) {
-    await trainingApi.update(training.id, { templateId })
+    await trainingApi.update(training.id, { templateId }, writeExtras)
   }
 }
 
@@ -80,16 +86,18 @@ async function upsertExercise(
     metadata: exercise.metadata,
   }
 
-  try {
-    await trainingApi.updateExercise(exercise.id, updateBody)
-  } catch (error) {
-    if (!(error instanceof ApiError && error.status === 404)) throw error
-    await trainingApi.addExercise(trainingId, {
+  // Server create is idempotent by id — creates or returns existing.
+  await trainingApi.addExercise(
+    trainingId,
+    {
       id: exercise.id,
       exerciseId: exercise.exerciseId,
       ...updateBody,
-    })
-  }
+    },
+    writeExtras,
+  )
+  // Apply latest fields (create no-ops when the row already exists).
+  await trainingApi.updateExercise(exercise.id, updateBody, writeExtras)
 
   for (const set of exercise.sets) {
     await upsertSet(exercise.id, set)
@@ -108,31 +116,8 @@ async function upsertSet(exerciseId: string, set: TrainingSet) {
     metadata: set.metadata,
   }
 
-  try {
-    await trainingApi.updateSet(set.id, body)
-  } catch (error) {
-    if (!(error instanceof ApiError && error.status === 404)) throw error
-    await trainingApi.addSet(exerciseId, { id: set.id, ...body })
-  }
-}
-
-async function reconcileRemovals(training: TrainingWithDetails) {
-  const remote = await trainingApi.getById(training.id)
-  const localExerciseIds = new Set(training.exercises.map((item) => item.id))
-  const localSetIds = new Set(
-    training.exercises.flatMap((exercise) => exercise.sets.map((set) => set.id)),
-  )
-
-  for (const exercise of remote.exercises) {
-    for (const set of exercise.sets) {
-      if (!localSetIds.has(set.id)) {
-        await trainingApi.removeSet(set.id)
-      }
-    }
-    if (!localExerciseIds.has(exercise.id)) {
-      await trainingApi.removeExercise(exercise.id)
-    }
-  }
+  await trainingApi.addSet(exerciseId, { id: set.id, ...body }, writeExtras)
+  await trainingApi.updateSet(set.id, body, writeExtras)
 }
 
 /** Push one local snapshot; does not mark synced (caller checks stability). */
@@ -148,7 +133,7 @@ async function pushTrainingSnapshot(training: TrainingWithDetails) {
     await upsertExercise(training.id, exercise)
   }
 
-  await reconcileRemovals(training)
+  // Removals go through deleteOutbox only — never diff-delete remote from a snapshot.
 }
 
 /**

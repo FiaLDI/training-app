@@ -22,11 +22,34 @@ let flushing = false
 let queued = false
 let timer: ReturnType<typeof setTimeout> | null = null
 let listenersStarted = false
+/** While > 0, background flush is deferred (e.g. active workout screen). */
+let pauseDepth = 0
 
 const DEBOUNCE_MS = 400
+const SYNC_WRITE_TIMEOUT_MS = 12000
 
 function isCloudMode() {
   return useSessionStore.getState().mode === 'cloud'
+}
+
+function isBackgroundSyncPaused() {
+  return pauseDepth > 0
+}
+
+/** Pause background upload while user is in an active workout UI. */
+export function pauseBackgroundSync() {
+  pauseDepth += 1
+  if (timer != null) {
+    clearTimeout(timer)
+    timer = null
+  }
+}
+
+export function resumeBackgroundSync() {
+  pauseDepth = Math.max(0, pauseDepth - 1)
+  if (pauseDepth === 0 && isCloudMode()) {
+    requestBackgroundSync()
+  }
 }
 
 async function refreshStoresFromLocal() {
@@ -57,10 +80,17 @@ async function refreshStoresFromLocal() {
 async function flushDeletes() {
   for (const entry of deleteOutbox.list()) {
     try {
+      const extras = { timeoutMs: SYNC_WRITE_TIMEOUT_MS }
       if (entry.entity === 'training') {
-        await trainingApi.remove(entry.id)
-      } else {
-        await templateApi.remove(entry.id)
+        await trainingApi.remove(entry.id, extras)
+      } else if (entry.entity === 'template') {
+        await templateApi.remove(entry.id, extras)
+      } else if (entry.entity === 'training-exercise') {
+        await trainingApi.removeExercise(entry.id, extras)
+      } else if (entry.entity === 'training-set') {
+        await trainingApi.removeSet(entry.id, extras)
+      } else if (entry.entity === 'template-exercise') {
+        await templateApi.removeExercise(entry.id, extras)
       }
       deleteOutbox.dequeue(entry.entity, entry.id)
     } catch (error) {
@@ -75,6 +105,10 @@ async function flushDeletes() {
 
 async function runFlush() {
   if (!isCloudMode()) return
+  if (isBackgroundSyncPaused()) {
+    queued = true
+    return
+  }
   if (flushing) {
     queued = true
     return
@@ -87,9 +121,19 @@ async function runFlush() {
     await catalogSync.flush()
     await flushDeletes()
 
+    if (isBackgroundSyncPaused()) {
+      queued = true
+      return
+    }
+
     const templateIds = listPendingTemplates().map((item) => item.id)
     if (templateIds.length > 0) {
       await syncTemplates(templateIds)
+    }
+
+    if (isBackgroundSyncPaused()) {
+      queued = true
+      return
     }
 
     const trainingIds = listPendingTrainings().map((item) => item.id)
@@ -114,11 +158,15 @@ async function runFlush() {
     useSyncNoticeStore.getState().notifySavedLocally()
   } finally {
     flushing = false
-    if (queued) scheduleFlush()
+    if (queued && !isBackgroundSyncPaused()) scheduleFlush()
   }
 }
 
 function scheduleFlush() {
+  if (isBackgroundSyncPaused()) {
+    queued = true
+    return
+  }
   if (timer != null) clearTimeout(timer)
   timer = setTimeout(() => {
     timer = null

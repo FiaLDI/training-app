@@ -9,7 +9,6 @@ import {
   listPendingTemplates,
   markTemplateSyncError,
   markTemplateSynced,
-  mirrorTemplateLocally,
 } from '@/shared/lib/template-sync-meta'
 
 export type SyncTemplateProgress = {
@@ -61,26 +60,12 @@ async function upsertTemplateExercise(templateId: string, exercise: TemplateExer
     metadata: exercise.metadata,
   }
 
-  try {
-    await templateApi.updateExercise(exercise.id, updateBody)
-  } catch (error) {
-    if (!(error instanceof ApiError && error.status === 404)) throw error
-    await templateApi.addExercise(templateId, {
-      id: exercise.id,
-      exerciseId: exercise.exerciseId,
-      ...updateBody,
-    })
-  }
-}
-
-async function reconcileTemplateRemovals(template: WorkoutTemplateWithExercises) {
-  const remote = await templateApi.getById(template.id)
-  const localIds = new Set(template.exercises.map((item) => item.id))
-  for (const exercise of remote.exercises) {
-    if (!localIds.has(exercise.id)) {
-      await templateApi.removeExercise(exercise.id)
-    }
-  }
+  await templateApi.addExercise(templateId, {
+    id: exercise.id,
+    exerciseId: exercise.exerciseId,
+    ...updateBody,
+  })
+  await templateApi.updateExercise(exercise.id, updateBody)
 }
 
 export async function syncTemplates(
@@ -128,10 +113,7 @@ async function uploadTemplate(template: WorkoutTemplateWithExercises) {
     await upsertTemplateExercise(template.id, exercise)
   }
 
-  await reconcileTemplateRemovals(template)
-
-  const refreshed = localData.templates.get(template.id)
-  if (refreshed) mirrorTemplateLocally(refreshed, 'synced')
+  // Removals go through deleteOutbox only — never diff-delete remote from a snapshot.
 }
 
 export { listPendingTemplates }
