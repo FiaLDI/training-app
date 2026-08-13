@@ -7,7 +7,10 @@ import { ApiError } from '@/shared/api/client'
 import { catalogSync } from '@/shared/lib/catalog-sync'
 import { localData } from '@/shared/lib/local-data'
 import { listPendingTemplates } from '@/shared/lib/template-sync-meta'
-import { listPendingTrainings } from '@/shared/lib/training-sync-meta'
+import {
+  healSyncedTrainingsMissingContentHash,
+  listPendingTrainings,
+} from '@/shared/lib/training-sync-meta'
 
 import { deleteOutbox } from './delete-outbox'
 import { getPendingSyncSummary } from './pending-summary'
@@ -80,6 +83,7 @@ async function runFlush() {
   flushing = true
   queued = false
   try {
+    healSyncedTrainingsMissingContentHash()
     await catalogSync.flush()
     await flushDeletes()
 

@@ -5,6 +5,8 @@ import type {
 } from '@/entities/training/model/types'
 import { localData } from '@/shared/lib/local-data'
 
+const HEAL_CONTENT_HASH_KEY = 'ironlog:sync-heal-content-hash-v1'
+
 export function getTrainingSyncMeta(
   metadata: Record<string, unknown> | undefined,
 ): TrainingSyncMeta | null {
@@ -15,9 +17,54 @@ export function getTrainingSyncMeta(
   return sync as TrainingSyncMeta
 }
 
+/** Stable fingerprint of uploadable training content (excludes sync meta). */
+export function trainingContentHash(training: TrainingWithDetails): string {
+  const payload = {
+    id: training.id,
+    templateId: training.templateId,
+    programId: training.programId,
+    programDayId: training.programDayId,
+    status: training.status,
+    scheduledAt: training.scheduledAt,
+    startedAt: training.startedAt,
+    finishedAt: training.finishedAt,
+    notes: training.notes,
+    exercises: [...training.exercises]
+      .map((exercise) => ({
+        id: exercise.id,
+        exerciseId: exercise.exerciseId,
+        exerciseOrder: exercise.exerciseOrder,
+        targetSets: exercise.targetSets,
+        isWarmup: exercise.isWarmup,
+        minReps: exercise.minReps,
+        maxReps: exercise.maxReps,
+        restSeconds: exercise.restSeconds,
+        notes: exercise.notes,
+        sets: [...exercise.sets]
+          .map((set) => ({
+            id: set.id,
+            setNumber: set.setNumber,
+            weight: set.weight,
+            reps: set.reps,
+            rir: set.rir,
+            rpe: set.rpe,
+            completed: set.completed,
+            isWarmup: set.isWarmup ?? false,
+          }))
+          .sort((a, b) => a.id.localeCompare(b.id)),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  }
+  return JSON.stringify(payload)
+}
+
 export function isTrainingPendingSync(training: Training): boolean {
   const sync = getTrainingSyncMeta(training.metadata)
-  return !sync || sync.status !== 'synced'
+  if (!sync || sync.status !== 'synced') return true
+  if (!sync.contentHash) return false
+  const detailed = localData.trainings.get(training.id)
+  if (!detailed) return false
+  return trainingContentHash(detailed) !== sync.contentHash
 }
 
 export function markTrainingPending(
@@ -27,10 +74,12 @@ export function markTrainingPending(
 ): Training | null {
   const current = localData.trainings.get(trainingId)
   if (!current) return null
+  const previous = getTrainingSyncMeta(current.metadata)
   const sync: TrainingSyncMeta = {
     status: 'pending',
     reason,
     failedAt: new Date().toISOString(),
+    ...(previous?.contentHash ? { contentHash: previous.contentHash } : {}),
     ...(error ? { error } : {}),
   }
   return localData.trainings.update(trainingId, {
@@ -38,12 +87,17 @@ export function markTrainingPending(
   })
 }
 
-export function markTrainingSynced(trainingId: string): Training | null {
+export function markTrainingSynced(
+  trainingId: string,
+  contentHash?: string,
+): Training | null {
   const current = localData.trainings.get(trainingId)
   if (!current) return null
+  const hash = contentHash ?? trainingContentHash(current)
   const sync: TrainingSyncMeta = {
     status: 'synced',
     serverSyncedAt: new Date().toISOString(),
+    contentHash: hash,
   }
   return localData.trainings.update(trainingId, {
     metadata: { ...current.metadata, sync },
@@ -53,11 +107,13 @@ export function markTrainingSynced(trainingId: string): Training | null {
 export function markTrainingSyncError(trainingId: string, error: string): Training | null {
   const current = localData.trainings.get(trainingId)
   if (!current) return null
+  const previous = getTrainingSyncMeta(current.metadata)
   const sync: TrainingSyncMeta = {
     status: 'error',
     error,
     failedAt: new Date().toISOString(),
-    reason: getTrainingSyncMeta(current.metadata)?.reason,
+    reason: previous?.reason,
+    ...(previous?.contentHash ? { contentHash: previous.contentHash } : {}),
   }
   return localData.trainings.update(trainingId, {
     metadata: { ...current.metadata, sync },
@@ -70,7 +126,11 @@ export function mirrorTrainingLocally(
 ): TrainingWithDetails {
   const sync: TrainingSyncMeta =
     syncStatus === 'synced'
-      ? { status: 'synced', serverSyncedAt: new Date().toISOString() }
+      ? {
+          status: 'synced',
+          serverSyncedAt: new Date().toISOString(),
+          contentHash: trainingContentHash(training),
+        }
       : {
           status: syncStatus,
           reason: syncStatus === 'pending' ? 'network' : undefined,
@@ -122,6 +182,47 @@ export function mirrorTrainingLocally(
   }
 
   return localData.trainings.get(training.id) ?? { ...training, metadata: { ...training.metadata, sync } }
+}
+
+/**
+ * One-time: trainings marked synced before contentHash existed may hide
+ * orphan local sets — re-queue those that have local exercises/sets.
+ */
+export function healSyncedTrainingsMissingContentHash(): number {
+  if (typeof window === 'undefined') return 0
+  try {
+    if (localStorage.getItem(HEAL_CONTENT_HASH_KEY)) return 0
+  } catch {
+    // ignore storage errors
+  }
+
+  let count = 0
+  for (const training of localData.trainings.list()) {
+    const sync = getTrainingSyncMeta(training.metadata)
+    if (sync?.status !== 'synced' || sync.contentHash) continue
+
+    const detailed = localData.trainings.get(training.id)
+    if (!detailed) continue
+
+    const hasLocalDetail =
+      detailed.exercises.length > 0 ||
+      detailed.exercises.some((exercise) => exercise.sets.length > 0)
+
+    if (hasLocalDetail) {
+      markTrainingPending(training.id, 'queued')
+      count += 1
+    } else {
+      // Cloud list shell with no local detail — stamp hash so it stays trusted.
+      markTrainingSynced(training.id, trainingContentHash(detailed))
+    }
+  }
+
+  try {
+    localStorage.setItem(HEAL_CONTENT_HASH_KEY, '1')
+  } catch {
+    // ignore
+  }
+  return count
 }
 
 export function listPendingTrainings(): TrainingWithDetails[] {

@@ -8,10 +8,12 @@ import { ApiError } from '@/shared/api/client'
 import { catalogSync } from '@/shared/lib/catalog-sync'
 import { localData } from '@/shared/lib/local-data'
 import {
+  healSyncedTrainingsMissingContentHash,
   listPendingTrainings,
+  markTrainingPending,
   markTrainingSyncError,
   markTrainingSynced,
-  mirrorTrainingLocally,
+  trainingContentHash,
 } from '@/shared/lib/training-sync-meta'
 
 export type SyncTrainingProgress = {
@@ -19,6 +21,8 @@ export type SyncTrainingProgress = {
   status: 'pending' | 'uploading' | 'done' | 'error'
   error?: string
 }
+
+const MAX_STABLE_UPLOAD_ATTEMPTS = 5
 
 function stripSyncMeta(metadata: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(metadata).filter(([key]) => key !== 'sync'))
@@ -128,11 +132,54 @@ async function reconcileRemovals(training: TrainingWithDetails) {
   }
 }
 
+/** Push one local snapshot; does not mark synced (caller checks stability). */
+async function pushTrainingSnapshot(training: TrainingWithDetails) {
+  const templateId =
+    training.templateId && localData.templates.get(training.templateId)
+      ? training.templateId
+      : null
+
+  await ensureTrainingShell(training, templateId)
+
+  for (const exercise of training.exercises) {
+    await upsertExercise(training.id, exercise)
+  }
+
+  await reconcileRemovals(training)
+}
+
+/**
+ * Upload until local content stops changing mid-flight.
+ * Prevents orphan sets logged during sync from being marked synced without POST.
+ */
+async function uploadTrainingUntilStable(trainingId: string) {
+  for (let attempt = 0; attempt < MAX_STABLE_UPLOAD_ATTEMPTS; attempt += 1) {
+    const snapshot = localData.trainings.get(trainingId)
+    if (!snapshot) throw new Error('Тренировка не найдена локально')
+
+    const beforeHash = trainingContentHash(snapshot)
+    await pushTrainingSnapshot(snapshot)
+
+    const after = localData.trainings.get(trainingId)
+    if (!after) throw new Error('Тренировка не найдена локально')
+
+    const afterHash = trainingContentHash(after)
+    if (afterHash === beforeHash) {
+      markTrainingSynced(trainingId, beforeHash)
+      return
+    }
+  }
+
+  markTrainingPending(trainingId, 'queued')
+}
+
 export async function syncTrainings(
   trainingIds: string[],
   onProgress?: (items: SyncTrainingProgress[]) => void,
   options?: { skipCatalogFlush?: boolean },
 ): Promise<SyncTrainingProgress[]> {
+  healSyncedTrainingsMissingContentHash()
+
   const progress: SyncTrainingProgress[] = trainingIds.map((trainingId) => ({
     trainingId,
     status: 'pending',
@@ -157,12 +204,11 @@ export async function syncTrainings(
     }
 
     try {
-      await uploadTraining(detailed)
-      markTrainingSynced(detailed.id)
+      await uploadTrainingUntilStable(item.trainingId)
       item.status = 'done'
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Не удалось отправить'
-      markTrainingSyncError(detailed.id, message)
+      markTrainingSyncError(item.trainingId, message)
       item.status = 'error'
       item.error = message
     }
@@ -170,24 +216,6 @@ export async function syncTrainings(
   }
 
   return progress
-}
-
-async function uploadTraining(training: TrainingWithDetails) {
-  const templateId =
-    training.templateId && localData.templates.get(training.templateId)
-      ? training.templateId
-      : null
-
-  await ensureTrainingShell(training, templateId)
-
-  for (const exercise of training.exercises) {
-    await upsertExercise(training.id, exercise)
-  }
-
-  await reconcileRemovals(training)
-
-  const refreshed = localData.trainings.get(training.id)
-  if (refreshed) mirrorTrainingLocally(refreshed, 'synced')
 }
 
 export { listPendingTrainings }

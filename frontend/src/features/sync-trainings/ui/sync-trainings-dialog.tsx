@@ -7,6 +7,7 @@ import { catalogSync, type PendingCatalogItem } from '@/shared/lib/catalog-sync'
 import { localData } from '@/shared/lib/local-data'
 import {
   getTrainingSyncMeta,
+  healSyncedTrainingsMissingContentHash,
   syncReasonLabel,
 } from '@/shared/lib/training-sync-meta'
 import { Button } from '@/shared/ui/button'
@@ -62,7 +63,11 @@ function catalogOpLabel(item: PendingCatalogItem) {
 }
 
 export function SyncTrainingsDialog({ open, onClose, onCompleted }: Props) {
-  const pendingTrainings = useMemo(() => (open ? listPendingTrainings() : []), [open])
+  const pendingTrainings = useMemo(() => {
+    if (!open) return []
+    healSyncedTrainingsMissingContentHash()
+    return listPendingTrainings()
+  }, [open])
   const pendingTemplates = useMemo(() => (open ? listPendingTemplates() : []), [open])
   const pendingCatalog = useMemo(() => (open ? catalogSync.listPending() : []), [open])
 

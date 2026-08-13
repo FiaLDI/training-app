@@ -7,7 +7,7 @@ import { StartTrainingButton } from '@/features/start-training/ui/start-training
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { useTemplateStore } from '@/entities/template/model/store'
-import { getTrainingSyncMeta } from '@/shared/lib/training-sync-meta'
+import { isTrainingPendingSync } from '@/shared/lib/training-sync-meta'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
 import { ListSkeleton } from '@/shared/ui/skeleton'
@@ -58,15 +58,9 @@ export function TrainingsPage() {
                       Завершена {new Date(training.finishedAt).toLocaleString('ru-RU')}
                     </p>
                   ) : null}
-                  {(() => {
-                    const sync = getTrainingSyncMeta(training.metadata)
-                    if (!sync || sync.status === 'synced') return null
-                    return (
-                      <p className="mt-1 text-xs text-amber-300/90">
-                        {sync.status === 'error' ? 'Ошибка отправки' : 'Не на сервере'}
-                      </p>
-                    )
-                  })()}
+                  {isTrainingPendingSync(training) ? (
+                    <p className="mt-1 text-xs text-amber-300/90">Не на сервере</p>
+                  ) : null}
                 </div>
                 <TrainingStatusBadge status={training.status} />
               </Link>

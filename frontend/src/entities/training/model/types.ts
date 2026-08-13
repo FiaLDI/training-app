@@ -52,6 +52,8 @@ export type TrainingSyncMeta = {
   status: TrainingSyncStatus
   reason?: 'local_mode' | 'queued' | 'timeout' | 'network' | 'server'
   serverSyncedAt?: string
+  /** Hash of last successfully uploaded training content; mismatch ⇒ needs re-sync. */
+  contentHash?: string
   error?: string
   failedAt?: string
 }

@@ -12,6 +12,7 @@ import {
   isTrainingPendingSync,
   markTrainingPending,
   mirrorTrainingLocally,
+  trainingContentHash,
 } from '@/shared/lib/training-sync-meta'
 
 import { trainingApi } from '../api/training-api'
@@ -117,11 +118,19 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
           const local = localData.trainings.get(item.id)
           if (local && isTrainingPendingSync(local)) continue
           if (!local) {
+            const shell = {
+              ...item,
+              exercises: [] as TrainingWithDetails['exercises'],
+            }
             localData.trainings.upsert({
               ...item,
               metadata: {
                 ...item.metadata,
-                sync: { status: 'synced', serverSyncedAt: new Date().toISOString() },
+                sync: {
+                  status: 'synced',
+                  serverSyncedAt: new Date().toISOString(),
+                  contentHash: trainingContentHash(shell),
+                },
               },
             })
           }

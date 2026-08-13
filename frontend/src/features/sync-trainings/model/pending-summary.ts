@@ -1,7 +1,10 @@
 import { catalogSync } from '@/shared/lib/catalog-sync'
 import { localData } from '@/shared/lib/local-data'
 import { listPendingTemplates } from '@/shared/lib/template-sync-meta'
-import { listPendingTrainings } from '@/shared/lib/training-sync-meta'
+import {
+  healSyncedTrainingsMissingContentHash,
+  listPendingTrainings,
+} from '@/shared/lib/training-sync-meta'
 
 export type PendingSyncSummary = {
   trainings: number
@@ -11,6 +14,7 @@ export type PendingSyncSummary = {
 }
 
 export function getPendingSyncSummary(): PendingSyncSummary {
+  healSyncedTrainingsMissingContentHash()
   const catalog = catalogSync.listPending()
   const trainings = listPendingTrainings().length
   const templates = listPendingTemplates().length
