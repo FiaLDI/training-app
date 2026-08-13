@@ -49,18 +49,36 @@ pipeline {
 
     stage('Docker build') {
       steps {
-        sh '''
-          set -euo pipefail
-          docker build -t "${BACKEND_IMAGE}:${IMAGE_TAG}" ./backend
-          docker build \
-            --build-arg NEXT_PUBLIC_API_URL=/api \
-            -t "${FRONTEND_IMAGE}:${IMAGE_TAG}" ./frontend
-          docker image inspect "${BACKEND_IMAGE}:${IMAGE_TAG}" >/dev/null
-          docker image inspect "${FRONTEND_IMAGE}:${IMAGE_TAG}" >/dev/null
-          echo "Built images:"
-          echo "  ${BACKEND_IMAGE}:${IMAGE_TAG}"
-          echo "  ${FRONTEND_IMAGE}:${IMAGE_TAG}"
-        '''
+        retry(2) {
+          sh '''
+            set -euo pipefail
+            export DOCKER_BUILDKIT=1
+
+            echo "Disk before build:"
+            df -h / /var/lib/docker 2>/dev/null || df -h /
+
+            docker build -t "${BACKEND_IMAGE}:${IMAGE_TAG}" ./backend
+
+            # Give the host a moment after peak memory from previous layer work.
+            sleep 2
+
+            docker build \
+              --build-arg NEXT_PUBLIC_API_URL=/api \
+              -t "${FRONTEND_IMAGE}:${IMAGE_TAG}" ./frontend
+
+            docker image inspect "${BACKEND_IMAGE}:${IMAGE_TAG}" >/dev/null
+            docker image inspect "${FRONTEND_IMAGE}:${IMAGE_TAG}" >/dev/null
+
+            # Drop intermediate build cache to reduce pressure before docker save.
+            docker builder prune -f --filter until=1h >/dev/null 2>&1 || true
+
+            echo "Built images:"
+            echo "  ${BACKEND_IMAGE}:${IMAGE_TAG}"
+            echo "  ${FRONTEND_IMAGE}:${IMAGE_TAG}"
+            echo "Disk after build:"
+            df -h / 2>/dev/null || true
+          '''
+        }
       }
     }
 
@@ -70,14 +88,21 @@ pipeline {
 
     stage('Export image') {
       steps {
-        sh '''
-          set -euo pipefail
-          docker save \
-            "${BACKEND_IMAGE}:${IMAGE_TAG}" \
-            "${FRONTEND_IMAGE}:${IMAGE_TAG}" \
-            | gzip > "${ARTIFACT_PATH}"
-          ls -lh "${ARTIFACT_PATH}"
-        '''
+        retry(2) {
+          sh '''
+            set -euo pipefail
+            # Save then gzip (lower peak RAM than save|gzip pipe on small hosts).
+            TMP_TAR="${WORKSPACE}/workout-images-${IMAGE_TAG}.tar"
+            rm -f "${TMP_TAR}" "${ARTIFACT_PATH}"
+            docker save \
+              "${BACKEND_IMAGE}:${IMAGE_TAG}" \
+              "${FRONTEND_IMAGE}:${IMAGE_TAG}" \
+              -o "${TMP_TAR}"
+            gzip -f "${TMP_TAR}"
+            mv "${TMP_TAR}.gz" "${ARTIFACT_PATH}"
+            ls -lh "${ARTIFACT_PATH}"
+          '''
+        }
       }
     }
 
