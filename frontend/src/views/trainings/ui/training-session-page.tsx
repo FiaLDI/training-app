@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, Play, Timer, Trash2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Pencil, Play, Timer, Trash2 } from 'lucide-react'
 
 import { AddTrainingExerciseForm } from '@/features/add-training-exercise/ui/add-training-exercise-form'
 import { EditSetRow } from '@/features/edit-set/ui/edit-set-row'
 import { EditTrainingExerciseRow } from '@/features/edit-training-exercise/ui/edit-training-exercise-row'
+import { EditTrainingForm } from '@/features/edit-training/ui/edit-training-form'
 import { RemoveTrainingExerciseButton } from '@/features/remove-training-exercise/ui/remove-training-exercise-button'
 import { LogSetForm } from '@/features/log-set/ui/log-set-form'
 import { RestTimerBar, SessionClock } from '@/features/rest-timer/ui/rest-timer-bar'
@@ -16,6 +17,7 @@ import {
   resumeBackgroundSync,
 } from '@/features/sync-trainings/model/background-sync'
 import { useExerciseStore } from '@/entities/exercise/model/store'
+import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { Button } from '@/shared/ui/button'
@@ -41,6 +43,8 @@ export function TrainingSessionPage({ id }: Props) {
   const remove = useTrainingStore((s) => s.remove)
   const exercises = useExerciseStore((s) => s.items)
   const fetchExercises = useExerciseStore((s) => s.fetchList)
+  const templates = useTemplateStore((s) => s.items)
+  const fetchTemplates = useTemplateStore((s) => s.fetchList)
 
   const [timerOpen, setTimerOpen] = useState(false)
   const [timerRunning, setTimerRunning] = useState(false)
@@ -49,11 +53,13 @@ export function TrainingSessionPage({ id }: Props) {
   const [restAccumulated, setRestAccumulated] = useState(0)
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false)
   const [finishing, setFinishing] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   useEffect(() => {
     void fetchOne(id)
     void fetchExercises()
-  }, [id, fetchOne, fetchExercises])
+    void fetchTemplates()
+  }, [id, fetchOne, fetchExercises, fetchTemplates])
 
   useEffect(() => {
     pauseBackgroundSync()
@@ -136,6 +142,10 @@ export function TrainingSessionPage({ id }: Props) {
   const sortedExercises = [...current.exercises].sort(
     (a, b) => a.exerciseOrder - b.exerciseOrder,
   )
+  const title =
+    (current.templateId
+      ? templates.find((item) => item.id === current.templateId)?.name
+      : null) ?? 'Тренировка'
   const whenLabel =
     current.status === 'planned' && current.scheduledAt
       ? `Запланировано ${new Date(current.scheduledAt).toLocaleString('ru-RU')}`
@@ -154,7 +164,7 @@ export function TrainingSessionPage({ id }: Props) {
       </Link>
 
       <PageHeader
-        title="Тренировка"
+        title={title}
         description={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{whenLabel}</span>
@@ -166,6 +176,12 @@ export function TrainingSessionPage({ id }: Props) {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <TrainingStatusBadge status={current.status} />
+            {current.status !== 'cancelled' ? (
+              <Button type="button" variant="secondary" onClick={() => setEditOpen(true)}>
+                <Pencil className="size-4" />
+                Изменить
+              </Button>
+            ) : null}
             {current.status === 'in_progress' ? (
               <Button
                 type="button"
@@ -212,6 +228,10 @@ export function TrainingSessionPage({ id }: Props) {
           </div>
         }
       />
+
+      {current.notes ? (
+        <p className="mb-6 whitespace-pre-wrap text-sm text-[var(--muted)]">{current.notes}</p>
+      ) : null}
 
       {sortedExercises.length === 0 ? (
         <EmptyState>Добавь упражнения, чтобы записывать подходы.</EmptyState>
@@ -335,6 +355,12 @@ export function TrainingSessionPage({ id }: Props) {
           onPreset={(seconds) => startRest(seconds)}
         />
       ) : null}
+
+      <EditTrainingForm
+        training={current}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+      />
 
       <ConfirmModal
         open={finishConfirmOpen}
