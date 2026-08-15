@@ -19,6 +19,7 @@ import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { Button } from '@/shared/ui/button'
+import { ConfirmModal } from '@/shared/ui/confirm-modal'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
 import { DetailSkeleton } from '@/shared/ui/skeleton'
@@ -46,6 +47,8 @@ export function TrainingSessionPage({ id }: Props) {
   const [timerTotal, setTimerTotal] = useState(DEFAULT_REST_SECONDS)
   const [secondsLeft, setSecondsLeft] = useState(DEFAULT_REST_SECONDS)
   const [restAccumulated, setRestAccumulated] = useState(0)
+  const [finishConfirmOpen, setFinishConfirmOpen] = useState(false)
+  const [finishing, setFinishing] = useState(false)
 
   useEffect(() => {
     void fetchOne(id)
@@ -94,6 +97,19 @@ export function TrainingSessionPage({ id }: Props) {
     setTimerRunning(true)
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       void Notification.requestPermission()
+    }
+  }
+
+  async function handleFinish() {
+    if (finishing) return
+
+    setFinishing(true)
+    try {
+      await finish(id)
+      setFinishConfirmOpen(false)
+      router.push('/')
+    } finally {
+      setFinishing(false)
     }
   }
 
@@ -176,11 +192,7 @@ export function TrainingSessionPage({ id }: Props) {
             {canEditStructure && current.status === 'in_progress' ? (
               <Button
                 type="button"
-                onClick={() =>
-                  void finish(id).then(() => {
-                    router.push('/')
-                  })
-                }
+                onClick={() => setFinishConfirmOpen(true)}
               >
                 <CheckCircle2 className="size-4" />
                 Завершить
@@ -323,6 +335,16 @@ export function TrainingSessionPage({ id }: Props) {
           onPreset={(seconds) => startRest(seconds)}
         />
       ) : null}
+
+      <ConfirmModal
+        open={finishConfirmOpen}
+        onClose={() => setFinishConfirmOpen(false)}
+        onConfirm={handleFinish}
+        title="Завершить тренировку?"
+        description="После завершения тренировка сохранится в истории."
+        confirmLabel="Завершить"
+        pending={finishing}
+      />
     </div>
   )
 }
