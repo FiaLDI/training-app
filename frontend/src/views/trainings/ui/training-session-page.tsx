@@ -53,6 +53,8 @@ export function TrainingSessionPage({ id }: Props) {
   const [restAccumulated, setRestAccumulated] = useState(0)
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false)
   const [finishing, setFinishing] = useState(false)
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
 
   useEffect(() => {
@@ -116,6 +118,19 @@ export function TrainingSessionPage({ id }: Props) {
       router.push('/')
     } finally {
       setFinishing(false)
+    }
+  }
+
+  async function handleRemove() {
+    if (removing) return
+
+    setRemoving(true)
+    try {
+      await remove(id)
+      setRemoveConfirmOpen(false)
+      router.push('/plan')
+    } finally {
+      setRemoving(false)
     }
   }
 
@@ -217,11 +232,8 @@ export function TrainingSessionPage({ id }: Props) {
             <Button
               type="button"
               variant="danger"
-              onClick={() =>
-                void remove(id).then(() => {
-                  window.location.href = '/plan'
-                })
-              }
+              onClick={() => setRemoveConfirmOpen(true)}
+              aria-label="Удалить тренировку"
             >
               <Trash2 className="size-4" />
             </Button>
@@ -370,6 +382,17 @@ export function TrainingSessionPage({ id }: Props) {
         description="После завершения тренировка сохранится в истории."
         confirmLabel="Завершить"
         pending={finishing}
+      />
+
+      <ConfirmModal
+        open={removeConfirmOpen}
+        onClose={() => setRemoveConfirmOpen(false)}
+        onConfirm={handleRemove}
+        title="Удалить тренировку?"
+        description="Тренировка и все записанные подходы будут удалены без возможности восстановления."
+        confirmLabel="Удалить"
+        confirmVariant="danger"
+        pending={removing}
       />
     </div>
   )
