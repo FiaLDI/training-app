@@ -24,6 +24,7 @@ import type {
 } from './types'
 
 const READ_TIMEOUT_MS = 8000
+const BACKGROUND_READ_TIMEOUT_MS = 4000
 
 function isLocalMode() {
   return useSessionStore.getState().mode === 'local'
@@ -87,13 +88,13 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
     const localItems = mergeCloudWithPending(localData.templates.list(q))
     const catalogKnown = localData.templates.list().length > 0
     set({ items: localItems, loading: !catalogKnown, error: null })
-    if (isLocalMode() || catalogKnown) return
+    if (isLocalMode()) return
 
     try {
       const result = await templateApi.list({
         limit: 100,
         q,
-        timeoutMs: READ_TIMEOUT_MS,
+        timeoutMs: catalogKnown ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
       })
       for (const item of result.items) {
         const local = localData.templates.get(item.id)
@@ -108,22 +109,23 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
           })
         }
       }
-      set({ items: mergeCloudWithPending(result.items), loading: false })
+      set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
     } catch (error) {
       set({
         items: mergeCloudWithPending(localData.templates.list(q)),
         loading: false,
-        error:
-          error instanceof Error
-            ? `${error.message}. Показаны локальные планы.`
-            : 'Сеть недоступна. Показаны локальные планы.',
+        error: catalogKnown
+          ? null
+          : error instanceof Error
+            ? error.message
+            : 'Не удалось загрузить планы',
       })
     }
   },
 
   async fetchOne(id) {
     const local = localData.templates.get(id)
-    if (isLocalMode() || local) {
+    if (isLocalMode()) {
       set({
         current: local,
         loading: false,
@@ -132,11 +134,33 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
       return
     }
 
-    set({ current: null, loading: true, error: null })
+    if (local) {
+      set({ current: local, loading: false, error: null })
+    } else {
+      set({ current: null, loading: true, error: null })
+    }
+
+    if (local && isTemplatePendingSync(local)) return
+
     try {
-      const current = await templateApi.getById(id, { timeoutMs: READ_TIMEOUT_MS })
-      set({ current: mirrorTemplateLocally(current, 'synced'), loading: false })
+      const current = await templateApi.getById(id, {
+        timeoutMs: local ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
+      })
+      const latest = localData.templates.get(id)
+      if (latest && isTemplatePendingSync(latest)) {
+        set({ current: latest, loading: false })
+        return
+      }
+      set({ current: mirrorTemplateLocally(current, 'synced'), loading: false, error: null })
     } catch (error) {
+      if (local) {
+        set({
+          current: localData.templates.get(id) ?? local,
+          loading: false,
+          error: null,
+        })
+        return
+      }
       set({
         loading: false,
         error: error instanceof Error ? error.message : 'Не удалось загрузить план',

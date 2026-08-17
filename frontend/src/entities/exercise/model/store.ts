@@ -46,7 +46,6 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
       loading: !catalogKnown,
       error: null,
     })
-    if (catalogKnown) return
 
     try {
       await catalogSync.mergeFromServer({ timeoutMs: CATALOG_READ_TIMEOUT_MS })
@@ -70,26 +69,22 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
 
   async fetchOne(id) {
     const local = localData.exercises.get(id)
-    if (local) {
-      set({ current: local, loading: false, error: null })
-      return
-    }
-
-    set({ current: null, loading: true, error: null })
+    set({ current: local, loading: !local, error: null })
 
     try {
       await catalogSync.mergeFromServer({ timeoutMs: CATALOG_READ_TIMEOUT_MS })
-      const current = localData.exercises.get(id)
+      set({ current: localData.exercises.get(id) ?? local, loading: false, error: null })
+    } catch (error) {
+      const current = localData.exercises.get(id) ?? local
       set({
         current,
         loading: false,
-        error: current ? null : 'Не удалось загрузить упражнение',
-      })
-    } catch (error) {
-      set({
-        current: localData.exercises.get(id),
-        loading: false,
-        error: error instanceof Error ? error.message : 'Не удалось загрузить упражнение',
+        error:
+          current
+            ? null
+            : error instanceof Error
+              ? error.message
+              : 'Не удалось загрузить упражнение',
       })
     }
   },

@@ -26,6 +26,7 @@ import type {
 } from './types'
 
 const READ_TIMEOUT_MS = 8000
+const BACKGROUND_READ_TIMEOUT_MS = 4000
 
 function isLocalMode() {
   return useSessionStore.getState().mode === 'local'
@@ -104,14 +105,14 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       loading: !catalogKnown,
       error: null,
     })
-    if (isLocalMode() || catalogKnown) return
+    if (isLocalMode()) return
 
     try {
       const result = await trainingApi.list({
         limit: params?.limit ?? 100,
         from: params?.from,
         to: params?.to,
-        timeoutMs: READ_TIMEOUT_MS,
+        timeoutMs: catalogKnown ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
       })
       for (const item of result.items) {
         const local = localData.trainings.get(item.id)
@@ -134,25 +135,24 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
           })
         }
       }
-      set({ items: mergeCloudWithPending(result.items), loading: false })
+      set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
     } catch (error) {
       const fallback = localData.trainings.list({ from: params?.from, to: params?.to })
       set({
         items: mergeCloudWithPending(fallback),
         loading: false,
-        error:
-          fallback.length === 0
-            ? error instanceof Error
-              ? error.message
-              : 'Не удалось загрузить тренировки'
-            : null,
+        error: catalogKnown
+          ? null
+          : error instanceof Error
+            ? error.message
+            : 'Не удалось загрузить тренировки',
       })
     }
   },
 
   async fetchOne(id) {
     const local = localData.trainings.get(id)
-    if (isLocalMode() || local) {
+    if (isLocalMode()) {
       set({
         current: local,
         loading: false,
@@ -161,11 +161,17 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       return
     }
 
-    set({ loading: true, error: null, current: null })
+    if (local) {
+      set({ current: local, loading: false, error: null })
+    } else {
+      set({ loading: true, error: null, current: null })
+    }
+
+    if (local && isTrainingPendingSync(local)) return
 
     try {
       const remote = await trainingApi.getById(id, {
-        timeoutMs: READ_TIMEOUT_MS,
+        timeoutMs: local ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
       })
       const latestLocal = localData.trainings.get(id)
       if (latestLocal && isTrainingPendingSync(latestLocal)) {
@@ -175,6 +181,14 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       const mirrored = mirrorTrainingLocally(remote, 'synced')
       set({ current: mirrored, loading: false, error: null })
     } catch (error) {
+      if (local) {
+        set({
+          current: localData.trainings.get(id) ?? local,
+          loading: false,
+          error: null,
+        })
+        return
+      }
       set({
         loading: false,
         error: error instanceof Error ? error.message : 'Не удалось загрузить тренировку',
