@@ -10,6 +10,10 @@ type Props = {
   children: ReactNode
 }
 
+function isTrainingSessionPath(pathname: string) {
+  return /^\/trainings\/[^/]+$/.test(pathname)
+}
+
 export function AuthGate({ children }: Props) {
   const pathname = usePathname()
   const router = useRouter()
@@ -54,5 +58,5 @@ export function AuthGate({ children }: Props) {
     )
   }
 
-  return <AppShell>{children}</AppShell>
+  return <AppShell hideNav={isTrainingSessionPath(pathname)}>{children}</AppShell>
 }

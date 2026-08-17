@@ -301,7 +301,6 @@ export function TrainingSessionPage({ id }: Props) {
             {current.status !== 'cancelled' ? (
               <Button type="button" variant="secondary" onClick={() => setEditOpen(true)}>
                 <Pencil className="size-4" />
-                Изменить
               </Button>
             ) : null}
             {current.status === 'in_progress' ? (
@@ -311,7 +310,6 @@ export function TrainingSessionPage({ id }: Props) {
                 onClick={() => startRest(timerTotal || DEFAULT_REST_SECONDS)}
               >
                 <Timer className="size-4" />
-                Отдых
               </Button>
             ) : null}
             {current.status === 'planned' ? (
@@ -324,7 +322,6 @@ export function TrainingSessionPage({ id }: Props) {
                 }
               >
                 <Play className="size-4" />
-                Старт
               </Button>
             ) : null}
             {canEditStructure && current.status === 'in_progress' ? (
@@ -333,7 +330,6 @@ export function TrainingSessionPage({ id }: Props) {
                 onClick={() => setFinishConfirmOpen(true)}
               >
                 <CheckCircle2 className="size-4" />
-                Завершить
               </Button>
             ) : null}
             <Button

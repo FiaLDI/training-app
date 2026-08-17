@@ -137,7 +137,6 @@ export function ExerciseDetailPage({ id }: Props) {
             {!editing ? (
               <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
                 <Pencil className="size-4" />
-                Изменить
               </Button>
             ) : null}
             <DeleteExerciseButton
