@@ -1,11 +1,19 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, ChevronDown, ChevronUp, Pencil, X } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  X,
+} from 'lucide-react'
 
 import type { TrainingExercise, TrainingSet } from '@/entities/training/model/types'
-import { RemoveTrainingExerciseButton } from '@/features/remove-training-exercise/ui/remove-training-exercise-button'
 import { useTrainingStore } from '@/entities/training/model/store'
+import { DropdownItem, DropdownMenu } from '@/shared/ui/dropdown-menu'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 
@@ -13,7 +21,8 @@ type Props = {
   trainingId: string
   item: TrainingExercise & { sets: TrainingSet[] }
   exerciseName: string
-  displayIndex: number
+  canEdit: boolean
+  canRemove: boolean
   canMoveUp: boolean
   canMoveDown: boolean
   neighborAboveId?: string
@@ -27,11 +36,24 @@ function targetWeightFrom(item: TrainingExercise) {
   return typeof value === 'number' ? value : null
 }
 
+function ExerciseMeta({ item }: { item: TrainingExercise }) {
+  const targetWeight = targetWeightFrom(item)
+  const parts = [`${item.targetSets} подх.`]
+  if (item.minReps != null || item.maxReps != null) {
+    parts.push(`${item.minReps ?? '?'}–${item.maxReps ?? '?'} повт.`)
+  }
+  if (targetWeight != null) parts.push(`${targetWeight} кг`)
+  if (item.restSeconds != null) parts.push(`отдых ${item.restSeconds}с`)
+
+  return <p className="text-sm text-[var(--muted)]">{parts.join(' · ')}</p>
+}
+
 export function EditTrainingExerciseRow({
   trainingId,
   item,
   exerciseName,
-  displayIndex,
+  canEdit,
+  canRemove,
   canMoveUp,
   canMoveDown,
   neighborAboveId,
@@ -40,6 +62,7 @@ export function EditTrainingExerciseRow({
   neighborBelowOrder,
 }: Props) {
   const updateExercise = useTrainingStore((s) => s.updateExercise)
+  const removeExercise = useTrainingStore((s) => s.removeExercise)
   const [editing, setEditing] = useState(false)
   const [targetSets, setTargetSets] = useState(String(item.targetSets))
   const [minReps, setMinReps] = useState(item.minReps == null ? '' : String(item.minReps))
@@ -113,123 +136,164 @@ export function EditTrainingExerciseRow({
     }
   }
 
-  if (!editing) {
+  async function onRemove() {
+    if (
+      !window.confirm(
+        `Убрать «${exerciseName}» из тренировки? Записанные подходы тоже исчезнут.`,
+      )
+    ) {
+      return
+    }
+    setError(null)
+    try {
+      await removeExercise(trainingId, item.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось убрать')
+    }
+  }
+
+  const hasMenu = canEdit || canRemove
+
+  if (editing && canEdit) {
     return (
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-2">
-          <div className="flex shrink-0 flex-col gap-0.5">
-            <button
-              type="button"
-              disabled={!canMoveUp || moving}
-              aria-label="Выше"
-              onClick={() => void move('up')}
-              className="inline-flex size-7 items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] disabled:pointer-events-none disabled:opacity-30"
-            >
-              <ChevronUp className="size-4" />
-            </button>
-            <button
-              type="button"
-              disabled={!canMoveDown || moving}
-              aria-label="Ниже"
-              onClick={() => void move('down')}
-              className="inline-flex size-7 items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] disabled:pointer-events-none disabled:opacity-30"
-            >
-              <ChevronDown className="size-4" />
-            </button>
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-[family-name:var(--font-display)] text-lg">
-              {exerciseName}
-            </h3>
-            <p className="text-xs text-[var(--muted)]">
-              #{displayIndex} · Цель: {item.targetSets} подходов
-              {item.minReps != null || item.maxReps != null
-                ? ` · ${item.minReps ?? '?'}–${item.maxReps ?? '?'} повт.`
-                : ''}
-              {targetWeightFrom(item) != null ? ` · ${targetWeightFrom(item)} кг` : ''}
-              {item.restSeconds != null ? ` · отдых ${item.restSeconds}с` : ''}
-            </p>
-            {error ? <p className="mt-1 text-xs text-red-300">{error}</p> : null}
-          </div>
+      <form onSubmit={onSave} className="space-y-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <label className="space-y-1 text-xs text-[var(--muted)]">
+            Подходы
+            <Input
+              type="number"
+              min="1"
+              inputMode="numeric"
+              value={targetSets}
+              onChange={(e) => setTargetSets(e.target.value)}
+              className="h-11"
+            />
+          </label>
+          <label className="space-y-1 text-xs text-[var(--muted)]">
+            Мин. повт.
+            <Input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={minReps}
+              onChange={(e) => setMinReps(e.target.value)}
+              className="h-11"
+            />
+          </label>
+          <label className="space-y-1 text-xs text-[var(--muted)]">
+            Макс. повт.
+            <Input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={maxReps}
+              onChange={(e) => setMaxReps(e.target.value)}
+              className="h-11"
+            />
+          </label>
+          <label className="space-y-1 text-xs text-[var(--muted)]">
+            Вес (кг)
+            <Input
+              type="number"
+              min="0"
+              step="0.5"
+              inputMode="decimal"
+              value={targetWeight}
+              onChange={(e) => setTargetWeight(e.target.value)}
+              className="h-11"
+            />
+          </label>
+          <label className="space-y-1 text-xs text-[var(--muted)]">
+            Отдых (с)
+            <Input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={restSeconds}
+              onChange={(e) => setRestSeconds(e.target.value)}
+              className="h-11"
+            />
+          </label>
         </div>
-        <div className="flex gap-1">
-          <Button type="button" variant="ghost" onClick={() => setEditing(true)}>
-            <Pencil className="size-4" />
+        <div className="flex gap-2">
+          <Button type="submit" disabled={saving} className="h-11 flex-1">
+            <Check className="size-4" />
+            Сохранить
           </Button>
-          <RemoveTrainingExerciseButton
-            trainingId={trainingId}
-            exerciseRowId={item.id}
-            exerciseName={exerciseName}
-          />
+          <Button type="button" variant="ghost" onClick={cancelEdit} className="h-11 px-3">
+            <X className="size-4" />
+          </Button>
         </div>
-      </div>
+        {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      </form>
     )
   }
 
   return (
-    <div>
-      <p className="mb-3 font-[family-name:var(--font-display)] text-lg">{exerciseName}</p>
-      <form onSubmit={onSave} className="flex flex-wrap items-end gap-2">
-        <label className="space-y-1 text-xs text-[var(--muted)]">
-          Подходы
-          <Input
-            type="number"
-            min="1"
-            value={targetSets}
-            onChange={(e) => setTargetSets(e.target.value)}
-            className="w-20"
-          />
-        </label>
-        <label className="space-y-1 text-xs text-[var(--muted)]">
-          Мин. повт.
-          <Input
-            type="number"
-            min="0"
-            value={minReps}
-            onChange={(e) => setMinReps(e.target.value)}
-            className="w-20"
-          />
-        </label>
-        <label className="space-y-1 text-xs text-[var(--muted)]">
-          Макс. повт.
-          <Input
-            type="number"
-            min="0"
-            value={maxReps}
-            onChange={(e) => setMaxReps(e.target.value)}
-            className="w-20"
-          />
-        </label>
-        <label className="space-y-1 text-xs text-[var(--muted)]">
-          Вес (кг)
-          <Input
-            type="number"
-            min="0"
-            step="0.5"
-            value={targetWeight}
-            onChange={(e) => setTargetWeight(e.target.value)}
-            className="w-24"
-          />
-        </label>
-        <label className="space-y-1 text-xs text-[var(--muted)]">
-          Отдых (с)
-          <Input
-            type="number"
-            min="0"
-            value={restSeconds}
-            onChange={(e) => setRestSeconds(e.target.value)}
-            className="w-20"
-          />
-        </label>
-        <Button type="submit" disabled={saving}>
-          <Check className="size-4" />
-          Сохранить
-        </Button>
-        <Button type="button" variant="ghost" onClick={cancelEdit}>
-          <X className="size-4" />
-        </Button>
-        {error ? <p className="w-full text-sm text-red-300">{error}</p> : null}
-      </form>
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 pt-1.5">
+        <ExerciseMeta item={item} />
+        {error ? <p className="mt-1 text-xs text-red-300">{error}</p> : null}
+      </div>
+      {hasMenu ? (
+        <DropdownMenu
+          ariaLabel="Действия с упражнением"
+          trigger={<MoreHorizontal className="size-5" />}
+          triggerClassName="inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+        >
+          {(close) => (
+            <>
+              {canEdit ? (
+                <DropdownItem
+                  icon={<Pencil className="size-4" />}
+                  onClick={() => {
+                    close()
+                    setEditing(true)
+                  }}
+                >
+                  Изменить цель
+                </DropdownItem>
+              ) : null}
+              {canEdit ? (
+                <DropdownItem
+                  icon={<ArrowUp className="size-4" />}
+                  disabled={!canMoveUp || moving}
+                  onClick={() => {
+                    close()
+                    void move('up')
+                  }}
+                >
+                  Выше в списке
+                </DropdownItem>
+              ) : null}
+              {canEdit ? (
+                <DropdownItem
+                  icon={<ArrowDown className="size-4" />}
+                  disabled={!canMoveDown || moving}
+                  onClick={() => {
+                    close()
+                    void move('down')
+                  }}
+                >
+                  Ниже в списке
+                </DropdownItem>
+              ) : null}
+              {canRemove ? (
+                <DropdownItem
+                  icon={<Trash2 className="size-4" />}
+                  danger
+                  onClick={() => {
+                    close()
+                    void onRemove()
+                  }}
+                >
+                  Убрать упражнение
+                </DropdownItem>
+              ) : null}
+            </>
+          )}
+        </DropdownMenu>
+      ) : null}
     </div>
   )
 }

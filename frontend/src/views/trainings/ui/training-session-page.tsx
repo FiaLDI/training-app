@@ -3,13 +3,23 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Pencil, Play, Timer, Trash2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Pencil,
+  Play,
+  Plus,
+  Timer,
+  Trash2,
+} from 'lucide-react'
 
-import { AddTrainingExerciseForm } from '@/features/add-training-exercise/ui/add-training-exercise-form'
+import { AddTrainingExerciseModal } from '@/features/add-training-exercise/ui/add-training-exercise-modal'
 import { EditSetRow } from '@/features/edit-set/ui/edit-set-row'
 import { EditTrainingExerciseRow } from '@/features/edit-training-exercise/ui/edit-training-exercise-row'
 import { EditTrainingForm } from '@/features/edit-training/ui/edit-training-form'
-import { RemoveTrainingExerciseButton } from '@/features/remove-training-exercise/ui/remove-training-exercise-button'
 import { LogSetForm } from '@/features/log-set/ui/log-set-form'
 import { RestTimerBar, SessionClock } from '@/features/rest-timer/ui/rest-timer-bar'
 import {
@@ -19,16 +29,16 @@ import {
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
-import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import {
   formatKg,
   lastWorkingSetWeight,
   workingSetMaxWeight,
 } from '@/entities/training/lib/session-weight'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
 import { ConfirmModal } from '@/shared/ui/confirm-modal'
+import { DropdownItem, DropdownMenu } from '@/shared/ui/dropdown-menu'
 import { EmptyState } from '@/shared/ui/empty-state'
-import { PageHeader } from '@/shared/ui/page-header'
 import { DetailSkeleton } from '@/shared/ui/skeleton'
 
 const DEFAULT_REST_SECONDS = 90
@@ -53,9 +63,9 @@ function PreviousMaxHint({
       : null
 
   return (
-    <p className="mt-1 text-xs text-[var(--muted)]">
+    <p className="mt-3 text-sm text-[var(--muted)]">
       {previousMaxWeight != null ? (
-        <>Прошлый макс: {formatKg(previousMaxWeight)} кг</>
+        <>Прошлый макс {formatKg(previousMaxWeight)} кг</>
       ) : (
         'Нет прошлого веса'
       )}
@@ -76,41 +86,73 @@ function PreviousMaxHint({
 }
 
 function ExerciseStepper({
+  name,
   index,
   total,
   onPrev,
   onNext,
+  onSelect,
 }: {
+  name: string
   index: number
   total: number
   onPrev: () => void
   onNext: () => void
+  onSelect: (index: number) => void
 }) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-2">
-      <Button
-        type="button"
-        variant="secondary"
-        disabled={index <= 0}
-        onClick={onPrev}
-        className="px-3"
-      >
-        <ChevronLeft className="size-4" />
-        Назад
-      </Button>
-      <p className="text-sm tabular-nums text-[var(--muted)]">
-        {index + 1} / {total}
-      </p>
-      <Button
-        type="button"
-        variant="secondary"
-        disabled={index >= total - 1}
-        onClick={onNext}
-        className="px-3"
-      >
-        Вперёд
-        <ChevronRight className="size-4" />
-      </Button>
+    <div className="mb-5">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={index <= 0}
+          onClick={onPrev}
+          aria-label="Предыдущее упражнение"
+          className="inline-flex size-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition hover:border-[var(--accent)]/40 disabled:pointer-events-none disabled:opacity-30"
+        >
+          <ChevronLeft className="size-6" />
+        </button>
+        <div className="min-w-0 flex-1 text-center">
+          <h1 className="truncate font-[family-name:var(--font-display)] text-2xl tracking-tight">
+            {name}
+          </h1>
+          <p className="mt-1 text-sm tabular-nums text-[var(--muted)]">
+            {index + 1} / {total}
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={index >= total - 1}
+          onClick={onNext}
+          aria-label="Следующее упражнение"
+          className="inline-flex size-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition hover:border-[var(--accent)]/40 disabled:pointer-events-none disabled:opacity-30"
+        >
+          <ChevronRight className="size-6" />
+        </button>
+      </div>
+      {total > 1 ? (
+        <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+          {Array.from({ length: total }, (_, itemIndex) => (
+            <button
+              key={itemIndex}
+              type="button"
+              aria-label={`Упражнение ${itemIndex + 1}`}
+              aria-current={itemIndex === index ? 'page' : undefined}
+              onClick={() => onSelect(itemIndex)}
+              className="flex h-6 items-center justify-center px-0.5"
+            >
+              <span
+                className={cn(
+                  'h-1.5 rounded-full transition-all',
+                  itemIndex === index
+                    ? 'w-6 bg-[var(--accent)]'
+                    : 'w-1.5 bg-[var(--border)]',
+                )}
+              />
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -143,7 +185,9 @@ export function TrainingSessionPage({ id }: Props) {
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [addExerciseOpen, setAddExerciseOpen] = useState(false)
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null)
+  const [starting, setStarting] = useState(false)
 
   useEffect(() => {
     void fetchOne(id)
@@ -236,6 +280,17 @@ export function TrainingSessionPage({ id }: Props) {
     }
   }
 
+  async function handleStart() {
+    if (starting) return
+    setStarting(true)
+    try {
+      await start(id)
+      router.refresh()
+    } finally {
+      setStarting(false)
+    }
+  }
+
   const exerciseName = (exerciseId: string) =>
     exercises.find((item) => item.id === exerciseId)?.name ?? exerciseId.slice(0, 8)
 
@@ -276,76 +331,105 @@ export function TrainingSessionPage({ id }: Props) {
         : 'Не начата'
 
   return (
-    <div className={timerOpen ? 'pb-36' : undefined}>
-      <Link
-        href="/plan"
-        className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
-      >
-        <ArrowLeft className="size-4" />
-        Неделя
-      </Link>
-
-      <PageHeader
-        title={title}
-        description={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>{whenLabel}</span>
+    <div className={cn('mx-auto max-w-lg', timerOpen && 'pb-36')}>
+      <header className="mb-6 flex items-center gap-2">
+        <Link
+          href="/plan"
+          aria-label="Неделя"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+        >
+          <ArrowLeft className="size-5" />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-[family-name:var(--font-display)] text-sm text-[var(--foreground)]">
+            {title}
+          </p>
+          <p className="truncate text-xs text-[var(--muted)]">
             {current.status === 'in_progress' && current.startedAt ? (
               <SessionClock startedAt={current.startedAt} restSeconds={restAccumulated} />
-            ) : null}
-          </span>
-        }
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <TrainingStatusBadge status={current.status} />
-            {current.status !== 'cancelled' ? (
-              <Button type="button" variant="secondary" onClick={() => setEditOpen(true)}>
-                <Pencil className="size-4" />
-              </Button>
-            ) : null}
-            {current.status === 'in_progress' ? (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => startRest(timerTotal || DEFAULT_REST_SECONDS)}
+            ) : (
+              whenLabel
+            )}
+          </p>
+        </div>
+        <DropdownMenu
+          ariaLabel="Ещё"
+          trigger={<MoreHorizontal className="size-5" />}
+          triggerClassName="inline-flex size-11 items-center justify-center rounded-xl text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+        >
+          {(close) => (
+            <>
+              {canEditStructure ? (
+                <DropdownItem
+                  icon={<Plus className="size-4" />}
+                  onClick={() => {
+                    close()
+                    setAddExerciseOpen(true)
+                  }}
+                >
+                  Добавить упражнение
+                </DropdownItem>
+              ) : null}
+              {current.status === 'in_progress' ? (
+                <DropdownItem
+                  icon={<Timer className="size-4" />}
+                  onClick={() => {
+                    close()
+                    startRest(timerTotal || DEFAULT_REST_SECONDS)
+                  }}
+                >
+                  Таймер отдыха
+                </DropdownItem>
+              ) : null}
+              {current.status !== 'cancelled' ? (
+                <DropdownItem
+                  icon={<Pencil className="size-4" />}
+                  onClick={() => {
+                    close()
+                    setEditOpen(true)
+                  }}
+                >
+                  Редактировать
+                </DropdownItem>
+              ) : null}
+              <DropdownItem
+                icon={<Trash2 className="size-4" />}
+                danger
+                onClick={() => {
+                  close()
+                  setRemoveConfirmOpen(true)
+                }}
               >
-                <Timer className="size-4" />
-              </Button>
-            ) : null}
-            {current.status === 'planned' ? (
-              <Button
-                type="button"
-                onClick={() =>
-                  void start(id).then(() => {
-                    router.refresh()
-                  })
-                }
-              >
-                <Play className="size-4" />
-              </Button>
-            ) : null}
-            {canEditStructure && current.status === 'in_progress' ? (
-              <Button
-                type="button"
-                onClick={() => setFinishConfirmOpen(true)}
-              >
-                <CheckCircle2 className="size-4" />
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => setRemoveConfirmOpen(true)}
-              aria-label="Удалить тренировку"
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </div>
-        }
-      />
+                Удалить тренировку
+              </DropdownItem>
+            </>
+          )}
+        </DropdownMenu>
+        {current.status === 'planned' ? (
+          <Button
+            type="button"
+            onClick={() => void handleStart()}
+            disabled={starting}
+            className="h-11 shrink-0"
+          >
+            <Play className="size-4" />
+            Начать
+          </Button>
+        ) : null}
+        {canEditStructure && current.status === 'in_progress' ? (
+          <Button
+            type="button"
+            onClick={() => setFinishConfirmOpen(true)}
+            className="h-11 shrink-0"
+          >
+            <CheckCircle2 className="size-4" />
+            Завершить
+          </Button>
+        ) : null}
+      </header>
 
       {current.notes ? (
-        <p className="mb-6 whitespace-pre-wrap text-sm text-[var(--muted)]">{current.notes}</p>
+        <p className="mb-5 line-clamp-2 text-sm text-[var(--muted)]">{current.notes}</p>
       ) : null}
 
       {sortedExercises.length === 0 || !activeExercise ? (
@@ -353,6 +437,7 @@ export function TrainingSessionPage({ id }: Props) {
       ) : (
         <div>
           <ExerciseStepper
+            name={exerciseName(activeExercise.exerciseId)}
             index={activeIndex}
             total={sortedExercises.length}
             onPrev={() => {
@@ -363,49 +448,25 @@ export function TrainingSessionPage({ id }: Props) {
               const next = sortedExercises[activeIndex + 1]
               if (next) setActiveExerciseId(next.id)
             }}
+            onSelect={(itemIndex) => {
+              const selected = sortedExercises[itemIndex]
+              if (selected) setActiveExerciseId(selected.id)
+            }}
           />
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
-            {canEditStructure ? (
-              <EditTrainingExerciseRow
-                trainingId={id}
-                item={activeExercise}
-                exerciseName={exerciseName(activeExercise.exerciseId)}
-                displayIndex={activeIndex + 1}
-                canMoveUp={activeIndex > 0}
-                canMoveDown={activeIndex < sortedExercises.length - 1}
-                neighborAboveId={sortedExercises[activeIndex - 1]?.id}
-                neighborAboveOrder={sortedExercises[activeIndex - 1]?.exerciseOrder}
-                neighborBelowId={sortedExercises[activeIndex + 1]?.id}
-                neighborBelowOrder={sortedExercises[activeIndex + 1]?.exerciseOrder}
-              />
-            ) : (
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <h3 className="font-[family-name:var(--font-display)] text-lg">
-                    {exerciseName(activeExercise.exerciseId)}
-                  </h3>
-                  <p className="text-xs text-[var(--muted)]">
-                    Цель: {activeExercise.targetSets} подходов
-                    {activeExercise.minReps != null || activeExercise.maxReps != null
-                      ? ` · ${activeExercise.minReps ?? '?'}–${activeExercise.maxReps ?? '?'} повт.`
-                      : ''}
-                    {targetWeightFrom(activeExercise.metadata) != null
-                      ? ` · ${targetWeightFrom(activeExercise.metadata)} кг`
-                      : ''}
-                    {activeExercise.restSeconds != null
-                      ? ` · отдых ${activeExercise.restSeconds}с`
-                      : ''}
-                  </p>
-                </div>
-                {canRemoveExercise ? (
-                  <RemoveTrainingExerciseButton
-                    trainingId={id}
-                    exerciseRowId={activeExercise.id}
-                    exerciseName={exerciseName(activeExercise.exerciseId)}
-                  />
-                ) : null}
-              </div>
-            )}
+          <section>
+            <EditTrainingExerciseRow
+              trainingId={id}
+              item={activeExercise}
+              exerciseName={exerciseName(activeExercise.exerciseId)}
+              canEdit={canEditStructure}
+              canRemove={canRemoveExercise}
+              canMoveUp={activeIndex > 0}
+              canMoveDown={activeIndex < sortedExercises.length - 1}
+              neighborAboveId={sortedExercises[activeIndex - 1]?.id}
+              neighborAboveOrder={sortedExercises[activeIndex - 1]?.exerciseOrder}
+              neighborBelowId={sortedExercises[activeIndex + 1]?.id}
+              neighborBelowOrder={sortedExercises[activeIndex + 1]?.exerciseOrder}
+            />
 
             <PreviousMaxHint
               previousMaxWeight={activeExercise.previousMaxWeight}
@@ -415,8 +476,21 @@ export function TrainingSessionPage({ id }: Props) {
               )}
             />
 
+            <div className="mt-5 mb-2 flex items-baseline justify-between gap-3">
+              <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                Подходы
+              </p>
+              <p className="text-sm tabular-nums text-[var(--muted)]">
+                {
+                  activeExercise.sets.filter((set) => !set.isWarmup && set.completed)
+                    .length
+                }{' '}
+                / {activeExercise.targetSets}
+              </p>
+            </div>
+
             {activeExercise.sets.length > 0 ? (
-              <ul className="mt-4 space-y-2">
+              <ul className="space-y-2">
                 {activeExercise.sets.map((set) => (
                   <EditSetRow
                     key={set.id}
@@ -427,7 +501,7 @@ export function TrainingSessionPage({ id }: Props) {
                 ))}
               </ul>
             ) : (
-              <p className="mt-3 text-sm text-[var(--muted)]">Пока нет подходов.</p>
+              <p className="text-sm text-[var(--muted)]">Пока нет подходов.</p>
             )}
 
             {canEditStructure ? (
@@ -450,12 +524,13 @@ export function TrainingSessionPage({ id }: Props) {
         </div>
       )}
 
-      {canEditStructure ? (
-        <AddTrainingExerciseForm
-          trainingId={id}
-          nextOrder={current.exercises.length}
-        />
-      ) : null}
+      <AddTrainingExerciseModal
+        open={addExerciseOpen}
+        onClose={() => setAddExerciseOpen(false)}
+        trainingId={id}
+        nextOrder={current.exercises.length}
+        onAdded={(exerciseRowId) => setActiveExerciseId(exerciseRowId)}
+      />
 
       {timerOpen ? (
         <RestTimerBar

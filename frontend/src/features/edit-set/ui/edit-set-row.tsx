@@ -1,12 +1,15 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, Pencil, Trash2, X } from 'lucide-react'
+import { Check, Trash2, X } from 'lucide-react'
 
 import type { TrainingSet } from '@/entities/training/model/types'
+import { usePreferencesStore } from '@/entities/preferences/model/store'
+import { formatKg } from '@/entities/training/lib/session-weight'
 import { useTrainingStore } from '@/entities/training/model/store'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
-import { Input } from '@/shared/ui/input'
+import { NumberStepper } from '@/shared/ui/number-stepper'
 
 type Props = {
   trainingId: string
@@ -14,17 +17,11 @@ type Props = {
   canEdit: boolean
 }
 
-function WarmupBadge() {
-  return (
-    <span className="ml-1.5 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
-      разм.
-    </span>
-  )
-}
-
 export function EditSetRow({ trainingId, set, canEdit }: Props) {
   const updateSet = useTrainingStore((s) => s.updateSet)
   const removeSet = useTrainingStore((s) => s.removeSet)
+  const weightStep = usePreferencesStore((s) => s.weightStep)
+  const repsStep = usePreferencesStore((s) => s.repsStep)
   const [editing, setEditing] = useState(false)
   const [weight, setWeight] = useState(set.weight == null ? '' : String(set.weight))
   const [reps, setReps] = useState(set.reps == null ? '' : String(set.reps))
@@ -64,93 +61,113 @@ export function EditSetRow({ trainingId, set, canEdit }: Props) {
     }
   }
 
-  const setLabel = (
-    <>
-      Подход {set.setNumber}
-      {set.weight != null ? ` · ${set.weight} кг` : ''}
-      {set.reps != null ? ` · ${set.reps} повт.` : ''}
-      {set.isWarmup ? <WarmupBadge /> : null}
-    </>
-  )
-
-  if (!canEdit) {
+  if (editing && canEdit) {
     return (
-      <li className="flex items-center justify-between rounded-lg bg-[var(--surface-2)] px-3 py-2 text-sm">
-        <span>{setLabel}</span>
-      </li>
-    )
-  }
-
-  if (editing) {
-    return (
-      <li className="rounded-lg bg-[var(--surface-2)] px-3 py-2">
-        <form onSubmit={onSave} className="flex flex-wrap items-end gap-2">
-          <span className="pb-2 text-sm text-[var(--muted)]">Подход {set.setNumber}</span>
-          <label className="space-y-1 text-xs text-[var(--muted)]">
-            Вес (кг)
-            <Input
-              type="number"
-              step="0.5"
-              min="0"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              className="w-24"
-            />
-          </label>
-          <label className="space-y-1 text-xs text-[var(--muted)]">
-            Повторений
-            <Input
-              type="number"
-              min="0"
-              value={reps}
-              onChange={(e) => setReps(e.target.value)}
-              className="w-20"
-            />
-          </label>
-          <label className="flex items-center gap-2 pb-2 text-xs text-[var(--muted)]">
-            <input
-              type="checkbox"
-              checked={isWarmup}
-              onChange={(e) => setIsWarmup(e.target.checked)}
-              className="size-4 rounded border-[var(--border)]"
-            />
+      <li className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+        <form onSubmit={onSave} className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+            Подход {set.setNumber}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1 text-xs text-[var(--muted)]">
+              Вес (кг)
+              <NumberStepper
+                value={weight}
+                onChange={setWeight}
+                step={weightStep}
+                inputMode="decimal"
+                ariaLabel="Вес"
+              />
+            </div>
+            <div className="space-y-1 text-xs text-[var(--muted)]">
+              Повторения
+              <NumberStepper
+                value={reps}
+                onChange={setReps}
+                step={repsStep}
+                inputMode="numeric"
+                ariaLabel="Повторения"
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsWarmup((value) => !value)}
+            className={cn(
+              'inline-flex min-h-11 items-center rounded-xl border px-3 text-sm transition',
+              isWarmup
+                ? 'border-sky-500/40 bg-sky-500/15 text-sky-200'
+                : 'border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]',
+            )}
+          >
             Разминка
-          </label>
-          <Button type="submit" disabled={saving} className="h-[42px]">
-            <Check className="size-4" />
-          </Button>
-          <Button type="button" variant="ghost" onClick={cancelEdit} className="h-[42px]">
-            <X className="size-4" />
-          </Button>
-          {error ? <p className="w-full text-xs text-red-300">{error}</p> : null}
+          </button>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={saving} className="h-11 flex-1">
+              <Check className="size-4" />
+              Сохранить
+            </Button>
+            <Button type="button" variant="ghost" onClick={cancelEdit} className="h-11 px-3">
+              <X className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              className="h-11 px-3"
+              aria-label="Удалить подход"
+              onClick={() => void removeSet(trainingId, set.id)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+          {error ? <p className="text-xs text-red-300">{error}</p> : null}
         </form>
       </li>
     )
   }
 
   return (
-    <li
-      className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
-        set.isWarmup ? 'bg-sky-500/5' : 'bg-[var(--surface-2)]'
-      }`}
-    >
-      <span>{setLabel}</span>
-      <div className="flex gap-1">
-        <button
-          type="button"
-          className="text-[var(--muted)] hover:text-[var(--foreground)]"
-          onClick={() => setEditing(true)}
-        >
-          <Pencil className="size-4" />
-        </button>
-        <button
-          type="button"
-          className="text-[var(--muted)] hover:text-red-300"
-          onClick={() => void removeSet(trainingId, set.id)}
-        >
-          <Trash2 className="size-4" />
-        </button>
-      </div>
+    <li>
+      <button
+        type="button"
+        disabled={!canEdit}
+        onClick={() => canEdit && setEditing(true)}
+        className={cn(
+          'flex w-full min-h-14 items-center gap-3 rounded-2xl px-4 py-3 text-left transition',
+          set.isWarmup ? 'bg-sky-500/8' : 'bg-[var(--surface-2)]',
+          canEdit && 'active:scale-[0.99] hover:bg-[var(--surface-2)]/80',
+          !canEdit && 'cursor-default',
+        )}
+      >
+        <span className="w-7 shrink-0 font-[family-name:var(--font-display)] text-lg tabular-nums text-[var(--muted)]">
+          {set.setNumber}
+        </span>
+        <span className="min-w-0 flex-1 font-[family-name:var(--font-display)] text-xl tabular-nums tracking-tight">
+          {set.weight != null ? (
+            <>
+              {formatKg(set.weight)}
+              <span className="ml-1 text-sm font-normal text-[var(--muted)]">кг</span>
+            </>
+          ) : (
+            <span className="text-sm text-[var(--muted)]">—</span>
+          )}
+        </span>
+        <span className="font-[family-name:var(--font-display)] text-xl tabular-nums tracking-tight">
+          {set.reps != null ? (
+            <>
+              <span className="mr-1 text-sm font-normal text-[var(--muted)]">×</span>
+              {set.reps}
+            </>
+          ) : (
+            <span className="text-sm text-[var(--muted)]">—</span>
+          )}
+        </span>
+        {set.isWarmup ? (
+          <span className="rounded-md bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
+            разм.
+          </span>
+        ) : null}
+      </button>
     </li>
   )
 }

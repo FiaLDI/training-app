@@ -11,6 +11,8 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 
+import { X } from 'lucide-react'
+
 import { cn } from '@/shared/lib/cn'
 
 type Props = {
@@ -21,7 +23,10 @@ type Props = {
   children?: ReactNode
   footer?: ReactNode
   className?: string
+  contentClassName?: string
   closeDisabled?: boolean
+  variant?: 'dialog' | 'sheet'
+  showClose?: boolean
 }
 
 const focusableSelector = [
@@ -43,8 +48,13 @@ export function Modal({
   children,
   footer,
   className,
+  contentClassName,
   closeDisabled = false,
+  variant = 'dialog',
+  showClose,
 }: Props) {
+  const isSheet = variant === 'sheet'
+  const closeButtonVisible = showClose ?? isSheet
   const mounted = useSyncExternalStore(
     subscribe,
     () => true,
@@ -115,7 +125,12 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+      className={cn(
+        'fixed inset-0 z-50 flex justify-center bg-black/60',
+        isSheet
+          ? 'items-end p-0 sm:items-center sm:p-4'
+          : 'items-end p-4 sm:items-center',
+      )}
       onMouseDown={handleBackdropClick}
     >
       <div
@@ -127,22 +142,48 @@ export function Modal({
         tabIndex={-1}
         onKeyDown={trapFocus}
         className={cn(
-          'max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl outline-none',
+          'w-full border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl outline-none',
+          isSheet
+            ? 'flex h-[min(85vh,720px)] max-h-[85vh] max-w-lg flex-col overflow-hidden rounded-t-3xl pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-2xl'
+            : 'max-h-[90vh] max-w-md overflow-y-auto rounded-2xl',
           className,
         )}
       >
-        <h2
-          id={titleId}
-          className="font-[family-name:var(--font-display)] text-xl text-[var(--foreground)]"
-        >
-          {title}
-        </h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2
+            id={titleId}
+            className="font-[family-name:var(--font-display)] text-xl text-[var(--foreground)]"
+          >
+            {title}
+          </h2>
+          {closeButtonVisible ? (
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={closeDisabled}
+              aria-label="Закрыть"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] disabled:opacity-50"
+            >
+              <X className="size-5" />
+            </button>
+          ) : null}
+        </div>
         {description ? (
           <div id={descriptionId} className="mt-2 text-sm text-[var(--muted)]">
             {description}
           </div>
         ) : null}
-        {children ? <div className="mt-4">{children}</div> : null}
+        {children ? (
+          <div
+            className={cn(
+              'mt-4',
+              isSheet && 'flex min-h-0 flex-1 flex-col overflow-hidden',
+              contentClassName,
+            )}
+          >
+            {children}
+          </div>
+        ) : null}
         {footer ? <div className="mt-5 flex justify-end gap-2">{footer}</div> : null}
       </div>
     </div>,

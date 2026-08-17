@@ -6,6 +6,7 @@ import { Cloud, HardDrive, LogOut, User } from 'lucide-react'
 
 import { useSessionStore } from '@/entities/session/model/store'
 import { ClearLocalDataActions } from '@/features/clear-local-data/ui/clear-local-data-actions'
+import { SetStepSettings } from '@/features/edit-set-steps/ui/set-step-settings'
 import { SendFeedbackSection } from '@/features/send-feedback/ui/send-feedback-section'
 import {
   formatPendingSummary,
@@ -42,7 +43,7 @@ export function SettingsPage() {
     <div>
       <PageHeader
         title="Профиль и настройки"
-        description="Аккаунт, синхронизация и управление локальными данными на устройстве."
+        description="Аккаунт, шаги подходов, синхронизация и локальные данные на устройстве."
       />
 
       <div className="space-y-6">
@@ -109,6 +110,8 @@ export function SettingsPage() {
             />
           </section>
         ) : null}
+
+        <SetStepSettings />
 
         <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
