@@ -84,81 +84,58 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
   error: null,
 
   async fetchList(q) {
-    set({ loading: true, error: null })
+    const localItems = mergeCloudWithPending(localData.templates.list(q))
+    const catalogKnown = localData.templates.list().length > 0
+    set({ items: localItems, loading: !catalogKnown, error: null })
+    if (isLocalMode() || catalogKnown) return
+
     try {
-      if (isLocalMode()) {
-        set({ items: localData.templates.list(q), loading: false })
-        return
-      }
-      try {
-        const result = await templateApi.list({
-          limit: 100,
-          q,
-          timeoutMs: READ_TIMEOUT_MS,
-        })
-        for (const item of result.items) {
-          const local = localData.templates.get(item.id)
-          if (local && isTemplatePendingSync(local)) continue
-          if (!local) {
-            localData.templates.upsert({
-              ...item,
-              metadata: {
-                ...item.metadata,
-                sync: { status: 'synced', serverSyncedAt: new Date().toISOString() },
-              },
-            })
-          }
+      const result = await templateApi.list({
+        limit: 100,
+        q,
+        timeoutMs: READ_TIMEOUT_MS,
+      })
+      for (const item of result.items) {
+        const local = localData.templates.get(item.id)
+        if (local && isTemplatePendingSync(local)) continue
+        if (!local) {
+          localData.templates.upsert({
+            ...item,
+            metadata: {
+              ...item.metadata,
+              sync: { status: 'synced', serverSyncedAt: new Date().toISOString() },
+            },
+          })
         }
-        set({ items: mergeCloudWithPending(result.items), loading: false })
-      } catch (error) {
-        set({
-          items: mergeCloudWithPending(localData.templates.list(q)),
-          loading: false,
-          error:
-            error instanceof Error
-              ? `${error.message}. Показаны локальные планы.`
-              : 'Сеть недоступна. Показаны локальные планы.',
-        })
       }
+      set({ items: mergeCloudWithPending(result.items), loading: false })
     } catch (error) {
       set({
+        items: mergeCloudWithPending(localData.templates.list(q)),
         loading: false,
-        error: error instanceof Error ? error.message : 'Не удалось загрузить планы',
+        error:
+          error instanceof Error
+            ? `${error.message}. Показаны локальные планы.`
+            : 'Сеть недоступна. Показаны локальные планы.',
       })
     }
   },
 
   async fetchOne(id) {
-    set({ loading: true, error: null })
+    const local = localData.templates.get(id)
+    if (isLocalMode() || local) {
+      set({
+        current: local,
+        loading: false,
+        error: local ? null : 'Не удалось загрузить план',
+      })
+      return
+    }
+
+    set({ current: null, loading: true, error: null })
     try {
-      if (isLocalMode()) {
-        set({ current: localData.templates.get(id), loading: false })
-        return
-      }
-
-      const local = localData.templates.get(id)
-      if (local && isTemplatePendingSync(local)) {
-        set({ current: local, loading: false })
-        return
-      }
-
-      try {
-        const current = await templateApi.getById(id, { timeoutMs: READ_TIMEOUT_MS })
-        set({ current: mirrorTemplateLocally(current, 'synced'), loading: false })
-      } catch (error) {
-        if (local) {
-          set({
-            current: local,
-            loading: false,
-            error:
-              error instanceof Error
-                ? `${error.message}. Открыта локальная копия.`
-                : 'Сеть недоступна. Открыта локальная копия.',
-          })
-          return
-        }
-        throw error
-      }
+      const current = await templateApi.getById(id, { timeoutMs: READ_TIMEOUT_MS })
+      set({ current: mirrorTemplateLocally(current, 'synced'), loading: false })
     } catch (error) {
       set({
         loading: false,

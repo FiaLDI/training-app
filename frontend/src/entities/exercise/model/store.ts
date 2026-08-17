@@ -38,14 +38,15 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
 
   async fetchList(q) {
     const query = (q ?? get().query) || undefined
-    // Local-first: show catalog immediately, refresh in background.
     const localItems = localData.exercises.list(query)
+    const catalogKnown = localData.exercises.list().length > 0
     set({
       items: localItems,
       total: localItems.length,
-      loading: localItems.length === 0,
+      loading: !catalogKnown,
       error: null,
     })
+    if (catalogKnown) return
 
     try {
       await catalogSync.mergeFromServer({ timeoutMs: CATALOG_READ_TIMEOUT_MS })
@@ -69,14 +70,24 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
 
   async fetchOne(id) {
     const local = localData.exercises.get(id)
-    set({ current: local, loading: !local, error: null })
+    if (local) {
+      set({ current: local, loading: false, error: null })
+      return
+    }
+
+    set({ current: null, loading: true, error: null })
 
     try {
       await catalogSync.mergeFromServer({ timeoutMs: CATALOG_READ_TIMEOUT_MS })
-      set({ current: localData.exercises.get(id), loading: false })
+      const current = localData.exercises.get(id)
+      set({
+        current,
+        loading: false,
+        error: current ? null : 'Не удалось загрузить упражнение',
+      })
     } catch (error) {
       set({
-        current: localData.exercises.get(id) ?? local,
+        current: localData.exercises.get(id),
         loading: false,
         error: error instanceof Error ? error.message : 'Не удалось загрузить упражнение',
       })

@@ -26,7 +26,6 @@ import type {
 } from './types'
 
 const READ_TIMEOUT_MS = 8000
-const BACKGROUND_READ_TIMEOUT_MS = 4000
 
 function isLocalMode() {
   return useSessionStore.getState().mode === 'local'
@@ -98,88 +97,76 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
   error: null,
 
   async fetchList(params) {
-    set({ loading: true, error: null })
-    try {
-      if (isLocalMode()) {
-        set({
-          items: localData.trainings.list({ from: params?.from, to: params?.to }),
-          loading: false,
-        })
-        return
-      }
+    const localItems = localData.trainings.list({ from: params?.from, to: params?.to })
+    const catalogKnown = localData.trainings.list().length > 0
+    set({
+      items: localItems,
+      loading: !catalogKnown,
+      error: null,
+    })
+    if (isLocalMode() || catalogKnown) return
 
-      try {
-        const result = await trainingApi.list({
-          limit: params?.limit ?? 100,
-          from: params?.from,
-          to: params?.to,
-          timeoutMs: READ_TIMEOUT_MS,
-        })
-        for (const item of result.items) {
-          const local = localData.trainings.get(item.id)
-          if (local && isTrainingPendingSync(local)) continue
-          if (!local) {
-            const shell = {
-              ...item,
-              exercises: [] as TrainingWithDetails['exercises'],
-            }
-            localData.trainings.upsert({
-              ...item,
-              metadata: {
-                ...item.metadata,
-                sync: {
-                  status: 'synced',
-                  serverSyncedAt: new Date().toISOString(),
-                  contentHash: trainingContentHash(shell),
-                },
-              },
-            })
+    try {
+      const result = await trainingApi.list({
+        limit: params?.limit ?? 100,
+        from: params?.from,
+        to: params?.to,
+        timeoutMs: READ_TIMEOUT_MS,
+      })
+      for (const item of result.items) {
+        const local = localData.trainings.get(item.id)
+        if (local && isTrainingPendingSync(local)) continue
+        if (!local) {
+          const shell = {
+            ...item,
+            exercises: [] as TrainingWithDetails['exercises'],
           }
+          localData.trainings.upsert({
+            ...item,
+            metadata: {
+              ...item.metadata,
+              sync: {
+                status: 'synced',
+                serverSyncedAt: new Date().toISOString(),
+                contentHash: trainingContentHash(shell),
+              },
+            },
+          })
         }
-        set({ items: mergeCloudWithPending(result.items), loading: false })
-      } catch (error) {
-        const localItems = localData.trainings.list({ from: params?.from, to: params?.to })
-        set({
-          items: mergeCloudWithPending(localItems),
-          loading: false,
-          error:
-            error instanceof Error
-              ? `${error.message}. Показаны локальные тренировки.`
-              : 'Сеть недоступна. Показаны локальные тренировки.',
-        })
       }
+      set({ items: mergeCloudWithPending(result.items), loading: false })
     } catch (error) {
+      const fallback = localData.trainings.list({ from: params?.from, to: params?.to })
       set({
+        items: mergeCloudWithPending(fallback),
         loading: false,
-        error: error instanceof Error ? error.message : 'Не удалось загрузить тренировки',
+        error:
+          fallback.length === 0
+            ? error instanceof Error
+              ? error.message
+              : 'Не удалось загрузить тренировки'
+            : null,
       })
     }
   },
 
   async fetchOne(id) {
-    // Local-first: open training immediately from device, refresh in background.
     const local = localData.trainings.get(id)
-    if (isLocalMode()) {
-      set({ current: local, loading: false, error: null })
+    if (isLocalMode() || local) {
+      set({
+        current: local,
+        loading: false,
+        error: local ? null : 'Не удалось загрузить тренировку',
+      })
       return
     }
 
-    if (local) {
-      set({ current: local, loading: false, error: null })
-    } else {
-      set({ loading: true, error: null, current: null })
-    }
-
-    // Pending local edits are source of truth — never block on network.
-    if (local && isTrainingPendingSync(local)) {
-      return
-    }
+    set({ loading: true, error: null, current: null })
 
     try {
       const remote = await trainingApi.getById(id, {
-        timeoutMs: local ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
+        timeoutMs: READ_TIMEOUT_MS,
       })
-      // Don't clobber newer local writes that arrived while the request was in flight.
       const latestLocal = localData.trainings.get(id)
       if (latestLocal && isTrainingPendingSync(latestLocal)) {
         set({ current: latestLocal, loading: false })
@@ -188,14 +175,6 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       const mirrored = mirrorTrainingLocally(remote, 'synced')
       set({ current: mirrored, loading: false, error: null })
     } catch (error) {
-      if (local) {
-        set({
-          current: localData.trainings.get(id) ?? local,
-          loading: false,
-          error: null,
-        })
-        return
-      }
       set({
         loading: false,
         error: error instanceof Error ? error.message : 'Не удалось загрузить тренировку',
