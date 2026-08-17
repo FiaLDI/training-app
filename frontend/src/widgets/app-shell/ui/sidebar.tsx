@@ -16,7 +16,6 @@ import {
 } from 'lucide-react'
 
 import { useSessionStore } from '@/entities/session/model/store'
-import { SyncSidebarButton } from '@/features/sync-trainings/ui/sync-sidebar-button'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
 
@@ -41,8 +40,6 @@ function isActive(pathname: string, href: string) {
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const mode = useSessionStore((s) => s.mode)
-  const user = useSessionStore((s) => s.user)
   const switchMode = useSessionStore((s) => s.switchMode)
   const moreActive = moreLinks.some((link) => isActive(pathname, link.href))
   const [moreOpen, setMoreOpen] = useState(moreActive)
@@ -137,30 +134,6 @@ export function Sidebar() {
           </div>
         ) : null}
       </nav>
-
-      <div className="mt-auto border-t border-[var(--border)] pt-4">
-        <Link
-          href="/settings"
-          className={cn(
-            'mb-2 block truncate rounded-lg px-2 py-1.5 text-xs transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
-            isActive(pathname, '/settings')
-              ? 'text-[var(--accent)]'
-              : 'text-[var(--muted)]',
-          )}
-        >
-          {mode === 'local' ? 'Локальный режим' : user?.email ?? 'Облако'}
-        </Link>
-        <SyncSidebarButton />
-        <Button
-          type="button"
-          variant="ghost"
-          className="mt-2 w-full justify-start px-2"
-          onClick={onSwitchMode}
-        >
-          <LogOut className="size-4" />
-          Сменить режим
-        </Button>
-      </div>
     </aside>
   )
 }
