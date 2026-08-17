@@ -23,6 +23,8 @@ export type TrainingExercise = {
   isWarmup: boolean
   minReps: number | null
   maxReps: number | null
+  maxWeight: number | null
+  previousMaxWeight: number | null
   restSeconds: number | null
   notes: string | null
   metadata: Record<string, unknown>
@@ -79,6 +81,8 @@ export type CreateTrainingExerciseInput = {
   isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
+  maxWeight?: number | null
+  previousMaxWeight?: number | null
   restSeconds?: number | null
   notes?: string | null
   metadata?: Record<string, unknown>
@@ -102,6 +106,8 @@ export type UpdateTrainingExerciseInput = {
   isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
+  maxWeight?: number | null
+  previousMaxWeight?: number | null
   targetWeight?: number | null
   restSeconds?: number | null
   notes?: string | null

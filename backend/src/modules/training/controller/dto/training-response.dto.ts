@@ -61,6 +61,12 @@ export class TrainingExerciseResponseDto {
   maxReps!: number | null
 
   @ApiPropertyOptional({ nullable: true })
+  maxWeight!: number | null
+
+  @ApiPropertyOptional({ nullable: true })
+  previousMaxWeight!: number | null
+
+  @ApiPropertyOptional({ nullable: true })
   restSeconds!: number | null
 
   @ApiPropertyOptional({ nullable: true })

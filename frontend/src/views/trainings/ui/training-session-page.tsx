@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, Pencil, Play, Timer, Trash2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Pencil, Play, Timer, Trash2 } from 'lucide-react'
 
 import { AddTrainingExerciseForm } from '@/features/add-training-exercise/ui/add-training-exercise-form'
 import { EditSetRow } from '@/features/edit-set/ui/edit-set-row'
@@ -20,6 +20,11 @@ import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
+import {
+  formatKg,
+  lastWorkingSetWeight,
+  workingSetMaxWeight,
+} from '@/entities/training/lib/session-weight'
 import { Button } from '@/shared/ui/button'
 import { ConfirmModal } from '@/shared/ui/confirm-modal'
 import { EmptyState } from '@/shared/ui/empty-state'
@@ -27,6 +32,88 @@ import { PageHeader } from '@/shared/ui/page-header'
 import { DetailSkeleton } from '@/shared/ui/skeleton'
 
 const DEFAULT_REST_SECONDS = 90
+
+function targetWeightFrom(metadata: Record<string, unknown> | undefined) {
+  const value = metadata?.targetWeight
+  return typeof value === 'number' ? value : null
+}
+
+function PreviousMaxHint({
+  previousMaxWeight,
+  currentMaxWeight,
+}: {
+  previousMaxWeight: number | null
+  currentMaxWeight: number | null
+}) {
+  if (previousMaxWeight == null && currentMaxWeight == null) return null
+
+  const delta =
+    previousMaxWeight != null && currentMaxWeight != null
+      ? currentMaxWeight - previousMaxWeight
+      : null
+
+  return (
+    <p className="mt-1 text-xs text-[var(--muted)]">
+      {previousMaxWeight != null ? (
+        <>Прошлый макс: {formatKg(previousMaxWeight)} кг</>
+      ) : (
+        'Нет прошлого веса'
+      )}
+      {currentMaxWeight != null ? (
+        <>
+          {' · '}сейчас {formatKg(currentMaxWeight)} кг
+          {delta != null && delta !== 0 ? (
+            <span className={delta > 0 ? 'text-emerald-300' : 'text-amber-300'}>
+              {' '}
+              ({delta > 0 ? '+' : ''}
+              {formatKg(delta)})
+            </span>
+          ) : null}
+        </>
+      ) : null}
+    </p>
+  )
+}
+
+function ExerciseStepper({
+  index,
+  total,
+  onPrev,
+  onNext,
+}: {
+  index: number
+  total: number
+  onPrev: () => void
+  onNext: () => void
+}) {
+  return (
+    <div className="mb-4 flex items-center justify-between gap-2">
+      <Button
+        type="button"
+        variant="secondary"
+        disabled={index <= 0}
+        onClick={onPrev}
+        className="px-3"
+      >
+        <ChevronLeft className="size-4" />
+        Назад
+      </Button>
+      <p className="text-sm tabular-nums text-[var(--muted)]">
+        {index + 1} / {total}
+      </p>
+      <Button
+        type="button"
+        variant="secondary"
+        disabled={index >= total - 1}
+        onClick={onNext}
+        className="px-3"
+      >
+        Вперёд
+        <ChevronRight className="size-4" />
+      </Button>
+    </div>
+  )
+}
 
 type Props = {
   id: string
@@ -56,6 +143,7 @@ export function TrainingSessionPage({ id }: Props) {
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null)
 
   useEffect(() => {
     void fetchOne(id)
@@ -96,6 +184,20 @@ export function TrainingSessionPage({ id }: Props) {
       }
     }
   }, [timerOpen, secondsLeft])
+
+  useEffect(() => {
+    const items = current?.exercises ?? []
+    const sorted = [...items].sort((a, b) => a.exerciseOrder - b.exerciseOrder)
+    setActiveExerciseId((currentId) => {
+      if (sorted.length === 0) return null
+      if (currentId && sorted.some((item) => item.id === currentId)) return currentId
+      const firstIncomplete = sorted.find((item) => {
+        const done = item.sets.filter((set) => !set.isWarmup && set.completed).length
+        return done < item.targetSets
+      })
+      return firstIncomplete?.id ?? sorted[0].id
+    })
+  }, [current?.exercises])
 
   function startRest(seconds = DEFAULT_REST_SECONDS) {
     const next = Math.max(15, seconds)
@@ -157,6 +259,11 @@ export function TrainingSessionPage({ id }: Props) {
   const sortedExercises = [...current.exercises].sort(
     (a, b) => a.exerciseOrder - b.exerciseOrder,
   )
+  const activeIndex = Math.max(
+    0,
+    sortedExercises.findIndex((item) => item.id === activeExerciseId),
+  )
+  const activeExercise = sortedExercises[activeIndex] ?? null
   const title =
     (current.templateId
       ? templates.find((item) => item.id === current.templateId)?.name
@@ -245,87 +352,105 @@ export function TrainingSessionPage({ id }: Props) {
         <p className="mb-6 whitespace-pre-wrap text-sm text-[var(--muted)]">{current.notes}</p>
       ) : null}
 
-      {sortedExercises.length === 0 ? (
+      {sortedExercises.length === 0 || !activeExercise ? (
         <EmptyState>Добавь упражнения, чтобы записывать подходы.</EmptyState>
       ) : (
-        <div className="space-y-4">
-          {sortedExercises.map((exercise, index) => (
-            <section
-              key={exercise.id}
-              className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5"
-            >
-              {canEditStructure ? (
-                <EditTrainingExerciseRow
-                  trainingId={id}
-                  item={exercise}
-                  exerciseName={exerciseName(exercise.exerciseId)}
-                  displayIndex={index + 1}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < sortedExercises.length - 1}
-                  neighborAboveId={sortedExercises[index - 1]?.id}
-                  neighborAboveOrder={sortedExercises[index - 1]?.exerciseOrder}
-                  neighborBelowId={sortedExercises[index + 1]?.id}
-                  neighborBelowOrder={sortedExercises[index + 1]?.exerciseOrder}
-                />
-              ) : (
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h3 className="font-[family-name:var(--font-display)] text-lg">
-                      {exerciseName(exercise.exerciseId)}
-                    </h3>
-                    <p className="text-xs text-[var(--muted)]">
-                      Цель: {exercise.targetSets} подходов
-                      {exercise.minReps != null || exercise.maxReps != null
-                        ? ` · ${exercise.minReps ?? '?'}–${exercise.maxReps ?? '?'} повт.`
-                        : ''}
-                      {typeof exercise.metadata?.targetWeight === 'number'
-                        ? ` · ${exercise.metadata.targetWeight} кг`
-                        : ''}
-                      {exercise.restSeconds != null ? ` · отдых ${exercise.restSeconds}с` : ''}
-                    </p>
-                  </div>
-                  {canRemoveExercise ? (
-                    <RemoveTrainingExerciseButton
-                      trainingId={id}
-                      exerciseRowId={exercise.id}
-                      exerciseName={exerciseName(exercise.exerciseId)}
-                    />
-                  ) : null}
+        <div>
+          <ExerciseStepper
+            index={activeIndex}
+            total={sortedExercises.length}
+            onPrev={() => {
+              const prev = sortedExercises[activeIndex - 1]
+              if (prev) setActiveExerciseId(prev.id)
+            }}
+            onNext={() => {
+              const next = sortedExercises[activeIndex + 1]
+              if (next) setActiveExerciseId(next.id)
+            }}
+          />
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            {canEditStructure ? (
+              <EditTrainingExerciseRow
+                trainingId={id}
+                item={activeExercise}
+                exerciseName={exerciseName(activeExercise.exerciseId)}
+                displayIndex={activeIndex + 1}
+                canMoveUp={activeIndex > 0}
+                canMoveDown={activeIndex < sortedExercises.length - 1}
+                neighborAboveId={sortedExercises[activeIndex - 1]?.id}
+                neighborAboveOrder={sortedExercises[activeIndex - 1]?.exerciseOrder}
+                neighborBelowId={sortedExercises[activeIndex + 1]?.id}
+                neighborBelowOrder={sortedExercises[activeIndex + 1]?.exerciseOrder}
+              />
+            ) : (
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-[family-name:var(--font-display)] text-lg">
+                    {exerciseName(activeExercise.exerciseId)}
+                  </h3>
+                  <p className="text-xs text-[var(--muted)]">
+                    Цель: {activeExercise.targetSets} подходов
+                    {activeExercise.minReps != null || activeExercise.maxReps != null
+                      ? ` · ${activeExercise.minReps ?? '?'}–${activeExercise.maxReps ?? '?'} повт.`
+                      : ''}
+                    {targetWeightFrom(activeExercise.metadata) != null
+                      ? ` · ${targetWeightFrom(activeExercise.metadata)} кг`
+                      : ''}
+                    {activeExercise.restSeconds != null
+                      ? ` · отдых ${activeExercise.restSeconds}с`
+                      : ''}
+                  </p>
                 </div>
-              )}
+                {canRemoveExercise ? (
+                  <RemoveTrainingExerciseButton
+                    trainingId={id}
+                    exerciseRowId={activeExercise.id}
+                    exerciseName={exerciseName(activeExercise.exerciseId)}
+                  />
+                ) : null}
+              </div>
+            )}
 
-              {exercise.sets.length > 0 ? (
-                <ul className="mt-4 space-y-2">
-                  {exercise.sets.map((set) => (
-                    <EditSetRow
-                      key={set.id}
-                      trainingId={id}
-                      set={set}
-                      canEdit={canEditSets}
-                    />
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-3 text-sm text-[var(--muted)]">Пока нет подходов.</p>
+            <PreviousMaxHint
+              previousMaxWeight={activeExercise.previousMaxWeight}
+              currentMaxWeight={workingSetMaxWeight(
+                activeExercise.sets,
+                activeExercise.isWarmup,
               )}
+            />
 
-              {canEditStructure ? (
-                <LogSetForm
-                  trainingId={id}
-                  exerciseId={exercise.id}
-                  nextSetNumber={exercise.sets.length + 1}
-                  defaultWeight={
-                    typeof exercise.metadata?.targetWeight === 'number'
-                      ? exercise.metadata.targetWeight
-                      : null
-                  }
-                  onLogged={() =>
-                    startRest(exercise.restSeconds ?? DEFAULT_REST_SECONDS)
-                  }
-                />
-              ) : null}
-            </section>
-          ))}
+            {activeExercise.sets.length > 0 ? (
+              <ul className="mt-4 space-y-2">
+                {activeExercise.sets.map((set) => (
+                  <EditSetRow
+                    key={set.id}
+                    trainingId={id}
+                    set={set}
+                    canEdit={canEditSets}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-[var(--muted)]">Пока нет подходов.</p>
+            )}
+
+            {canEditStructure ? (
+              <LogSetForm
+                key={activeExercise.id}
+                trainingId={id}
+                exerciseId={activeExercise.id}
+                nextSetNumber={activeExercise.sets.length + 1}
+                defaultWeight={
+                  lastWorkingSetWeight(activeExercise.sets) ??
+                  activeExercise.previousMaxWeight ??
+                  targetWeightFrom(activeExercise.metadata)
+                }
+                onLogged={() =>
+                  startRest(activeExercise.restSeconds ?? DEFAULT_REST_SECONDS)
+                }
+              />
+            ) : null}
+          </section>
         </div>
       )}
 

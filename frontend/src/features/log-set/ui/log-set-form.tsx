@@ -43,7 +43,7 @@ export function LogSetForm({
         completed: true,
         isWarmup,
       })
-      setWeight(defaultWeight == null ? '' : String(defaultWeight))
+      setWeight(weight)
       setReps('')
       setIsWarmup(false)
       onLogged?.()

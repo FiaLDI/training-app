@@ -50,6 +50,10 @@ import type {
   ExerciseProgressPoint,
   VolumeStatPoint,
 } from '@/entities/stats/model/types'
+import {
+  trainingOccurredAt,
+  workingSetMaxWeight,
+} from '@/entities/training/lib/session-weight'
 
 const exercisesDb = createLocalCollection<Exercise>('ironlog:local:exercises')
 const sourcesDb = createLocalCollection<ExerciseSource>('ironlog:local:sources')
@@ -69,6 +73,53 @@ const feedbacksDb = createLocalCollection<LocalFeedback>('ironlog:local:feedback
 
 function nowIso() {
   return new Date().toISOString()
+}
+
+function findPreviousMaxWeight(exerciseId: string, excludeTrainingId: string): number | null {
+  const current = trainingsDb.get(excludeTrainingId)
+  const currentWhen = current ? trainingOccurredAt(current) : nowIso()
+  const previousTrainings = trainingsDb
+    .list()
+    .filter((training) => training.id !== excludeTrainingId && training.status === 'finished')
+    .filter((training) => trainingOccurredAt(training) < currentWhen)
+    .sort((a, b) => trainingOccurredAt(b).localeCompare(trainingOccurredAt(a)))
+
+  for (const training of previousTrainings) {
+    const row = trainingExercisesDb
+      .list()
+      .find((item) => item.trainingId === training.id && item.exerciseId === exerciseId)
+    if (!row) continue
+    if (row.maxWeight != null) return row.maxWeight
+    const sets = trainingSetsDb.list().filter((set) => set.trainingExerciseId === row.id)
+    const max = workingSetMaxWeight(sets, row.isWarmup)
+    if (max != null) return max
+  }
+  return null
+}
+
+function snapshotSessionMaxWeights(trainingId: string) {
+  const exercises = trainingExercisesDb.list().filter((item) => item.trainingId === trainingId)
+  for (const exercise of exercises) {
+    const sets = trainingSetsDb.list().filter((set) => set.trainingExerciseId === exercise.id)
+    trainingExercisesDb.upsert({
+      ...exercise,
+      maxWeight: workingSetMaxWeight(sets, exercise.isWarmup),
+      previousMaxWeight: exercise.previousMaxWeight ?? null,
+    })
+  }
+}
+
+function refreshPreviousMaxWeights(trainingId: string) {
+  const exercises = trainingExercisesDb.list().filter((item) => item.trainingId === trainingId)
+  for (const exercise of exercises) {
+    const previousMaxWeight = findPreviousMaxWeight(exercise.exerciseId, trainingId)
+    if (previousMaxWeight == null) continue
+    trainingExercisesDb.upsert({
+      ...exercise,
+      maxWeight: exercise.maxWeight ?? null,
+      previousMaxWeight,
+    })
+  }
 }
 
 export const localData = {
@@ -514,18 +565,32 @@ export const localData = {
         .list()
         .filter((item) => item.trainingId === id)
         .sort((a, b) => a.exerciseOrder - b.exerciseOrder)
-        .map((exercise) => ({
-          ...exercise,
-          isWarmup: exercise.isWarmup ?? false,
-          sets: trainingSetsDb
+        .map((exercise) => {
+          const sets = trainingSetsDb
             .list()
             .filter((set) => set.trainingExerciseId === exercise.id)
             .sort((a, b) => a.setNumber - b.setNumber)
             .map((set) => ({
               ...set,
               isWarmup: set.isWarmup ?? (exercise.isWarmup ? true : false),
-            })),
-        }))
+            }))
+
+          return {
+            ...exercise,
+            isWarmup: exercise.isWarmup ?? false,
+            maxWeight:
+              exercise.maxWeight !== undefined
+                ? exercise.maxWeight
+                : training.status === 'finished'
+                  ? workingSetMaxWeight(sets, exercise.isWarmup ?? false)
+                  : null,
+            previousMaxWeight:
+              exercise.previousMaxWeight !== undefined
+                ? exercise.previousMaxWeight
+                : findPreviousMaxWeight(exercise.exerciseId, id),
+            sets,
+          }
+        })
       return { ...training, exercises }
     },
     create(input: CreateTrainingInput): Training {
@@ -583,7 +648,7 @@ export const localData = {
         input.metadata === undefined
           ? current.metadata
           : { ...current.metadata, ...input.metadata }
-      return trainingsDb.upsert({
+      const updated = trainingsDb.upsert({
         ...current,
         ...input,
         status: nextStatus,
@@ -593,10 +658,18 @@ export const localData = {
         finishedAt: input.finishedAt === undefined ? current.finishedAt : input.finishedAt,
         metadata,
       })
+      if (nextStatus === 'in_progress' && current.status !== 'in_progress') {
+        refreshPreviousMaxWeights(id)
+      }
+      if (nextStatus === 'finished' && current.status !== 'finished') {
+        snapshotSessionMaxWeights(id)
+      }
+      return updated
     },
     finish(id: string): Training | null {
       const current = trainingsDb.get(id)
       if (!current) return null
+      snapshotSessionMaxWeights(id)
       return trainingsDb.upsert({
         ...current,
         status: 'finished',
@@ -631,6 +704,9 @@ export const localData = {
         isWarmup: input.isWarmup ?? false,
         minReps: input.minReps ?? null,
         maxReps: input.maxReps ?? null,
+        maxWeight: input.maxWeight ?? null,
+        previousMaxWeight:
+          input.previousMaxWeight ?? findPreviousMaxWeight(input.exerciseId, trainingId),
         restSeconds: input.restSeconds ?? null,
         notes: input.notes ?? null,
         metadata: input.metadata ?? {},
@@ -663,6 +739,11 @@ export const localData = {
         isWarmup: input.isWarmup === undefined ? current.isWarmup : input.isWarmup,
         minReps: input.minReps === undefined ? current.minReps : input.minReps,
         maxReps: input.maxReps === undefined ? current.maxReps : input.maxReps,
+        maxWeight: input.maxWeight === undefined ? (current.maxWeight ?? null) : input.maxWeight,
+        previousMaxWeight:
+          input.previousMaxWeight === undefined
+            ? (current.previousMaxWeight ?? null)
+            : input.previousMaxWeight,
         restSeconds: input.restSeconds === undefined ? current.restSeconds : input.restSeconds,
         notes: input.notes === undefined ? current.notes : input.notes,
         metadata,

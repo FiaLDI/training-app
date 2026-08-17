@@ -38,6 +38,8 @@ export function trainingContentHash(training: TrainingWithDetails): string {
         isWarmup: exercise.isWarmup,
         minReps: exercise.minReps,
         maxReps: exercise.maxReps,
+        maxWeight: exercise.maxWeight ?? null,
+        previousMaxWeight: exercise.previousMaxWeight ?? null,
         restSeconds: exercise.restSeconds,
         notes: exercise.notes,
         sets: [...exercise.sets]
@@ -160,6 +162,8 @@ export function mirrorTrainingLocally(
       isWarmup: exercise.isWarmup,
       minReps: exercise.minReps,
       maxReps: exercise.maxReps,
+      maxWeight: exercise.maxWeight ?? null,
+      previousMaxWeight: exercise.previousMaxWeight ?? null,
       restSeconds: exercise.restSeconds,
       notes: exercise.notes,
       metadata: exercise.metadata ?? {},

@@ -62,6 +62,8 @@ export interface CreateTrainingExerciseRepositoryInput {
   isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
+  maxWeight?: number | null
+  previousMaxWeight?: number | null
   restSeconds?: number | null
   notes?: string | null
   metadata?: Record<string, unknown>
@@ -75,6 +77,8 @@ export interface UpdateTrainingExerciseRepositoryInput {
   isWarmup?: boolean
   minReps?: number | null
   maxReps?: number | null
+  maxWeight?: number | null
+  previousMaxWeight?: number | null
   restSeconds?: number | null
   notes?: string | null
   metadata?: Record<string, unknown>
@@ -136,6 +140,8 @@ export interface TrainingRepositoryPort {
   createExercise(input: CreateTrainingExerciseRepositoryInput): Promise<TrainingExercise | null>
   updateExercise(input: UpdateTrainingExerciseRepositoryInput): Promise<TrainingExercise | null>
   deleteExercise(id: string, userId: string): Promise<boolean>
+  fillMissingPreviousMaxWeights(trainingId: string, userId: string): Promise<void>
+  snapshotSessionMaxWeights(trainingId: string, userId: string): Promise<void>
 
   createSet(input: CreateTrainingSetRepositoryInput): Promise<TrainingSet | null>
   updateSet(input: UpdateTrainingSetRepositoryInput): Promise<TrainingSet | null>

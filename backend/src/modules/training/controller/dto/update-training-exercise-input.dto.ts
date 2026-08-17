@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger'
-import { IsBoolean, IsInt, IsObject, IsOptional, IsString, IsUUID, Min } from 'class-validator'
+import { IsBoolean, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUID, Min } from 'class-validator'
 
 export class UpdateTrainingExerciseInputDto {
   /** Ignored — older clients may still send it; catalog link is not changed via PATCH. */
@@ -36,6 +36,18 @@ export class UpdateTrainingExerciseInputDto {
   @IsInt()
   @Min(0)
   maxReps?: number | null
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  maxWeight?: number | null
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  previousMaxWeight?: number | null
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()

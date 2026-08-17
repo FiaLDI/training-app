@@ -26,6 +26,12 @@ export class TrainingExerciseEntity {
   @Column({ name: 'max_reps', type: 'integer', nullable: true })
   maxReps!: number | null
 
+  @Column({ name: 'max_weight', type: 'numeric', precision: 8, scale: 2, nullable: true })
+  maxWeight!: string | null
+
+  @Column({ name: 'previous_max_weight', type: 'numeric', precision: 8, scale: 2, nullable: true })
+  previousMaxWeight!: string | null
+
   @Column({ name: 'rest_seconds', type: 'integer', nullable: true })
   restSeconds!: number | null
 

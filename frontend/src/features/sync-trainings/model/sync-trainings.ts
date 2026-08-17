@@ -82,6 +82,8 @@ async function upsertExercise(
     isWarmup: exercise.isWarmup ?? false,
     minReps: exercise.minReps ?? null,
     maxReps: exercise.maxReps ?? null,
+    maxWeight: exercise.maxWeight ?? null,
+    previousMaxWeight: exercise.previousMaxWeight ?? null,
     restSeconds: exercise.restSeconds ?? null,
     notes: exercise.notes ?? null,
     metadata: exercise.metadata ?? {},

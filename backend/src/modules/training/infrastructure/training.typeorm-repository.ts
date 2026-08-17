@@ -66,6 +66,8 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       isWarmup: entity.isWarmup ?? false,
       minReps: entity.minReps,
       maxReps: entity.maxReps,
+      maxWeight: entity.maxWeight == null ? null : Number(entity.maxWeight),
+      previousMaxWeight: entity.previousMaxWeight == null ? null : Number(entity.previousMaxWeight),
       restSeconds: entity.restSeconds,
       notes: entity.notes,
       metadata: entity.metadata ?? {},
@@ -283,6 +285,11 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
 
     if (!(await this.ownsTraining(input.trainingId, input.userId))) return null
 
+    const previousMaxWeight =
+      input.previousMaxWeight !== undefined && input.previousMaxWeight !== null
+        ? input.previousMaxWeight
+        : await this.findPreviousMaxWeight(input.userId, input.exerciseId, input.trainingId)
+
     const entity = this.trainingExercises.create({
       ...(input.id ? { id: input.id } : {}),
       trainingId: input.trainingId,
@@ -292,6 +299,8 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       isWarmup: input.isWarmup ?? false,
       minReps: input.minReps ?? null,
       maxReps: input.maxReps ?? null,
+      maxWeight: input.maxWeight == null ? null : String(input.maxWeight),
+      previousMaxWeight: previousMaxWeight == null ? null : String(previousMaxWeight),
       restSeconds: input.restSeconds ?? null,
       notes: input.notes ?? null,
       metadata: input.metadata ?? {},
@@ -310,6 +319,13 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     if (input.isWarmup !== undefined) entity.isWarmup = input.isWarmup
     if (input.minReps !== undefined) entity.minReps = input.minReps
     if (input.maxReps !== undefined) entity.maxReps = input.maxReps
+    if (input.maxWeight !== undefined) {
+      entity.maxWeight = input.maxWeight == null ? null : String(input.maxWeight)
+    }
+    if (input.previousMaxWeight !== undefined) {
+      entity.previousMaxWeight =
+        input.previousMaxWeight == null ? null : String(input.previousMaxWeight)
+    }
     if (input.restSeconds !== undefined) entity.restSeconds = input.restSeconds
     if (input.notes !== undefined) entity.notes = input.notes
     if (input.metadata !== undefined) entity.metadata = input.metadata
@@ -322,6 +338,73 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     if (!entity) return false
     const result = await this.trainingExercises.delete(id)
     return (result.affected ?? 0) > 0
+  }
+
+  async fillMissingPreviousMaxWeights(trainingId: string, userId: string): Promise<void> {
+    if (!(await this.ownsTraining(trainingId, userId))) return
+
+    const exercises = await this.trainingExercises.find({ where: { trainingId } })
+    for (const exercise of exercises) {
+      const previous = await this.findPreviousMaxWeight(userId, exercise.exerciseId, trainingId)
+      if (previous == null) continue
+      exercise.previousMaxWeight = String(previous)
+      await this.trainingExercises.save(exercise)
+    }
+  }
+
+  async snapshotSessionMaxWeights(trainingId: string, userId: string): Promise<void> {
+    if (!(await this.ownsTraining(trainingId, userId))) return
+
+    await this.trainings.manager.query(
+      `
+      UPDATE training_exercises AS te
+      SET max_weight = sub.max_weight
+      FROM (
+        SELECT
+          te2.id AS exercise_id,
+          MAX(ts.weight)::numeric(8,2) AS max_weight
+        FROM training_exercises te2
+        LEFT JOIN training_sets ts
+          ON ts.training_exercise_id = te2.id
+          AND COALESCE(ts.is_warmup, false) = false
+          AND ts.completed = true
+          AND ts.weight IS NOT NULL
+        WHERE te2.training_id = $1
+          AND COALESCE(te2.is_warmup, false) = false
+        GROUP BY te2.id
+      ) AS sub
+      WHERE te.id = sub.exercise_id
+      `,
+      [trainingId],
+    )
+  }
+
+  private async findPreviousMaxWeight(
+    userId: string,
+    exerciseId: string,
+    excludeTrainingId: string,
+  ): Promise<number | null> {
+    const rows = await this.trainings.manager.query(
+      `
+      SELECT prev_te.max_weight
+      FROM training_exercises AS prev_te
+      INNER JOIN trainings AS prev_t ON prev_t.id = prev_te.training_id
+      INNER JOIN trainings AS current_t ON current_t.id = $3
+      WHERE prev_t.user_id = $1
+        AND prev_te.exercise_id = $2
+        AND prev_t.id <> $3
+        AND prev_t.status = 'finished'
+        AND prev_te.max_weight IS NOT NULL
+        AND COALESCE(prev_t.finished_at, prev_t.started_at, prev_t.scheduled_at, prev_t.created_at)
+          < COALESCE(current_t.finished_at, current_t.started_at, current_t.scheduled_at, current_t.created_at)
+      ORDER BY COALESCE(prev_t.finished_at, prev_t.started_at, prev_t.scheduled_at, prev_t.created_at) DESC
+      LIMIT 1
+      `,
+      [userId, exerciseId, excludeTrainingId],
+    )
+
+    const value = rows[0]?.max_weight
+    return value == null ? null : Number(value)
   }
 
   async createSet(input: CreateTrainingSetRepositoryInput): Promise<TrainingSet | null> {
