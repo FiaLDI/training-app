@@ -9,6 +9,8 @@
   --border: #2a3833;
   --accent: #a3e635;
   --accent-fg: #0b1110;
+  --font-body: 'Inter', sans-serif;
+  --font-display: 'Manrope', sans-serif;
 }
 
 @theme inline {
@@ -23,6 +25,15 @@ body {
   color: var(--foreground);
   font-family: var(--font-body), system-ui, sans-serif;
   min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display), system-ui, sans-serif;
 }
 
 * {

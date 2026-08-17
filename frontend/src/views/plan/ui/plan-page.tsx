@@ -2,18 +2,40 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
 
 import { useProgramStore } from '@/entities/program/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
-import { useTrainingStore } from '@/entities/training/model/store'
+import type { WorkoutTemplate } from '@/entities/template/model/types'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
+import { useTrainingStore } from '@/entities/training/model/store'
+import type { TrainingStatus } from '@/entities/training/model/types'
+import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { cn } from '@/shared/lib/cn'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Modal } from '@/shared/ui/modal'
 import { PageHeader } from '@/shared/ui/page-header'
-import { Select } from '@/shared/ui/select'
-import { ListSkeleton } from '@/shared/ui/skeleton'
+import { Skeleton } from '@/shared/ui/skeleton'
 
 const DAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+const DAY_FULL = [
+  'Понедельник',
+  'Вторник',
+  'Среда',
+  'Четверг',
+  'Пятница',
+  'Суббота',
+  'Воскресенье',
+]
+
+const DOT_CLASS: Record<TrainingStatus | 'rest', string> = {
+  planned: 'bg-sky-400',
+  in_progress: 'bg-[var(--accent)]',
+  finished: 'bg-emerald-400',
+  cancelled: 'bg-transparent',
+  rest: 'bg-transparent',
+}
 
 function startOfWeekMonday(date: Date): Date {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -33,11 +55,9 @@ function sameDay(a: Date, b: Date) {
   return toDateKey(a) === toDateKey(b)
 }
 
-function formatShortDate(date: Date) {
-  return date.toLocaleDateString('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-  })
+function weekdayIndexMonday(date: Date) {
+  const day = date.getDay()
+  return day === 0 ? 6 : day - 1
 }
 
 function formatWeekRange(weekStart: Date) {
@@ -83,9 +103,211 @@ function scheduledAtNoonUtc(date: Date) {
   return `${toDateKey(date)}T12:00:00.000Z`
 }
 
+function formatDayHeading(date: Date) {
+  return date.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+  })
+}
+
+function templateLabel(templates: WorkoutTemplate[], templateId: string | null) {
+  if (!templateId) return 'Тренировка'
+  return templates.find((template) => template.id === templateId)?.name ?? 'Тренировка'
+}
+
+type DayDotStatus = TrainingStatus | 'rest'
+
+function TemplatePickerModal({
+  open,
+  title,
+  templates,
+  selectedId,
+  allowRest,
+  busy,
+  onClose,
+  onSelect,
+}: {
+  open: boolean
+  title: string
+  templates: WorkoutTemplate[]
+  selectedId: string
+  allowRest: boolean
+  busy: boolean
+  onClose: () => void
+  onSelect: (templateId: string) => void
+}) {
+  const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    if (open) setQuery('')
+  }, [open])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('ru-RU')
+    if (!q) return templates
+    return templates.filter((template) => {
+      const haystack = [template.name, template.description].filter(Boolean).join(' ').toLocaleLowerCase('ru-RU')
+      return q.split(/\s+/).every((token) => haystack.includes(token))
+    })
+  }, [query, templates])
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      closeDisabled={busy}
+      title={title}
+      description="Выбери план тренировки на этот день."
+    >
+      {templates.length > 5 ? (
+        <div className="relative mb-3">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--muted)]" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Найти план…"
+            className="pl-10"
+            autoComplete="off"
+          />
+        </div>
+      ) : null}
+
+      <ul className="max-h-72 space-y-1 overflow-y-auto">
+        {allowRest ? (
+          <li>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onSelect('')}
+              className={cn(
+                'flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm transition',
+                selectedId === ''
+                  ? 'bg-[var(--accent)]/15 text-[var(--foreground)]'
+                  : 'text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
+              )}
+            >
+              <span>Отдых</span>
+              {selectedId === '' ? <span className="text-xs text-[var(--accent)]">Сейчас</span> : null}
+            </button>
+          </li>
+        ) : null}
+
+        {filtered.length === 0 ? (
+          <li className="px-3 py-6 text-center text-sm text-[var(--muted)]">Ничего не найдено</li>
+        ) : (
+          filtered.map((template) => {
+            const active = template.id === selectedId
+            return (
+              <li key={template.id}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onSelect(template.id)}
+                  className={cn(
+                    'flex w-full flex-col items-start rounded-xl px-3 py-3 text-left transition',
+                    active
+                      ? 'bg-[var(--accent)]/15'
+                      : 'hover:bg-[var(--surface-2)]',
+                  )}
+                >
+                  <span className="text-sm font-medium text-[var(--foreground)]">{template.name}</span>
+                  {template.description ? (
+                    <span className="mt-0.5 line-clamp-2 text-xs text-[var(--muted)]">
+                      {template.description}
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            )
+          })
+        )}
+      </ul>
+    </Modal>
+  )
+}
+
+function DayTrainingCard({
+  title,
+  status,
+  href,
+  subtitle,
+  busy,
+  onChangePlan,
+  onMakeRest,
+}: {
+  title: string
+  status: TrainingStatus
+  href?: string
+  subtitle?: string
+  busy?: boolean
+  onChangePlan?: () => void
+  onMakeRest?: () => void
+}) {
+  const body = (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-3 rounded-2xl border px-4 py-4 transition',
+        status === 'in_progress'
+          ? 'border-[var(--accent)]/40 bg-[var(--accent)]/10'
+          : 'border-[var(--border)] bg-[var(--surface-2)]/40',
+        href && 'hover:border-[var(--accent)]/30',
+      )}
+    >
+      <div className="min-w-0">
+        <p className="font-[family-name:var(--font-display)] text-lg text-[var(--foreground)]">
+          {title}
+        </p>
+        {subtitle ? <p className="mt-0.5 text-xs text-[var(--muted)]">{subtitle}</p> : null}
+        <div className="mt-2">
+          <TrainingStatusBadge status={status} />
+        </div>
+      </div>
+      {href ? <ArrowRight className="size-4 shrink-0 text-[var(--muted)]" /> : null}
+    </div>
+  )
+
+  return (
+    <div className="space-y-2">
+      {href ? (
+        <Link href={href} className="block">
+          {body}
+        </Link>
+      ) : (
+        body
+      )}
+      {onChangePlan || onMakeRest ? (
+        <div className="flex flex-wrap gap-2 px-1">
+          {onChangePlan ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onChangePlan}
+              className="text-xs text-[var(--muted)] transition hover:text-[var(--foreground)] disabled:opacity-50"
+            >
+              Изменить
+            </button>
+          ) : null}
+          {onMakeRest ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onMakeRest}
+              className="text-xs text-[var(--muted)] transition hover:text-[var(--foreground)] disabled:opacity-50"
+            >
+              Сделать отдыхом
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function PlanPage() {
   const todayWeek = useMemo(() => startOfWeekMonday(new Date()), [])
   const [weekStart, setWeekStart] = useState(() => todayWeek)
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => weekdayIndexMonday(new Date()))
+  const [pickerOpen, setPickerOpen] = useState(false)
   const trainings = useTrainingStore((s) => s.items)
   const loading = useTrainingStore((s) => s.loading)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
@@ -168,6 +390,7 @@ export function PlanPage() {
     () =>
       DAY_SHORT.map((label, index) => ({
         label,
+        fullLabel: DAY_FULL[index],
         date: addDays(weekStart, index),
         dayOfWeek: index + 1,
       })),
@@ -178,7 +401,10 @@ export function PlanPage() {
     appliedKey.current = null
     setDayOverrides({})
     setDayErrors({})
-    setWeekStart(startOfWeekMonday(next))
+    setPickerOpen(false)
+    const start = startOfWeekMonday(next)
+    setWeekStart(start)
+    setSelectedDayIndex(sameDay(start, todayWeek) ? weekdayIndexMonday(new Date()) : 0)
   }
 
   function trainingsForDay(date: Date) {
@@ -188,16 +414,6 @@ export function PlanPage() {
       const when = t.scheduledAt ?? t.startedAt ?? t.createdAt
       return toDateKey(new Date(when)) === key
     })
-  }
-
-  function primaryTraining(date: Date) {
-    const dayTrainings = trainingsForDay(date)
-    return (
-      dayTrainings.find((t) => t.status === 'in_progress') ??
-      dayTrainings.find((t) => t.status === 'planned') ??
-      dayTrainings.find((t) => t.status === 'finished') ??
-      null
-    )
   }
 
   /** Plan for this calendar day (week-specific), not the recurring program. */
@@ -373,47 +589,137 @@ export function PlanPage() {
     }
   }
 
+  function dayDotStatus(date: Date): DayDotStatus {
+    const key = toDateKey(date)
+    const items = trainingsForDay(date)
+    if (items.some((t) => t.status === 'in_progress')) return 'in_progress'
+    if (Object.prototype.hasOwnProperty.call(dayOverrides, key)) {
+      if (dayOverrides[key]) return 'planned'
+      if (items.some((t) => t.status === 'finished')) return 'finished'
+      return 'rest'
+    }
+    if (items.some((t) => t.status === 'planned')) return 'planned'
+    if (items.some((t) => t.status === 'finished')) return 'finished'
+    return 'rest'
+  }
+
   const scheduleReady = Boolean(currentProgram && currentProgram.id === programId)
+  const selected = days[selectedDayIndex] ?? days[0]
+  const selectedKey = toDateKey(selected.date)
+  const selectedTrainings = trainingsForDay(selected.date)
+  const selectedPlan = weekDayTemplateId(selected.date)
+  const programPlan = programDayTemplateId(selected.dayOfWeek)
+  const overrideRest =
+    Object.prototype.hasOwnProperty.call(dayOverrides, selectedKey) && dayOverrides[selectedKey] === ''
+  const inProgressItems = selectedTrainings.filter((t) => t.status === 'in_progress')
+  const plannedItems = overrideRest
+    ? []
+    : selectedTrainings.filter((t) => t.status === 'planned')
+  const finishedItems = selectedTrainings.filter((t) => t.status === 'finished')
+  const hasInProgress = inProgressItems.length > 0
+  const hasPlanned = plannedItems.length > 0
+  const showOptimisticPlanned =
+    Boolean(selectedPlan) &&
+    !hasInProgress &&
+    !overrideRest &&
+    !plannedItems.some((t) => t.templateId === selectedPlan)
+  const hasEditable = hasInProgress || hasPlanned || showOptimisticPlanned
+  const isRestDay = !hasEditable && finishedItems.length === 0
+  const differsFromProgram = (hasEditable || isRestDay) && selectedPlan !== programPlan
+  const dayError = dayErrors[selectedKey]
+  const dayBusy = savingDay === selected.dayOfWeek
+  const canAssign = scheduleReady && !hasInProgress && templates.length > 0
+
+  function pickTemplate(templateId: string) {
+    setPickerOpen(false)
+    void onDayPlanChange(selected.dayOfWeek, selected.date, templateId)
+  }
 
   return (
     <div>
-      <PageHeader title={weekTitle(weekStart)} description={formatWeekRange(weekStart)} />
+      <PageHeader
+        title={weekTitle(weekStart)}
+        description={formatWeekRange(weekStart)}
+        action={
+          <Link href="/plans" className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]">
+            Планы
+          </Link>
+        }
+      />
 
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex items-center gap-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1">
-          <button
-            type="button"
-            onClick={() => goToWeek(addDays(weekStart, -7))}
-            className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
-          >
-            <ChevronLeft className="size-4" />
-            <span className="hidden sm:inline">Предыдущая</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => goToWeek(todayWeek)}
-            className={cn(
-              'rounded-xl px-3 py-2 text-sm transition',
-              isCurrentWeek
-                ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                : 'text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
-            )}
-          >
-            Текущая
-          </button>
-          <button
-            type="button"
-            onClick={() => goToWeek(addDays(weekStart, 7))}
-            className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
-          >
-            <span className="hidden sm:inline">Следующая</span>
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
+      <div className="mb-4 inline-flex items-center gap-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1">
+        <button
+          type="button"
+          onClick={() => goToWeek(addDays(weekStart, -7))}
+          className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+        >
+          <ChevronLeft className="size-4" />
+          <span className="hidden sm:inline">Предыдущая</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => goToWeek(todayWeek)}
+          className={cn(
+            'rounded-xl px-3 py-2 text-sm transition',
+            isCurrentWeek
+              ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+              : 'text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
+          )}
+        >
+          Текущая
+        </button>
+        <button
+          type="button"
+          onClick={() => goToWeek(addDays(weekStart, 7))}
+          className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+        >
+          <span className="hidden sm:inline">Следующая</span>
+          <ChevronRight className="size-4" />
+        </button>
+      </div>
 
-        <Link href="/plans" className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]">
-          Планы
-        </Link>
+      <div
+        role="tablist"
+        aria-label="Дни недели"
+        className="mb-5 grid grid-cols-7 gap-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1"
+      >
+        {days.map((day, index) => {
+          const isToday = sameDay(day.date, new Date())
+          const selectedDay = index === selectedDayIndex
+          const status = dayDotStatus(day.date)
+          return (
+            <button
+              key={toDateKey(day.date)}
+              type="button"
+              role="tab"
+              aria-selected={selectedDay}
+              aria-label={`${day.fullLabel}, ${day.date.getDate()}`}
+              onClick={() => {
+                setSelectedDayIndex(index)
+                setPickerOpen(false)
+              }}
+              className={cn(
+                'flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-0.5 py-2 text-center transition sm:px-1',
+                selectedDay
+                  ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                  : isToday
+                    ? 'text-[var(--accent)] hover:bg-[var(--surface-2)]'
+                    : 'text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
+              )}
+            >
+              <span className="text-[10px] font-medium tracking-wide sm:text-xs">{day.label}</span>
+              <span
+                className={cn(
+                  'font-[family-name:var(--font-display)] text-base leading-none sm:text-lg',
+                  !selectedDay && !isToday && 'text-[var(--foreground)]',
+                )}
+              >
+                {day.date.getDate()}
+              </span>
+              <span className={cn('mt-0.5 size-1.5 rounded-full', DOT_CLASS[status])} />
+            </button>
+          )
+        })}
       </div>
 
       {templates.length === 0 ? (
@@ -426,82 +732,145 @@ export function PlanPage() {
         </p>
       ) : null}
 
-      {loading && trainings.length === 0 ? <ListSkeleton count={3} /> : null}
+      <section
+        role="tabpanel"
+        className={cn(
+          'rounded-2xl border px-4 py-5 sm:px-5',
+          sameDay(selected.date, new Date())
+            ? 'border-[var(--accent)]/45 bg-[var(--accent)]/5'
+            : 'border-[var(--border)] bg-[var(--surface)]',
+        )}
+      >
+        <header className="mb-5">
+          <p
+            className={cn(
+              'font-[family-name:var(--font-display)] text-xl text-[var(--foreground)]',
+              sameDay(selected.date, new Date()) && 'text-[var(--accent)]',
+            )}
+          >
+            {selected.fullLabel}
+            {sameDay(selected.date, new Date()) ? ' · сегодня' : ''}
+          </p>
+          <p className="mt-1 text-sm capitalize text-[var(--muted)]">{formatDayHeading(selected.date)}</p>
+        </header>
 
-      <ul className="space-y-2">
-        {days.map(({ label, date, dayOfWeek }) => {
-          const key = toDateKey(date)
-          const dayTrainings = trainingsForDay(date)
-          const isToday = sameDay(date, new Date())
-          const selectedPlan = weekDayTemplateId(date)
-          const programPlan = programDayTemplateId(dayOfWeek)
-          const primary = primaryTraining(date)
-          const overrideRest =
-            Object.prototype.hasOwnProperty.call(dayOverrides, key) && dayOverrides[key] === ''
-          const visiblePrimary =
-            primary && !(overrideRest && primary.status === 'planned') ? primary : null
-          const hasEditable = dayTrainings.some(
-            (t) => t.status === 'planned' || t.status === 'in_progress',
-          )
-          const differsFromProgram =
-            (hasEditable || !visiblePrimary) && selectedPlan !== programPlan
-          const hasInProgress = dayTrainings.some((t) => t.status === 'in_progress')
-          const dayError = dayErrors[key]
+        {loading && trainings.length === 0 ? (
+          <div className="space-y-3" aria-busy="true" aria-label="Загрузка">
+            <Skeleton className="h-24 w-full rounded-2xl" />
+            <Skeleton className="h-10 w-40 rounded-lg" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {inProgressItems.map((training) => (
+              <DayTrainingCard
+                key={training.id}
+                title={templateLabel(templates, training.templateId)}
+                status="in_progress"
+                href={`/trainings/${training.id}`}
+                subtitle="Сессия уже идёт"
+              />
+            ))}
 
-          return (
-            <li
-              key={key}
-              className={cn(
-                'flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3',
-                isToday
-                  ? 'border-[var(--accent)]/45 bg-[var(--accent)]/5'
-                  : 'border-[var(--border)] bg-[var(--surface)]',
-              )}
-            >
-              <div className="w-24 shrink-0 sm:w-28">
-                <p
-                  className={cn(
-                    'text-sm font-medium',
-                    isToday ? 'text-[var(--accent)]' : 'text-[var(--foreground)]',
-                  )}
-                >
-                  {label}
-                  {isToday ? ' · сегодня' : ''}
+            {plannedItems.map((training) => (
+              <DayTrainingCard
+                key={training.id}
+                title={templateLabel(templates, training.templateId)}
+                status="planned"
+                href={`/trainings/${training.id}`}
+                busy={dayBusy}
+                onChangePlan={canAssign ? () => setPickerOpen(true) : undefined}
+                onMakeRest={
+                  canAssign
+                    ? () => void onDayPlanChange(selected.dayOfWeek, selected.date, '')
+                    : undefined
+                }
+              />
+            ))}
+
+            {showOptimisticPlanned ? (
+              <DayTrainingCard
+                title={templateLabel(templates, selectedPlan)}
+                status="planned"
+                busy={dayBusy}
+              />
+            ) : null}
+
+            {finishedItems.map((training) => (
+              <DayTrainingCard
+                key={training.id}
+                title={templateLabel(templates, training.templateId)}
+                status="finished"
+                href={`/trainings/${training.id}`}
+                subtitle={
+                  training.finishedAt
+                    ? `Завершена ${new Date(training.finishedAt).toLocaleTimeString('ru-RU', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}`
+                    : undefined
+                }
+              />
+            ))}
+
+            {isRestDay ? (
+              <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)]/40 px-5 py-8 text-center">
+                <p className="font-[family-name:var(--font-display)] text-xl text-[var(--foreground)]">
+                  Отдых
                 </p>
-                <p className="text-xs capitalize text-[var(--muted)]">{formatShortDate(date)}</p>
+                <p className="mt-1 text-sm text-[var(--muted)]">В этот день тренировка не назначена.</p>
+                {canAssign ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="mt-5"
+                    disabled={dayBusy}
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    <Plus className="size-4" />
+                    Назначить тренировку
+                  </Button>
+                ) : null}
               </div>
+            ) : null}
 
-              <div className="min-w-48 flex-1 space-y-1">
-                <Select
-                  value={selectedPlan}
-                  disabled={!scheduleReady || savingDay === dayOfWeek || hasInProgress}
-                  onChange={(e) => void onDayPlanChange(dayOfWeek, date, e.target.value)}
-                  className="w-full text-sm"
-                >
-                  <option value="">Отдых</option>
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))}
-                </Select>
-                {dayError ? <p className="text-[11px] text-red-300">{dayError}</p> : null}
-              </div>
+            {!isRestDay && !hasInProgress && !hasPlanned && !showOptimisticPlanned && canAssign ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={dayBusy}
+                onClick={() => setPickerOpen(true)}
+              >
+                <Plus className="size-4" />
+                Назначить тренировку
+              </Button>
+            ) : null}
 
-              {differsFromProgram && scheduleReady ? (
-                <button
-                  type="button"
-                  disabled={savingDay === dayOfWeek || hasInProgress}
-                  onClick={() => void saveDayToProgram(dayOfWeek, date)}
-                  className="shrink-0 text-left text-xs text-[var(--accent)] hover:underline disabled:opacity-50"
-                >
-                  Как каждую неделю
-                </button>
-              ) : null}
-            </li>
-          )
-        })}
-      </ul>
+            {dayError ? <p className="text-[11px] text-red-300">{dayError}</p> : null}
+
+            {differsFromProgram && scheduleReady ? (
+              <button
+                type="button"
+                disabled={dayBusy || hasInProgress}
+                onClick={() => void saveDayToProgram(selected.dayOfWeek, selected.date)}
+                className="text-xs text-[var(--accent)] hover:underline disabled:opacity-50"
+              >
+                Как каждую неделю
+              </button>
+            ) : null}
+          </div>
+        )}
+      </section>
+
+      <TemplatePickerModal
+        open={pickerOpen}
+        title={hasPlanned || showOptimisticPlanned ? 'Изменить план' : 'Назначить тренировку'}
+        templates={templates}
+        selectedId={selectedPlan}
+        allowRest={hasPlanned || showOptimisticPlanned}
+        busy={dayBusy}
+        onClose={() => setPickerOpen(false)}
+        onSelect={pickTemplate}
+      />
     </div>
   )
 }
