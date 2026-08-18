@@ -22,6 +22,7 @@ export class AuthTypeormRepository implements AuthRepositoryPort {
       email: entity.email,
       username: entity.username,
       loginCode: entity.loginCode,
+      role: entity.role === 'admin' ? 'admin' : 'user',
       metadata: entity.metadata ?? {},
       createdAt: entity.createdAt.toISOString(),
     }

@@ -3,6 +3,7 @@ export interface LoginOutput {
     id: string
     email: string
     username: string
+    role: 'user' | 'admin'
     metadata: Record<string, unknown>
     createdAt: string
   }

@@ -6,6 +6,8 @@ import { ArrowRight } from 'lucide-react'
 import { formatSetLine, summarizeTraining } from '@/entities/stats/lib/summarize-training'
 import type { Training, TrainingWithDetails } from '@/entities/training/model/types'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
+import { cn } from '@/shared/lib/cn'
+import { formatDuration, formatNumber } from '@/shared/lib/format'
 import { EmptyState } from '@/shared/ui/empty-state'
 
 type Props = {
@@ -13,8 +15,7 @@ type Props = {
   details: TrainingWithDetails | null
   title: string
   resolveExerciseName: (exerciseId: string) => string
-  formatDuration: (startedAt: string | null, finishedAt: string | null) => string | null
-  formatNumber: (value: number, digits?: number) => string
+  className?: string
 }
 
 export function LastTrainingSummary({
@@ -22,12 +23,16 @@ export function LastTrainingSummary({
   details,
   title,
   resolveExerciseName,
-  formatDuration,
-  formatNumber,
+  className,
 }: Props) {
   if (!training) {
     return (
-      <section className="mb-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section
+        className={cn(
+          'mb-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5',
+          className,
+        )}
+      >
         <h2 className="font-[family-name:var(--font-display)] text-xl">Последняя тренировка</h2>
         <div className="mt-4">
           <EmptyState>Завершённых тренировок пока нет.</EmptyState>
@@ -41,7 +46,12 @@ export function LastTrainingSummary({
   const summary = details ? summarizeTraining(details, resolveExerciseName) : null
 
   return (
-    <section className="mb-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+    <section
+      className={cn(
+        'mb-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5',
+        className,
+      )}
+    >
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-xl">Последняя тренировка</h2>

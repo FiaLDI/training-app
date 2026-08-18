@@ -29,6 +29,7 @@ export class LoginUseCase implements UseCase<LoginInput, LoginOutput> {
         id: user.id,
         email: user.email,
         username: user.username,
+        role: user.role,
         metadata: user.metadata,
         createdAt: user.createdAt,
       },

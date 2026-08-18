@@ -16,8 +16,8 @@ export class FeedbackResponseDto {
   @ApiProperty({ nullable: true, example: 5 })
   rating!: number | null
 
-  @ApiProperty({ enum: ['new', 'read'] })
-  status!: 'new' | 'read'
+  @ApiProperty({ enum: ['new', 'read', 'resolved'] })
+  status!: 'new' | 'read' | 'resolved'
 
   @ApiProperty({ type: 'object', additionalProperties: true })
   clientMeta!: Record<string, unknown>

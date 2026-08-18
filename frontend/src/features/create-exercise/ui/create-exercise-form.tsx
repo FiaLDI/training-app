@@ -9,6 +9,8 @@ import {
   serializeMuscleGroups,
 } from '@/entities/exercise/model/muscle-groups'
 import { useExerciseStore } from '@/entities/exercise/model/store'
+import { isAdmin } from '@/entities/session/model/is-admin'
+import { useSessionStore } from '@/entities/session/model/store'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -20,6 +22,7 @@ type Props = {
 
 export function CreateExerciseForm({ onCreated }: Props) {
   const create = useExerciseStore((s) => s.create)
+  const user = useSessionStore((s) => s.user)
 
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -57,6 +60,8 @@ export function CreateExerciseForm({ onCreated }: Props) {
       setSaving(false)
     }
   }
+
+  if (!isAdmin(user)) return null
 
   if (!open) {
     return (

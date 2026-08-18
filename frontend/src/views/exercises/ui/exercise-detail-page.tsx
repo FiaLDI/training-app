@@ -17,6 +17,7 @@ import {
 } from '@/entities/exercise/lib/primary-image'
 import { parseMuscleGroups } from '@/entities/exercise/model/muscle-groups'
 import { useExerciseStore } from '@/entities/exercise/model/store'
+import { isAdmin } from '@/entities/session/model/is-admin'
 import { useSessionStore } from '@/entities/session/model/store'
 import { cn } from '@/shared/lib/cn'
 import { localData } from '@/shared/lib/local-data'
@@ -37,6 +38,8 @@ export function ExerciseDetailPage({ id }: Props) {
   const fetchOne = useExerciseStore((s) => s.fetchOne)
   const update = useExerciseStore((s) => s.update)
   const mode = useSessionStore((s) => s.mode)
+  const user = useSessionStore((s) => s.user)
+  const canEditCatalog = isAdmin(user)
   const [sources, setSources] = useState<ExerciseSource[]>([])
   const [editing, setEditing] = useState(false)
   const [type, setType] = useState('youtube')
@@ -133,6 +136,7 @@ export function ExerciseDetailPage({ id }: Props) {
         title={current.name}
         description={current.description ?? undefined}
         action={
+          canEditCatalog ? (
           <div className="flex flex-wrap gap-2">
             {!editing ? (
               <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
@@ -147,10 +151,11 @@ export function ExerciseDetailPage({ id }: Props) {
               }}
             />
           </div>
+          ) : undefined
         }
       />
 
-      {editing ? (
+      {canEditCatalog && editing ? (
         <EditExerciseForm
           exercise={current}
           onCancel={() => setEditing(false)}

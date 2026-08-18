@@ -7,6 +7,7 @@ import { UserEntity } from './core/entity/user.entity'
 import { GetMeUseCase } from './core/use-cases/get-me/get-me.use-case'
 import { LoginUseCase } from './core/use-cases/login/login.use-case'
 import { RegisterUseCase } from './core/use-cases/register/register.use-case'
+import { AdminGuard } from './infrastructure/admin.guard'
 import { AuthGuard } from './infrastructure/auth.guard'
 import { AuthTypeormRepository } from './infrastructure/auth.typeorm-repository'
 import { JwtTokenService } from './infrastructure/jwt-token.service'
@@ -22,6 +23,7 @@ import { JwtTokenService } from './infrastructure/jwt-token.service'
     },
     JwtTokenService,
     AuthGuard,
+    AdminGuard,
     {
       provide: RegisterUseCase,
       useFactory: (repo: AuthTypeormRepository) => new RegisterUseCase(repo),
@@ -39,6 +41,6 @@ import { JwtTokenService } from './infrastructure/jwt-token.service'
       inject: [AuthTypeormRepository],
     },
   ],
-  exports: [AuthGuard, JwtTokenService, AUTH_REPOSITORY_PORT],
+  exports: [AuthGuard, AdminGuard, JwtTokenService, AUTH_REPOSITORY_PORT],
 })
 export class AuthModule {}

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 
+import { AuthModule } from '../auth/auth.module'
 import { ExerciseHttpController } from './controller/exercise.http-controller'
 import { EXERCISE_REPOSITORY_PORT } from './core/ports/exercise-repository.port'
 import { CreateExerciseUseCase } from './core/use-cases/create/create-exercise.use-case'
@@ -12,7 +13,7 @@ import { ExerciseEntity } from './core/entity/exercise.entity'
 import { ExerciseTypeormRepository } from './infrastructure/exercise.typeorm-repository'
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExerciseEntity])],
+  imports: [AuthModule, TypeOrmModule.forFeature([ExerciseEntity])],
   controllers: [ExerciseHttpController],
   providers: [
     ExerciseTypeormRepository,

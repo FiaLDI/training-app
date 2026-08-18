@@ -134,6 +134,24 @@ UI: `http://localhost:3001` (проксирует `/api` на backend через
 | `npm run ssl:renew` | Обновить сертификаты и reload nginx |
 | `cd backend && npm run migration:run` | Миграции вручную |
 
+## Админ
+
+По умолчанию все пользователи с ролью `user`. Админку выдаём вручную по email — первый зарегистрированный пользователь админом не становится.
+
+Команда к контейнеру Postgres (подставьте почту):
+
+```bash
+docker compose exec workout-postgres \
+  psql -U postgres -d workout \
+  -c "UPDATE users SET role = 'admin' WHERE lower(email) = lower('you@example.com');"
+```
+
+Если в `.env` меняли `POSTGRES_USER` / `POSTGRES_DB` — подставьте их вместо `postgres` / `workout`.
+
+После `UPDATE` обновите страницу: приложение подтянет роль через `/auth/me`. Снять админку: `SET role = 'user'`.
+
+Админ может добавлять/править упражнения в каталоге и закрывать/удалять (только `resolved`) сообщения обратной связи.
+
 ## CI/CD (Jenkins)
 
 Production получает уже собранные образы `workout-backend` / `workout-frontend` по SSH (без Registry и без `docker build` на сервере). После успешного деплоя Jenkins удаляет локальный image и tar; на production хранятся текущий и предыдущий тег для rollback.

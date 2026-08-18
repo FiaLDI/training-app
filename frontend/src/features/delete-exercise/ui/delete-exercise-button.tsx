@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 
 import { useExerciseStore } from '@/entities/exercise/model/store'
+import { isAdmin } from '@/entities/session/model/is-admin'
+import { useSessionStore } from '@/entities/session/model/store'
 import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/lib/cn'
 
@@ -25,6 +27,7 @@ export function DeleteExerciseButton({
   onDeleted,
 }: Props) {
   const remove = useExerciseStore((s) => s.remove)
+  const user = useSessionStore((s) => s.user)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -45,6 +48,8 @@ export function DeleteExerciseButton({
       setPending(false)
     }
   }
+
+  if (!isAdmin(user)) return null
 
   return (
     <div className={cn(!iconOnly && 'space-y-1', className)}>

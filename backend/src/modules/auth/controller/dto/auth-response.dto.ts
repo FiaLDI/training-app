@@ -10,6 +10,9 @@ export class UserResponseDto {
   @ApiProperty()
   username!: string
 
+  @ApiProperty({ enum: ['user', 'admin'] })
+  role!: 'user' | 'admin'
+
   @ApiProperty({ type: 'object', additionalProperties: true })
   metadata!: Record<string, unknown>
 

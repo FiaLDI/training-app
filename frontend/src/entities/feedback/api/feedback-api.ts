@@ -23,4 +23,20 @@ export const feedbackApi = {
       ...extras,
     })
   },
+
+  listInbox(extras: RequestExtras = {}) {
+    return apiRequest<ListFeedbackResult>('/feedback/inbox', extras)
+  },
+
+  resolve(id: string) {
+    return apiRequest<Feedback>(`/feedback/${id}/resolve`, {
+      method: 'PATCH',
+    })
+  },
+
+  remove(id: string) {
+    return apiRequest<{ deleted: boolean }>(`/feedback/${id}`, {
+      method: 'DELETE',
+    })
+  },
 }

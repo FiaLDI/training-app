@@ -469,6 +469,9 @@ export const localData = {
         sync: { status: 'error', reason },
       })
     },
+    remove(id: string) {
+      return feedbacksDb.remove(id)
+    },
   },
 
   stats: {

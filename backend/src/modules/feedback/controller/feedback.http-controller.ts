@@ -1,8 +1,14 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -12,6 +18,7 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
 } from '@nestjs/swagger'
 import { Request } from 'express'
@@ -22,6 +29,7 @@ import {
   AuthRepositoryPort,
 } from '../../auth/core/ports/auth-repository.port'
 import { User } from '../../auth/core/types'
+import { AdminGuard } from '../../auth/infrastructure/admin.guard'
 import { AuthGuard } from '../../auth/infrastructure/auth.guard'
 import { JwtTokenService } from '../../auth/infrastructure/jwt-token.service'
 import { FeedbackTypeormRepository } from '../infrastructure/feedback.typeorm-repository'
@@ -65,6 +73,43 @@ export class FeedbackHttpController {
   async list(@CurrentUser() user: User) {
     const items = await this.repository.listByUser(user.id)
     return { items }
+  }
+
+  @Get('inbox')
+  @UseGuards(AuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List all feedback (admin)' })
+  @ApiOkResponse({ type: FeedbackResponseDto, isArray: true })
+  async inbox() {
+    const items = await this.repository.listAll()
+    return { items }
+  }
+
+  @Patch(':id/resolve')
+  @UseGuards(AuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark feedback as resolved (admin)' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: FeedbackResponseDto })
+  async resolve(@Param('id', ParseUUIDPipe) id: string) {
+    const item = await this.repository.setStatus(id, 'resolved')
+    if (!item) throw new NotFoundException('Feedback not found')
+    return item
+  }
+
+  @Delete(':id')
+  @UseGuards(AuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete resolved feedback (admin)' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { deleted: { type: 'boolean' } } } })
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.repository.deleteResolved(id)
+    if (result === 'not_found') throw new NotFoundException('Feedback not found')
+    if (result === 'not_resolved') {
+      throw new BadRequestException('Удалить можно только решённые сообщения')
+    }
+    return { deleted: true }
   }
 
   private async resolveOptionalUser(request: Request): Promise<User | null> {

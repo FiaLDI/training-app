@@ -7,6 +7,7 @@ import {
   CalendarDays,
   BarChart3,
   ChevronDown,
+  CircleHelp,
   Dumbbell,
   Home,
   LayoutTemplate,
@@ -29,6 +30,7 @@ const moreLinks = [
   { href: '/plans', label: 'Планы', icon: LayoutTemplate },
   { href: '/exercises', label: 'Упражнения', icon: Dumbbell },
   { href: '/settings', label: 'Профиль', icon: Settings },
+  { href: '/help', label: 'Помощь', icon: CircleHelp },
 ]
 
 function isActive(pathname: string, href: string) {

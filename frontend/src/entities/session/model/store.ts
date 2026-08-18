@@ -35,6 +35,7 @@ type SessionState = {
   login: (code: string) => Promise<void>
   logout: () => Promise<void>
   switchMode: () => Promise<void>
+  refreshUser: () => Promise<void>
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -82,6 +83,17 @@ export const useSessionStore = create<SessionState>()(
 
       async switchMode() {
         await get().logout()
+      },
+
+      async refreshUser() {
+        const { mode, accessToken } = get()
+        if (mode !== 'cloud' || !accessToken) return
+        try {
+          const user = await authApi.me()
+          set({ user })
+        } catch {
+          // keep persisted session
+        }
       },
     }),
     {

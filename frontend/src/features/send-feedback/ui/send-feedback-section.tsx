@@ -28,7 +28,7 @@ function formatSyncHint(item: Feedback): string | null {
   return null
 }
 
-export function SendFeedbackSection() {
+export function SendFeedbackSection({ showHistory = true }: { showHistory?: boolean }) {
   const mode = useSessionStore((s) => s.mode)
   const [category, setCategory] = useState<FeedbackCategory>('idea')
   const [message, setMessage] = useState('')
@@ -118,9 +118,6 @@ export function SendFeedbackSection() {
         <MessageSquareWarning className="size-4 text-[var(--accent)]" />
         Обратная связь
       </div>
-      <p className="mb-4 text-sm text-[var(--muted)]">
-        Сообщите об ошибке или предложите идею — это поможет улучшить IronLog.
-      </p>
 
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-3">
         <Select
@@ -162,7 +159,7 @@ export function SendFeedbackSection() {
         </Button>
       </form>
 
-      {items.length > 0 ? (
+      {showHistory && items.length > 0 ? (
         <ul className="mt-5 space-y-3 border-t border-[var(--border)] pt-4">
           {items.map((item) => {
             const syncHint = formatSyncHint(item)

@@ -7,7 +7,6 @@ import { Cloud, HardDrive, LogOut, User } from 'lucide-react'
 import { useSessionStore } from '@/entities/session/model/store'
 import { ClearLocalDataActions } from '@/features/clear-local-data/ui/clear-local-data-actions'
 import { SetStepSettings } from '@/features/edit-set-steps/ui/set-step-settings'
-import { SendFeedbackSection } from '@/features/send-feedback/ui/send-feedback-section'
 import {
   formatPendingSummary,
   getPendingSyncSummary,
@@ -120,8 +119,6 @@ export function SettingsPage() {
           </div>
           <ClearLocalDataActions />
         </section>
-
-        <SendFeedbackSection />
 
         <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <Button type="button" variant="ghost" className="w-full justify-start px-0" onClick={() => void onSwitchMode()}>

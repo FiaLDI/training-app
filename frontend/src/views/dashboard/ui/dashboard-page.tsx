@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { ArrowRight, CalendarDays, Play } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
+import { useExerciseStore } from '@/entities/exercise/model/store'
+import { useLastFinishedTraining } from '@/entities/stats/model/use-last-finished-training'
+import { LastTrainingSummary } from '@/entities/stats/ui/last-training-summary'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
@@ -20,11 +23,16 @@ export function DashboardPage() {
   const create = useTrainingStore((s) => s.create)
   const templates = useTemplateStore((s) => s.items)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
+  const exercises = useExerciseStore((s) => s.items)
+  const fetchExercises = useExerciseStore((s) => s.fetchList)
+  const { training: lastFinishedTraining, details: lastTrainingDetails } =
+    useLastFinishedTraining()
 
   useEffect(() => {
     void fetchTrainings({ limit: 50 })
     void fetchTemplates()
-  }, [fetchTrainings, fetchTemplates])
+    void fetchExercises('')
+  }, [fetchTrainings, fetchTemplates, fetchExercises])
 
   const todayKey = toDateKey(new Date())
 
@@ -42,6 +50,10 @@ export function DashboardPage() {
   function labelFor(templateId: string | null, fallback = 'Тренировка') {
     if (!templateId) return fallback
     return templates.find((t) => t.id === templateId)?.name ?? fallback
+  }
+
+  function resolveExerciseName(exerciseId: string) {
+    return exercises.find((item) => item.id === exerciseId)?.name ?? 'Упражнение'
   }
 
   async function continueOrStart() {
@@ -119,22 +131,6 @@ export function DashboardPage() {
           </div>
           <ArrowRight className="size-5 text-[var(--accent)]" />
         </button>
-      ) : todayFinished ? (
-        <Link
-          href={`/trainings/${todayFinished.id}`}
-          className="mb-6 flex w-full items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left transition hover:border-[var(--accent)]/30"
-        >
-          <div>
-            <p className="text-xs uppercase tracking-wider text-[var(--muted)]">Сегодня выполнено</p>
-            <p className="mt-1 font-[family-name:var(--font-display)] text-xl">
-              {labelFor(todayFinished.templateId)}
-            </p>
-            <div className="mt-2">
-              <TrainingStatusBadge status="finished" />
-            </div>
-          </div>
-          <ArrowRight className="size-5 text-[var(--muted)]" />
-        </Link>
       ) : null}
 
       <div className="flex flex-col gap-3">
@@ -150,6 +146,18 @@ export function DashboardPage() {
           Открыть неделю
         </Link>
       </div>
+
+      {lastFinishedTraining ? (
+        <div className="mt-8">
+          <LastTrainingSummary
+            className="mb-0"
+            training={lastFinishedTraining}
+            details={lastTrainingDetails}
+            title={labelFor(lastFinishedTraining.templateId)}
+            resolveExerciseName={resolveExerciseName}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

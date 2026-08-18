@@ -33,6 +33,28 @@ export class FeedbackTypeormRepository {
     return items.map((item) => this.map(item))
   }
 
+  async listAll(): Promise<Feedback[]> {
+    const items = await this.repo.find({
+      order: { createdAt: 'DESC' },
+    })
+    return items.map((item) => this.map(item))
+  }
+
+  async setStatus(id: string, status: FeedbackStatus): Promise<Feedback | null> {
+    const entity = await this.repo.findOne({ where: { id } })
+    if (!entity) return null
+    entity.status = status
+    return this.map(await this.repo.save(entity))
+  }
+
+  async deleteResolved(id: string): Promise<'deleted' | 'not_found' | 'not_resolved'> {
+    const entity = await this.repo.findOne({ where: { id } })
+    if (!entity) return 'not_found'
+    if (entity.status !== 'resolved') return 'not_resolved'
+    await this.repo.remove(entity)
+    return 'deleted'
+  }
+
   async create(input: {
     id?: string
     userId: string | null

@@ -10,8 +10,10 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common'
 import {
+  ApiBearerAuth,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -20,6 +22,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger'
 
+import { AdminGuard } from '../../auth/infrastructure/admin.guard'
+import { AuthGuard } from '../../auth/infrastructure/auth.guard'
 import { CreateExerciseUseCase } from '../core/use-cases/create/create-exercise.use-case'
 import { DeleteExerciseUseCase } from '../core/use-cases/delete/delete-exercise.use-case'
 import { GetExerciseUseCase } from '../core/use-cases/get/get-exercise.use-case'
@@ -71,7 +75,9 @@ export class ExerciseHttpController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create exercise' })
+  @UseGuards(AuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create exercise (admin)' })
   @ApiCreatedResponse({ type: ExerciseResponseDto })
   async create(@Body() dto: CreateExerciseInputDto) {
     const result = await this.createUseCase.execute(dto)
@@ -79,7 +85,9 @@ export class ExerciseHttpController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update exercise' })
+  @UseGuards(AuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update exercise (admin)' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: ExerciseResponseDto })
   async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateExerciseInputDto) {
@@ -91,7 +99,9 @@ export class ExerciseHttpController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete exercise' })
+  @UseGuards(AuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete exercise (admin)' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ schema: { type: 'object', properties: { deleted: { type: 'boolean' } } } })
   async remove(@Param('id', ParseUUIDPipe) id: string) {

@@ -1,5 +1,5 @@
 export type FeedbackCategory = 'bug' | 'idea' | 'other'
-export type FeedbackStatus = 'new' | 'read'
+export type FeedbackStatus = 'new' | 'read' | 'resolved'
 
 export type Feedback = {
   id: string

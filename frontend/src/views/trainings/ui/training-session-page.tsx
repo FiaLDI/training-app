@@ -12,7 +12,6 @@ import {
   Pencil,
   Play,
   Plus,
-  Timer,
   Trash2,
 } from 'lucide-react'
 
@@ -21,7 +20,6 @@ import { EditSetRow } from '@/features/edit-set/ui/edit-set-row'
 import { EditTrainingExerciseRow } from '@/features/edit-training-exercise/ui/edit-training-exercise-row'
 import { EditTrainingForm } from '@/features/edit-training/ui/edit-training-form'
 import { LogSetForm } from '@/features/log-set/ui/log-set-form'
-import { RestTimerBar, SessionClock } from '@/features/rest-timer/ui/rest-timer-bar'
 import {
   pauseBackgroundSync,
   resumeBackgroundSync,
@@ -40,8 +38,6 @@ import { ConfirmModal } from '@/shared/ui/confirm-modal'
 import { DropdownItem, DropdownMenu } from '@/shared/ui/dropdown-menu'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { DetailSkeleton } from '@/shared/ui/skeleton'
-
-const DEFAULT_REST_SECONDS = 90
 
 function targetWeightFrom(metadata: Record<string, unknown> | undefined) {
   const value = metadata?.targetWeight
@@ -113,7 +109,7 @@ function ExerciseStepper({
           <ChevronLeft className="size-6" />
         </button>
         <div className="min-w-0 flex-1 text-center">
-          <h1 className="truncate font-[family-name:var(--font-display)] text-2xl tracking-tight">
+          <h1 className="text-wrap break-words font-[family-name:var(--font-display)] text-2xl tracking-tight">
             {name}
           </h1>
           <p className="mt-1 text-sm tabular-nums text-[var(--muted)]">
@@ -175,11 +171,6 @@ export function TrainingSessionPage({ id }: Props) {
   const templates = useTemplateStore((s) => s.items)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
 
-  const [timerOpen, setTimerOpen] = useState(false)
-  const [timerRunning, setTimerRunning] = useState(false)
-  const [timerTotal, setTimerTotal] = useState(DEFAULT_REST_SECONDS)
-  const [secondsLeft, setSecondsLeft] = useState(DEFAULT_REST_SECONDS)
-  const [restAccumulated, setRestAccumulated] = useState(0)
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false)
   const [finishing, setFinishing] = useState(false)
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
@@ -203,33 +194,6 @@ export function TrainingSessionPage({ id }: Props) {
   }, [])
 
   useEffect(() => {
-    if (!timerOpen || !timerRunning || secondsLeft <= 0) return
-    const interval = window.setInterval(() => {
-      setRestAccumulated((value) => value + 1)
-      setSecondsLeft((value) => {
-        if (value <= 1) {
-          setTimerRunning(false)
-          return 0
-        }
-        return value - 1
-      })
-    }, 1000)
-    return () => window.clearInterval(interval)
-  }, [timerOpen, timerRunning, secondsLeft])
-
-  useEffect(() => {
-    if (!timerOpen || secondsLeft !== 0) return
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') return
-    if (Notification.permission === 'granted') {
-      try {
-        new Notification('Отдых закончен', { body: 'Можно делать следующий подход' })
-      } catch {
-        // ignore notification errors
-      }
-    }
-  }, [timerOpen, secondsLeft])
-
-  useEffect(() => {
     const items = current?.exercises ?? []
     const sorted = [...items].sort((a, b) => a.exerciseOrder - b.exerciseOrder)
     setActiveExerciseId((currentId) => {
@@ -242,17 +206,6 @@ export function TrainingSessionPage({ id }: Props) {
       return firstIncomplete?.id ?? sorted[0].id
     })
   }, [current?.exercises])
-
-  function startRest(seconds = DEFAULT_REST_SECONDS) {
-    const next = Math.max(15, seconds)
-    setTimerTotal(next)
-    setSecondsLeft(next)
-    setTimerOpen(true)
-    setTimerRunning(true)
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      void Notification.requestPermission()
-    }
-  }
 
   async function handleFinish() {
     if (finishing) return
@@ -331,7 +284,7 @@ export function TrainingSessionPage({ id }: Props) {
         : 'Не начата'
 
   return (
-    <div className={cn('mx-auto max-w-lg', timerOpen && 'pb-36')}>
+    <div className="mx-auto max-w-lg">
       <header className="mb-6 flex items-center gap-2">
         <Link
           href="/plan"
@@ -341,16 +294,10 @@ export function TrainingSessionPage({ id }: Props) {
           <ArrowLeft className="size-5" />
         </Link>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-[family-name:var(--font-display)] text-sm text-[var(--foreground)]">
+          <p className="text-wrap break-words font-[family-name:var(--font-display)] text-sm text-[var(--foreground)]">
             {title}
           </p>
-          <p className="truncate text-xs text-[var(--muted)]">
-            {current.status === 'in_progress' && current.startedAt ? (
-              <SessionClock startedAt={current.startedAt} restSeconds={restAccumulated} />
-            ) : (
-              whenLabel
-            )}
-          </p>
+          <p className="truncate text-xs text-[var(--muted)]">{whenLabel}</p>
         </div>
         <DropdownMenu
           ariaLabel="Ещё"
@@ -368,17 +315,6 @@ export function TrainingSessionPage({ id }: Props) {
                   }}
                 >
                   Добавить упражнение
-                </DropdownItem>
-              ) : null}
-              {current.status === 'in_progress' ? (
-                <DropdownItem
-                  icon={<Timer className="size-4" />}
-                  onClick={() => {
-                    close()
-                    startRest(timerTotal || DEFAULT_REST_SECONDS)
-                  }}
-                >
-                  Таймер отдыха
                 </DropdownItem>
               ) : null}
               {current.status !== 'cancelled' ? (
@@ -515,9 +451,6 @@ export function TrainingSessionPage({ id }: Props) {
                   activeExercise.previousMaxWeight ??
                   targetWeightFrom(activeExercise.metadata)
                 }
-                onLogged={() =>
-                  startRest(activeExercise.restSeconds ?? DEFAULT_REST_SECONDS)
-                }
               />
             ) : null}
           </section>
@@ -531,38 +464,6 @@ export function TrainingSessionPage({ id }: Props) {
         nextOrder={current.exercises.length}
         onAdded={(exerciseRowId) => setActiveExerciseId(exerciseRowId)}
       />
-
-      {timerOpen ? (
-        <RestTimerBar
-          secondsLeft={secondsLeft}
-          running={timerRunning}
-          totalSeconds={timerTotal}
-          onToggle={() => {
-            if (secondsLeft <= 0) {
-              startRest(timerTotal || DEFAULT_REST_SECONDS)
-              return
-            }
-            setTimerRunning((value) => !value)
-          }}
-          onSkip={() => {
-            setTimerOpen(false)
-            setTimerRunning(false)
-          }}
-          onReset={() => {
-            setSecondsLeft(timerTotal)
-            setTimerRunning(true)
-          }}
-          onAdjust={(delta) => {
-            setSecondsLeft((value) => {
-              const next = Math.max(0, value + delta)
-              setTimerTotal((total) => Math.max(total, next))
-              return next
-            })
-            if (delta > 0) setTimerRunning(true)
-          }}
-          onPreset={(seconds) => startRest(seconds)}
-        />
-      ) : null}
 
       <EditTrainingForm
         training={current}

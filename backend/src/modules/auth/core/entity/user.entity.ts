@@ -19,6 +19,9 @@ export class UserEntity {
   @Column({ name: 'login_code', type: 'text', unique: true })
   loginCode!: string
 
+  @Column({ type: 'varchar', length: 16, default: 'user' })
+  role!: 'user' | 'admin'
+
   @Column({ type: 'jsonb', default: {} })
   metadata!: Record<string, unknown>
 

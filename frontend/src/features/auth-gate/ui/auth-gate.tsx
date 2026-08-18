@@ -20,6 +20,7 @@ export function AuthGate({ children }: Props) {
   const mode = useSessionStore((s) => s.mode)
   const hydrated = useSessionStore((s) => s.hydrated)
   const setHydrated = useSessionStore((s) => s.setHydrated)
+  const refreshUser = useSessionStore((s) => s.refreshUser)
 
   useEffect(() => {
     // persist may already be rehydrated before mount
@@ -37,6 +38,11 @@ export function AuthGate({ children }: Props) {
       router.replace('/')
     }
   }, [hydrated, mode, pathname, router])
+
+  useEffect(() => {
+    if (!hydrated || mode !== 'cloud') return
+    void refreshUser()
+  }, [hydrated, mode, refreshUser])
 
   if (!hydrated) {
     return (

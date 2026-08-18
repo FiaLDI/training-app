@@ -34,7 +34,7 @@ export function ExercisesPage() {
     <div>
       <PageHeader
         title="Упражнения"
-        description="Собери свою библиотеку движений."
+        description="Каталог движений для тренировок."
         action={<CreateExerciseForm onCreated={() => void fetchList()} />}
       />
 
@@ -52,7 +52,7 @@ export function ExercisesPage() {
       {loading && items.length === 0 ? (
         <CardGridSkeleton />
       ) : items.length === 0 ? (
-        <EmptyState>Пока нет упражнений. Создай первое.</EmptyState>
+        <EmptyState>Пока нет упражнений.</EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((exercise) => (

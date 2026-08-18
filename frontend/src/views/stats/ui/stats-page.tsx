@@ -8,18 +8,42 @@ import { useExerciseStore } from '@/entities/exercise/model/store'
 import { ExerciseCombobox } from '@/entities/exercise/ui/exercise-combobox'
 import { useSessionStore } from '@/entities/session/model/store'
 import { statsApi } from '@/entities/stats/api/stats-api'
-import { LastTrainingSummary } from '@/entities/stats/ui/last-training-summary'
 import type { ExerciseProgressPoint, VolumeStatPoint } from '@/entities/stats/model/types'
 import { SimpleBarChart } from '@/entities/stats/ui/simple-bar-chart'
-import { trainingApi } from '@/entities/training/api/training-api'
-import type { TrainingWithDetails } from '@/entities/training/model/types'
+import type { Training } from '@/entities/training/model/types'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
+import { cn } from '@/shared/lib/cn'
+import { formatDuration, formatNumber } from '@/shared/lib/format'
 import { localData } from '@/shared/lib/local-data'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
+
+type StatsTab = 'overview' | 'progress' | 'trainings' | 'weight'
+type StatusFilter = 'all' | 'finished' | 'planned' | 'cancelled'
+
+const TABS: Array<{ id: StatsTab; label: string }> = [
+  { id: 'overview', label: 'Обзор' },
+  { id: 'progress', label: 'Прогресс' },
+  { id: 'trainings', label: 'Тренировки' },
+  { id: 'weight', label: 'Вес' },
+]
+
+const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
+  { id: 'all', label: 'Все' },
+  { id: 'finished', label: 'Завершены' },
+  { id: 'planned', label: 'Запланированы' },
+  { id: 'cancelled', label: 'Отменены' },
+]
+
+const TAB_DESCRIPTIONS: Record<StatsTab, string> = {
+  overview: 'Сводка за последние 28 дней. Разминочные подходы не учитываются.',
+  progress: 'Максимальный вес и лучший подход за последние 28 дней.',
+  trainings: 'Список сессий с фильтром по статусу.',
+  weight: 'Запись веса и динамика.',
+}
 
 function defaultRange() {
   const to = new Date()
@@ -31,24 +55,6 @@ function defaultRange() {
     from: from.toISOString(),
     to: to.toISOString(),
   }
-}
-
-function formatNumber(value: number, digits = 0) {
-  return value.toLocaleString('ru-RU', {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-  })
-}
-
-function formatDuration(startedAt: string | null, finishedAt: string | null) {
-  if (!startedAt || !finishedAt) return null
-  const ms = new Date(finishedAt).getTime() - new Date(startedAt).getTime()
-  if (ms <= 0) return null
-  const totalMin = Math.round(ms / 60000)
-  if (totalMin < 60) return `${totalMin} мин`
-  const h = Math.floor(totalMin / 60)
-  const m = totalMin % 60
-  return m > 0 ? `${h} ч ${m} мин` : `${h} ч`
 }
 
 type MetricCardProps = {
@@ -69,6 +75,52 @@ function MetricCard({ label, value, hint }: MetricCardProps) {
   )
 }
 
+type SegmentedControlProps<T extends string> = {
+  value: T
+  options: Array<{ id: T; label: string }>
+  onChange: (value: T) => void
+}
+
+function SegmentedControl<T extends string>({ value, options, onChange }: SegmentedControlProps<T>) {
+  return (
+    <div className="flex flex-wrap gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
+      {options.map((option) => {
+        const active = option.id === value
+        return (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => onChange(option.id)}
+            className={cn(
+              'flex-1 rounded-lg px-3 py-2 text-sm transition',
+              active
+                ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                : 'text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
+            )}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function trainingWhen(training: Training) {
+  if (training.status === 'planned') return training.scheduledAt ?? training.createdAt
+  if (training.status === 'finished') {
+    return training.finishedAt ?? training.startedAt ?? training.createdAt
+  }
+  return training.startedAt ?? training.scheduledAt ?? training.createdAt
+}
+
+const EMPTY_BY_FILTER: Record<StatusFilter, string> = {
+  all: 'Пока нет тренировок.',
+  finished: 'Пока нет завершённых тренировок.',
+  planned: 'Нет запланированных тренировок.',
+  cancelled: 'Нет отменённых тренировок.',
+}
+
 export function StatsPage() {
   const mode = useSessionStore((s) => s.mode)
   const exercises = useExerciseStore((s) => s.items)
@@ -77,11 +129,12 @@ export function StatsPage() {
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const trainings = useTrainingStore((s) => s.items)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
+  const [tab, setTab] = useState<StatsTab>('overview')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [volume, setVolume] = useState<VolumeStatPoint[]>([])
   const [progress, setProgress] = useState<ExerciseProgressPoint[]>([])
   const [exerciseId, setExerciseId] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [lastTrainingDetails, setLastTrainingDetails] = useState<TrainingWithDetails | null>(null)
   const range = useMemo(() => defaultRange(), [])
 
   useEffect(() => {
@@ -97,6 +150,7 @@ export function StatsPage() {
   }, [exercises, exerciseId])
 
   useEffect(() => {
+    if (tab !== 'overview') return
     let cancelled = false
     async function load() {
       try {
@@ -122,9 +176,10 @@ export function StatsPage() {
     return () => {
       cancelled = true
     }
-  }, [mode, range])
+  }, [mode, range, tab])
 
   useEffect(() => {
+    if (tab !== 'progress') return
     if (!exerciseId) {
       setProgress([])
       return
@@ -161,7 +216,7 @@ export function StatsPage() {
     return () => {
       cancelled = true
     }
-  }, [mode, range, exerciseId])
+  }, [mode, range, exerciseId, tab])
 
   const sessions = useMemo(() => {
     const fromMs = new Date(range.from).getTime()
@@ -174,57 +229,11 @@ export function StatsPage() {
     })
   }, [trainings, range.from, range.to])
 
-  const finishedTrainings = useMemo(() => {
-    return sessions
-      .filter((t) => t.status === 'finished')
-      .sort((a, b) => {
-        const aKey = a.finishedAt ?? a.startedAt ?? a.createdAt
-        const bKey = b.finishedAt ?? b.startedAt ?? b.createdAt
-        return bKey.localeCompare(aKey)
-      })
-  }, [sessions])
-
-  const lastFinishedTraining = useMemo(() => {
+  const listedTrainings = useMemo(() => {
     return trainings
-      .filter((t) => t.status === 'finished')
-      .sort((a, b) => {
-        const aKey = a.finishedAt ?? a.startedAt ?? a.createdAt
-        const bKey = b.finishedAt ?? b.startedAt ?? b.createdAt
-        return bKey.localeCompare(aKey)
-      })[0] ?? null
-  }, [trainings])
-
-  useEffect(() => {
-    if (!lastFinishedTraining) {
-      setLastTrainingDetails(null)
-      return
-    }
-
-    const local = localData.trainings.get(lastFinishedTraining.id)
-    if (local && local.exercises.length > 0) {
-      setLastTrainingDetails(local)
-      return
-    }
-
-    if (mode === 'local') {
-      setLastTrainingDetails(local)
-      return
-    }
-
-    let cancelled = false
-    void trainingApi
-      .getById(lastFinishedTraining.id)
-      .then((details) => {
-        if (!cancelled) setLastTrainingDetails(details)
-      })
-      .catch(() => {
-        if (!cancelled) setLastTrainingDetails(local)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [lastFinishedTraining, mode])
+      .filter((t) => (statusFilter === 'all' ? true : t.status === statusFilter))
+      .sort((a, b) => trainingWhen(b).localeCompare(trainingWhen(a)))
+  }, [trainings, statusFilter])
 
   function trainingLabel(templateId: string | null) {
     if (!templateId) return 'Тренировка'
@@ -294,10 +303,6 @@ export function StatsPage() {
     }
   }, [progress])
 
-  function resolveExerciseName(exerciseId: string) {
-    return exercises.find((item) => item.id === exerciseId)?.name ?? 'Упражнение'
-  }
-
   const selectedExercise = exercises.find((e) => e.id === exerciseId)
 
   const volumeChart = volume.map((p) => ({ date: p.date, value: p.volume }))
@@ -312,180 +317,201 @@ export function StatsPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Статистика"
-        description="Сводка за последние 28 дней. Разминочные подходы не учитываются."
-      />
+      <PageHeader title="Статистика" description={TAB_DESCRIPTIONS[tab]} />
 
-      {error ? <p className="mb-4 text-sm text-red-300">{error}</p> : null}
+      <div className="mb-6">
+        <SegmentedControl value={tab} options={TABS} onChange={setTab} />
+      </div>
 
-      <LastTrainingSummary
-        training={lastFinishedTraining}
-        details={lastTrainingDetails}
-        title={lastFinishedTraining ? trainingLabel(lastFinishedTraining.templateId) : 'Тренировка'}
-        resolveExerciseName={resolveExerciseName}
-        formatDuration={formatDuration}
-        formatNumber={formatNumber}
-      />
+      {error && (tab === 'overview' || tab === 'progress') ? (
+        <p className="mb-4 text-sm text-red-300">{error}</p>
+      ) : null}
 
-      <BodyWeightSection from={range.from} to={range.to} formatNumber={formatNumber} />
-
-      <section className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Общий объём"
-          value={formatNumber(Math.round(overview.totalVolume))}
-          hint="кг × повторения"
-        />
-        <MetricCard
-          label="Тренировки"
-          value={String(overview.sessionCount)}
-          hint={`завершено: ${overview.finishedCount}`}
-        />
-        <MetricCard
-          label="Дней с нагрузкой"
-          value={String(overview.trainingDays)}
-          hint={
-            overview.bestDay
-              ? `лучший день: ${formatNumber(Math.round(overview.bestDay.volume))}`
-              : 'нет данных'
-          }
-        />
-        <MetricCard
-          label="Серия"
-          value={overview.streak > 0 ? `${overview.streak} дн.` : '—'}
-          hint={
-            overview.avgPerSession > 0
-              ? `сред. объём: ${formatNumber(Math.round(overview.avgPerSession))}`
-              : 'подряд до сегодня'
-          }
-        />
-      </section>
-
-      <section className="mb-10 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-[family-name:var(--font-display)] text-xl">Объём по дням</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              Сколько килограмм×повторений сделано в каждый день
-            </p>
-          </div>
-          {overview.avgPerDay > 0 ? (
-            <p className="text-sm text-[var(--muted)]">
-              В среднем {formatNumber(Math.round(overview.avgPerDay))} / день с тренировкой
-            </p>
-          ) : null}
-        </div>
-        <SimpleBarChart points={volumeChart} unit="кг×повт." />
-      </section>
-
-      <section className="mb-10 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-[family-name:var(--font-display)] text-xl">Прогресс по упражнению</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              Максимальный вес и лучший подход
-            </p>
-          </div>
-          <div className="min-w-56 space-y-1 text-xs text-[var(--muted)]">
-            Упражнение
-            <ExerciseCombobox
-              exercises={exercises}
-              value={exerciseId}
-              onChange={setExerciseId}
-              placeholder={exercises.length === 0 ? 'Нет упражнений' : 'Найти упражнение…'}
-              disabled={exercises.length === 0}
-            />
-          </div>
-        </div>
-
-        {selectedExercise ? (
-          <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {tab === 'overview' ? (
+        <>
+          <section className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard
-              label="Макс. вес"
-              value={
-                exerciseMetrics.maxWeight != null
-                  ? `${formatNumber(exerciseMetrics.maxWeight, 1)} кг`
-                  : '—'
-              }
-            />
-            <MetricCard
-              label="Лучший подход"
-              value={formatNumber(Math.round(exerciseMetrics.bestVolume))}
+              label="Общий объём"
+              value={formatNumber(Math.round(overview.totalVolume))}
               hint="кг × повторения"
             />
             <MetricCard
-              label="Сессий"
-              value={String(exerciseMetrics.sessions)}
-              hint="дней с этим упражнением"
+              label="Тренировки"
+              value={String(overview.sessionCount)}
+              hint={`завершено: ${overview.finishedCount}`}
             />
             <MetricCard
-              label="Динамика веса"
-              value={
-                exerciseMetrics.weightDelta == null
-                  ? '—'
-                  : `${exerciseMetrics.weightDelta > 0 ? '+' : ''}${formatNumber(exerciseMetrics.weightDelta, 1)} кг`
+              label="Дней с нагрузкой"
+              value={String(overview.trainingDays)}
+              hint={
+                overview.bestDay
+                  ? `лучший день: ${formatNumber(Math.round(overview.bestDay.volume))}`
+                  : 'нет данных'
               }
-              hint="от первой к последней записи"
+            />
+            <MetricCard
+              label="Серия"
+              value={overview.streak > 0 ? `${overview.streak} дн.` : '—'}
+              hint={
+                overview.avgPerSession > 0
+                  ? `сред. объём: ${formatNumber(Math.round(overview.avgPerSession))}`
+                  : 'подряд до сегодня'
+              }
+            />
+          </section>
+
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="font-[family-name:var(--font-display)] text-xl">Объём по дням</h2>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  Сколько килограмм×повторений сделано в каждый день
+                </p>
+              </div>
+              {overview.avgPerDay > 0 ? (
+                <p className="text-sm text-[var(--muted)]">
+                  В среднем {formatNumber(Math.round(overview.avgPerDay))} / день с тренировкой
+                </p>
+              ) : null}
+            </div>
+            <SimpleBarChart points={volumeChart} unit="кг×повт." />
+          </section>
+        </>
+      ) : null}
+
+      {tab === 'progress' ? (
+        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="font-[family-name:var(--font-display)] text-xl">Прогресс по упражнению</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Максимальный вес и лучший подход
+              </p>
+            </div>
+            <div className="min-w-56 space-y-1 text-xs text-[var(--muted)]">
+              Упражнение
+              <ExerciseCombobox
+                exercises={exercises}
+                value={exerciseId}
+                onChange={setExerciseId}
+                placeholder={exercises.length === 0 ? 'Нет упражнений' : 'Найти упражнение…'}
+                disabled={exercises.length === 0}
+              />
+            </div>
+          </div>
+
+          {selectedExercise ? (
+            <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                label="Макс. вес"
+                value={
+                  exerciseMetrics.maxWeight != null
+                    ? `${formatNumber(exerciseMetrics.maxWeight, 1)} кг`
+                    : '—'
+                }
+              />
+              <MetricCard
+                label="Лучший подход"
+                value={formatNumber(Math.round(exerciseMetrics.bestVolume))}
+                hint="кг × повторения"
+              />
+              <MetricCard
+                label="Сессий"
+                value={String(exerciseMetrics.sessions)}
+                hint="дней с этим упражнением"
+              />
+              <MetricCard
+                label="Динамика веса"
+                value={
+                  exerciseMetrics.weightDelta == null
+                    ? '—'
+                    : `${exerciseMetrics.weightDelta > 0 ? '+' : ''}${formatNumber(exerciseMetrics.weightDelta, 1)} кг`
+                }
+                hint="от первой к последней записи"
+              />
+            </div>
+          ) : null}
+
+          <div className="space-y-8">
+            <div>
+              <h3 className="mb-3 text-sm font-medium text-[var(--foreground)]">Максимальный вес</h3>
+              <SimpleBarChart
+                points={weightChart}
+                unit="кг"
+                emptyText="Выбери упражнение или запиши подходы."
+              />
+            </div>
+            <div>
+              <h3 className="mb-3 text-sm font-medium text-[var(--foreground)]">
+                Лучший подход (кг×повт.)
+              </h3>
+              <SimpleBarChart
+                points={bestSetChart}
+                unit="кг×повт."
+                emptyText="Выбери упражнение или запиши подходы."
+              />
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {tab === 'trainings' ? (
+        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="font-[family-name:var(--font-display)] text-xl">Список тренировок</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                {listedTrainings.length}{' '}
+                {listedTrainings.length === 1
+                  ? 'сессия'
+                  : listedTrainings.length > 1 && listedTrainings.length < 5
+                    ? 'сессии'
+                    : 'сессий'}
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <SegmentedControl
+              value={statusFilter}
+              options={STATUS_FILTERS}
+              onChange={setStatusFilter}
             />
           </div>
-        ) : null}
 
-        <div className="space-y-8">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-[var(--foreground)]">Максимальный вес</h3>
-            <SimpleBarChart
-              points={weightChart}
-              unit="кг"
-              emptyText="Выбери упражнение или запиши подходы."
-            />
-          </div>
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-[var(--foreground)]">Лучший подход (кг×повт.)</h3>
-            <SimpleBarChart
-              points={bestSetChart}
-              unit="кг×повт."
-              emptyText="Выбери упражнение или запиши подходы."
-            />
-          </div>
-        </div>
-      </section>
+          {listedTrainings.length === 0 ? (
+            <EmptyState>{EMPTY_BY_FILTER[statusFilter]}</EmptyState>
+          ) : (
+            <ul className="space-y-2">
+              {listedTrainings.map((training) => {
+                const when = trainingWhen(training)
+                const duration = formatDuration(training.startedAt, training.finishedAt)
+                return (
+                  <li key={training.id}>
+                    <Link
+                      href={`/trainings/${training.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-4 py-3 transition hover:border-[var(--accent)]/30"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                          {trainingLabel(training.templateId)}
+                        </p>
+                        <p className="mt-1 text-xs text-[var(--muted)]">
+                          {new Date(when).toLocaleString('ru-RU')}
+                          {duration ? ` · ${duration}` : ''}
+                        </p>
+                      </div>
+                      <TrainingStatusBadge status={training.status} />
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+      ) : null}
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
-        <div className="mb-4">
-          <h2 className="font-[family-name:var(--font-display)] text-xl">Завершённые тренировки</h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">За последние 28 дней</p>
-        </div>
-
-        {finishedTrainings.length === 0 ? (
-          <EmptyState>Пока нет завершённых тренировок за этот период.</EmptyState>
-        ) : (
-          <ul className="space-y-2">
-            {finishedTrainings.map((training) => {
-              const when = training.finishedAt ?? training.startedAt ?? training.createdAt
-              const duration = formatDuration(training.startedAt, training.finishedAt)
-              return (
-                <li key={training.id}>
-                  <Link
-                    href={`/trainings/${training.id}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-4 py-3 transition hover:border-[var(--accent)]/30"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-[var(--foreground)]">
-                        {trainingLabel(training.templateId)}
-                      </p>
-                      <p className="mt-1 text-xs text-[var(--muted)]">
-                        {new Date(when).toLocaleString('ru-RU')}
-                        {duration ? ` · ${duration}` : ''}
-                      </p>
-                    </div>
-                    <TrainingStatusBadge status={training.status} />
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+      {tab === 'weight' ? <BodyWeightSection /> : null}
     </div>
   )
 }

@@ -6,13 +6,13 @@ import { Trash2 } from 'lucide-react'
 import { useBodyMeasurementStore } from '@/entities/body-measurement/model/store'
 import { SimpleBarChart } from '@/entities/stats/ui/simple-bar-chart'
 import { LogBodyWeightForm } from '@/features/log-body-weight/ui/log-body-weight-form'
+import { formatNumber } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
 import { EmptyState } from '@/shared/ui/empty-state'
 
 type Props = {
-  from: string
-  to: string
-  formatNumber: (value: number, digits?: number) => string
+  from?: string
+  to?: string
 }
 
 function latestWeightPerDay(
@@ -31,7 +31,7 @@ function latestWeightPerDay(
     .map(([date, item]) => ({ date, value: item.weight }))
 }
 
-export function BodyWeightSection({ from, to, formatNumber }: Props) {
+export function BodyWeightSection({ from, to }: Props) {
   const items = useBodyMeasurementStore((s) => s.items)
   const loading = useBodyMeasurementStore((s) => s.loading)
   const fetchList = useBodyMeasurementStore((s) => s.fetchList)
@@ -80,7 +80,7 @@ export function BodyWeightSection({ from, to, formatNumber }: Props) {
 
       {items.length > 0 ? (
         <ul className="mt-6 space-y-2">
-          {items.slice(0, 8).map((item) => (
+          {items.map((item) => (
             <li
               key={item.id}
               className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-4 py-3"

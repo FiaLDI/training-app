@@ -90,6 +90,7 @@ export class AuthHttpController {
       id: result.user.id,
       email: result.user.email,
       username: result.user.username,
+      role: result.user.role,
       metadata: result.user.metadata,
       createdAt: result.user.createdAt,
     }
