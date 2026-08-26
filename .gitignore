@@ -92,6 +92,10 @@ upload/**
 .next
 out
 
+# Accidental TS emit next to data-source.ts (migrations use .ts via ts-node)
+backend/data-source.js
+backend/data-source.js.map
+
 # Nuxt.js build / generate output
 .nuxt
 dist
