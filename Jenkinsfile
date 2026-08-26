@@ -10,6 +10,7 @@ pipeline {
   environment {
     BACKEND_IMAGE  = 'workout-backend'
     FRONTEND_IMAGE = 'workout-frontend'
+    UPLOAD_IMAGE   = 'workout-upload'
     IMAGE_TAG      = "${env.BUILD_NUMBER}"
     ARTIFACT_NAME  = "workout-images-${env.BUILD_NUMBER}.tar.gz"
     ARTIFACT_PATH  = "${env.WORKSPACE}/${env.ARTIFACT_NAME}"
@@ -80,12 +81,18 @@ pipeline {
               --build-arg NEXT_PUBLIC_API_URL=/api \
               -t "${FRONTEND_IMAGE}:${IMAGE_TAG}" ./frontend
 
+            sleep 2
+
+            docker build -t "${UPLOAD_IMAGE}:${IMAGE_TAG}" ./upload-service
+
             docker image inspect "${BACKEND_IMAGE}:${IMAGE_TAG}" >/dev/null
             docker image inspect "${FRONTEND_IMAGE}:${IMAGE_TAG}" >/dev/null
+            docker image inspect "${UPLOAD_IMAGE}:${IMAGE_TAG}" >/dev/null
 
             echo "Built images:"
             echo "  ${BACKEND_IMAGE}:${IMAGE_TAG}"
             echo "  ${FRONTEND_IMAGE}:${IMAGE_TAG}"
+            echo "  ${UPLOAD_IMAGE}:${IMAGE_TAG}"
             echo "Disk after build:"
             df -h / 2>/dev/null || true
           '''
@@ -107,6 +114,7 @@ pipeline {
             docker save \
               "${BACKEND_IMAGE}:${IMAGE_TAG}" \
               "${FRONTEND_IMAGE}:${IMAGE_TAG}" \
+              "${UPLOAD_IMAGE}:${IMAGE_TAG}" \
               | gzip > "${ARTIFACT_PATH}"
             ls -lh "${ARTIFACT_PATH}"
           '''
@@ -148,6 +156,8 @@ pipeline {
               --exclude='backend/dist' \
               --exclude='backend/node_modules' \
               --exclude='frontend/node_modules' \
+              --exclude='upload-service/node_modules' \
+              --exclude='upload' \
               --exclude='certbot/conf' \
               --exclude='certbot/www' \
               --exclude='.env' \
@@ -194,6 +204,7 @@ pipeline {
         echo "Image tag:     ${IMAGE_TAG}"
         echo "Backend image: ${BACKEND_IMAGE}:${IMAGE_TAG}"
         echo "Frontend image:${FRONTEND_IMAGE}:${IMAGE_TAG}"
+        echo "Upload image:  ${UPLOAD_IMAGE}:${IMAGE_TAG}"
         echo "========================="
       '''
     }
@@ -210,7 +221,7 @@ pipeline {
         set +e
         rm -f "${ARTIFACT_PATH}"
         # Keep failed-build images briefly for debugging; still drop the tar to save disk
-        echo "Left images ${BACKEND_IMAGE}:${IMAGE_TAG} / ${FRONTEND_IMAGE}:${IMAGE_TAG} on agent for inspection."
+        echo "Left images ${BACKEND_IMAGE}:${IMAGE_TAG} / ${FRONTEND_IMAGE}:${IMAGE_TAG} / ${UPLOAD_IMAGE}:${IMAGE_TAG} on agent for inspection."
       '''
     }
   }

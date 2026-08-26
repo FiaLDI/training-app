@@ -10,6 +10,7 @@
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose stop postgres",
     "ssl:issue": "bash scripts/ssl-issue.sh",
-    "ssl:renew": "bash scripts/ssl-renew.sh"
+    "ssl:renew": "bash scripts/ssl-renew.sh",
+    "seed:exercises": "npm --prefix backend run seed:exercises"
   }
 }

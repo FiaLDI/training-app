@@ -1,8 +1,8 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ExternalLink, Pencil, Star, Trash2 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Pencil, Star, Trash2, Upload } from 'lucide-react'
 
 import { DeleteExerciseButton } from '@/features/delete-exercise/ui/delete-exercise-button'
 import { EditExerciseForm } from '@/features/edit-exercise/ui/edit-exercise-form'
@@ -19,6 +19,7 @@ import { parseMuscleGroups } from '@/entities/exercise/model/muscle-groups'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { isAdmin } from '@/entities/session/model/is-admin'
 import { useSessionStore } from '@/entities/session/model/store'
+import { uploadFile } from '@/shared/api/upload-api'
 import { cn } from '@/shared/lib/cn'
 import { localData } from '@/shared/lib/local-data'
 import { Button } from '@/shared/ui/button'
@@ -46,6 +47,8 @@ export function ExerciseDetailPage({ id }: Props) {
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
   const [sourceError, setSourceError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function loadSources() {
     if (mode === 'local') {
@@ -62,30 +65,73 @@ export function ExerciseDetailPage({ id }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, fetchOne, mode])
 
+  async function createSource(input: {
+    type: string
+    title: string | null
+    url: string
+  }) {
+    if (mode === 'local') {
+      localData.sources.create({
+        exerciseId: id,
+        type: input.type,
+        title: input.title,
+        url: input.url,
+      })
+    } else {
+      await sourceApi.create({
+        exerciseId: id,
+        type: input.type,
+        title: input.title,
+        url: input.url,
+      })
+    }
+  }
+
   async function onAddSource(event: FormEvent) {
     event.preventDefault()
     setSourceError(null)
     try {
-      if (mode === 'local') {
-        localData.sources.create({
-          exerciseId: id,
-          type,
-          title: title || null,
-          url,
-        })
-      } else {
-        await sourceApi.create({
-          exerciseId: id,
-          type,
-          title: title || null,
-          url,
-        })
-      }
+      await createSource({
+        type,
+        title: title || null,
+        url,
+      })
       setTitle('')
       setUrl('')
       await loadSources()
     } catch (err) {
       setSourceError(err instanceof Error ? err.message : 'Не удалось добавить источник')
+    }
+  }
+
+  async function onUploadFile(file: File | null) {
+    if (!file) return
+    if (mode === 'local') {
+      setSourceError('Загрузка файлов доступна только в онлайн-режиме')
+      return
+    }
+    if (!canEditCatalog) {
+      setSourceError('Загрузка доступна только администратору')
+      return
+    }
+
+    setSourceError(null)
+    setUploading(true)
+    try {
+      const uploaded = await uploadFile(file)
+      await createSource({
+        type: 'image',
+        title: title || file.name || null,
+        url: uploaded.url,
+      })
+      setTitle('')
+      setType('image')
+      await loadSources()
+    } catch (err) {
+      setSourceError(err instanceof Error ? err.message : 'Не удалось загрузить файл')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -279,6 +325,30 @@ export function ExerciseDetailPage({ id }: Props) {
           </li>
         ))}
       </ul>
+
+      {canEditCatalog ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm"
+            className="hidden"
+            onChange={(e) => void onUploadFile(e.target.files?.[0] ?? null)}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={uploading || mode === 'local'}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="size-4" />
+            {uploading ? 'Загрузка…' : 'Загрузить с компьютера'}
+          </Button>
+          <p className="text-xs text-[var(--muted)]">
+            jpg / png / gif / webp / mp4 · до 5 МБ · макс. 100 файлов
+          </p>
+        </div>
+      ) : null}
 
       <form
         onSubmit={onAddSource}

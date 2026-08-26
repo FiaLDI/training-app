@@ -19,7 +19,8 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run -d data-source.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d data-source.ts",
     "migration:create": "typeorm-ts-node-commonjs migration:create src/migrations/NewMigration",
-    "migration:generate": "typeorm-ts-node-commonjs migration:generate src/migrations/Auto -d data-source.ts"
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate src/migrations/Auto -d data-source.ts",
+    "seed:exercises": "tsx src/seeds/seed-exercises.ts"
   },
   "repository": {
     "type": "git",

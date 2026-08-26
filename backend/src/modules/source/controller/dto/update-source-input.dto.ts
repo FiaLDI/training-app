@@ -1,5 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger'
-import { IsObject, IsOptional, IsString, IsUrl, MinLength } from 'class-validator'
+import {
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
+} from 'class-validator'
+
+const SOURCE_URL_PATTERN =
+  /^(https?:\/\/\S+|\/upload\/[A-Za-z0-9._-]+)$/
 
 export class UpdateSourceInputDto {
   @ApiPropertyOptional({ example: 'youtube' })
@@ -13,9 +22,15 @@ export class UpdateSourceInputDto {
   @IsString()
   title?: string | null
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    example: '/upload/example.gif',
+    description: 'Absolute URL or local upload path (/upload/...)',
+  })
   @IsOptional()
-  @IsUrl({ require_tld: false })
+  @IsString()
+  @Matches(SOURCE_URL_PATTERN, {
+    message: 'url must be http(s) URL or /upload/<filename>',
+  })
   url?: string
 
   @ApiPropertyOptional({ type: 'object', additionalProperties: true })

@@ -24,7 +24,7 @@ GitHub push → webhook → Jenkins
 | `scripts/ci-deploy.sh` | load → up → healthcheck → rollback → безопасная очистка |
 | `scripts/ci-healthcheck.sh` | ожидание HTTP 2xx |
 
-Имена образов: `workout-backend:${BUILD_NUMBER}`, `workout-frontend:${BUILD_NUMBER}`.  
+Имена образов: `workout-backend:${BUILD_NUMBER}`, `workout-frontend:${BUILD_NUMBER}`, `workout-upload:${BUILD_NUMBER}`.  
 Тег `latest` не используется как версия релиза.
 
 ## Требования
@@ -244,6 +244,7 @@ cd /opt/training-app
 # поправить IMAGE_TAG в .env на нужный тег
 docker compose up -d --no-build
 curl -fsS "http://127.0.0.1:${APP_PORT:-80}/api/health"
+curl -fsS "http://127.0.0.1:${APP_PORT:-80}/api/upload-health"
 ```
 
 ## Логи в Jenkins

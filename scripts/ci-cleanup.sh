@@ -16,6 +16,7 @@ SKIP_BUILDER_PRUNE=0
 DEPLOY_PATH="${DEPLOY_PATH:-}"
 BACKEND_IMAGE="${BACKEND_IMAGE:-workout-backend}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-workout-frontend}"
+UPLOAD_IMAGE="${UPLOAD_IMAGE:-workout-upload}"
 KEEP_ARTIFACTS="${KEEP_ARTIFACTS:-2}"
 KEEP_IMAGE_TAGS="${KEEP_IMAGE_TAGS:-2}"
 KEEP_TAGS=()
@@ -103,7 +104,7 @@ docker network prune -f || true
 docker image prune -f || true
 
 echo "3) Old app tags (keep ${KEEP_IMAGE_TAGS} newest unused + protected + in-use)…"
-for repo in "$BACKEND_IMAGE" "$FRONTEND_IMAGE"; do
+for repo in "$BACKEND_IMAGE" "$FRONTEND_IMAGE" "$UPLOAD_IMAGE"; do
   # Prefer numeric build tags (newest first); fall back to CreatedAt.
   # `grep` exits 1 when empty — must not abort under pipefail.
   mapfile -t tags < <(
@@ -140,7 +141,7 @@ for repo in "$BACKEND_IMAGE" "$FRONTEND_IMAGE"; do
 done
 
 echo "3b) Legacy training-app-* images (if not in use)…"
-for ref in $(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E '^training-app-(backend|frontend):' || true); do
+for ref in $(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E '^training-app-(backend|frontend|upload):' || true); do
   if image_in_use "$ref"; then
     echo "  keep ${ref} (in-use)"
   else

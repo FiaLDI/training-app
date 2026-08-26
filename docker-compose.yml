@@ -57,6 +57,28 @@ services:
     expose:
       - "3001"
 
+  upload:
+    image: workout-upload:${IMAGE_TAG:-local}
+    build:
+      context: ./upload-service
+    container_name: workout-upload
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      UPLOAD_PORT: 3002
+      PORT: 3002
+      UPLOAD_DIR: /data/upload
+      UPLOAD_PUBLIC_PATH: /upload
+      BACKEND_URL: http://backend:3000
+      UPLOAD_MAX_BYTES: ${UPLOAD_MAX_BYTES:-5242880}
+      UPLOAD_MAX_FILES: ${UPLOAD_MAX_FILES:-100}
+    volumes:
+      - ./upload:/data/upload
+    expose:
+      - "3002"
+
   nginx:
     image: nginx:1.27-alpine
     container_name: workout-nginx
@@ -64,6 +86,7 @@ services:
     depends_on:
       - frontend
       - backend
+      - upload
     ports:
       - "${APP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"

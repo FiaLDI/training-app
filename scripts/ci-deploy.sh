@@ -8,6 +8,7 @@ IMAGE_TAG=""
 ARTIFACT=""
 BACKEND_IMAGE="${BACKEND_IMAGE:-workout-backend}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-workout-frontend}"
+UPLOAD_IMAGE="${UPLOAD_IMAGE:-workout-upload}"
 HEALTH_URL=""
 STATE_FILE=".deploy/state"
 KEEP_PREVIOUS=1
@@ -36,7 +37,7 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-mkdir -p .deploy
+mkdir -p .deploy upload
 bash scripts/ssl-ensure-dummy.sh
 
 # CLI --image-tag must win over IMAGE_TAG from .env (set -a would overwrite it).
@@ -53,6 +54,7 @@ if [[ -z "$HEALTH_URL" ]]; then
 fi
 IMAGE_TAG="$DESIRED_TAG"
 FRONTEND_URL="${HEALTH_URL%/api/health}/"
+UPLOAD_HEALTH_URL="${HEALTH_URL%/api/health}/api/upload-health"
 
 previous_tag=""
 if [[ -f "$STATE_FILE" ]]; then
@@ -93,7 +95,8 @@ rollback() {
     return 1
   fi
   if ! docker image inspect "${BACKEND_IMAGE}:${previous_tag}" >/dev/null 2>&1 \
-    || ! docker image inspect "${FRONTEND_IMAGE}:${previous_tag}" >/dev/null 2>&1; then
+    || ! docker image inspect "${FRONTEND_IMAGE}:${previous_tag}" >/dev/null 2>&1 \
+    || ! docker image inspect "${UPLOAD_IMAGE}:${previous_tag}" >/dev/null 2>&1; then
     echo "Rollback skipped: previous images ${previous_tag} are missing." >&2
     return 1
   fi
@@ -131,6 +134,12 @@ if ! bash scripts/ci-healthcheck.sh --timeout 60 --url "$FRONTEND_URL" --expect-
   exit 1
 fi
 
+if ! bash scripts/ci-healthcheck.sh --timeout 60 --url "$UPLOAD_HEALTH_URL"; then
+  rollback "upload service failed healthcheck (${UPLOAD_HEALTH_URL})" || true
+  echo "Jenkins should mark this build as FAILURE." >&2
+  exit 1
+fi
+
 echo "Deployment healthcheck: SUCCESS"
 
 # Persist state: keep current + previous for next rollback
@@ -158,4 +167,4 @@ bash scripts/ci-cleanup.sh \
   --keep-tags "${keep_csv}" \
   || true
 
-echo "Deploy SUCCESS: ${BACKEND_IMAGE}:${IMAGE_TAG} + ${FRONTEND_IMAGE}:${IMAGE_TAG}"
+echo "Deploy SUCCESS: ${BACKEND_IMAGE}:${IMAGE_TAG} + ${FRONTEND_IMAGE}:${IMAGE_TAG} + ${UPLOAD_IMAGE}:${IMAGE_TAG}"

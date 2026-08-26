@@ -1,0 +1,165 @@
+{
+  "items": [
+    {
+      "id": "3e8af948-5fdf-4fe7-bde0-0fefeb386b89",
+      "name": "Тяга в хаммере",
+      "description": null,
+      "muscleGroup": "широчайшие,середина спины,бицепс",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "7acbe487-b758-4eee-a623-f589c6a0b944",
+      "name": "Пулловер с гантелью",
+      "description": null,
+      "muscleGroup": "широчайшие,грудь",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "1a403220-951b-476a-a6dc-4e68bb855b26",
+      "name": "Французский жим",
+      "description": null,
+      "muscleGroup": "трицепс",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "cddae5be-eef0-43a5-a85b-83a4e8febefd",
+      "name": "Подъём на икры сидя",
+      "description": null,
+      "muscleGroup": "икры",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "02bcbdc2-3a04-4295-ad51-687fec6fe689",
+      "name": "Разведение рук в тренажёре задняя дельта",
+      "description": null,
+      "muscleGroup": "задние дельты",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "397e1f4c-af0c-422c-9670-d247a6ea6d93",
+      "name": "Тяга нижнего блока",
+      "description": null,
+      "muscleGroup": "широчайшие,середина спины,бицепс",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "59e508c9-d710-4e3e-a0f7-07088f7214f9",
+      "name": "Жим гантелей лежа на наклонной скамье",
+      "description": null,
+      "muscleGroup": "грудь,передние дельты,трицепс",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "5e839051-5454-4fb3-86c3-8beacb37cae6",
+      "name": "Приседания со штангой",
+      "description": "Правильная техника\nИсходное положение: Положите штангу на верхнюю часть трапеций (на плечи, не на шею). \nНоги поставьте на ширине плеч, носки разведите в стороны примерно на 30 градусов.\nДвижение вниз: На вдохе плавно отведите таз назад и согните колени. Держите спину прямой, а грудь расправленной.\nГлубина: Опускайтесь до параллели бедер с полом (или чуть ниже, если позволяет гибкость). \nКолени должны двигаться строго по направлению носков.\nПодъем: На выдохе за счет усилия ног и упора на всю стопу вернитесь в исходное положение.",
+      "muscleGroup": "квадрицепс,ягодицы,бицепс бедра",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "b5fff348-db9a-4047-bdd2-661000775489",
+      "name": "Армейский жим штанги стоя",
+      "description": null,
+      "muscleGroup": "передние дельты,средние дельты,трицепс",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "53d6a163-1394-489a-a000-b06cdb4964ae",
+      "name": "Подъём гантелей на бицепс молотковым хватом одновременно стоя",
+      "description": null,
+      "muscleGroup": "бицепс,предплечья",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "ef4eb8e5-176f-469a-985f-a9c763356276",
+      "name": "Сведения бедер сидя в тренажере",
+      "description": null,
+      "muscleGroup": "ягодицы",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "1f48c21f-d3e1-4ef8-a08c-484336c81945",
+      "name": "Разгибация предплечий с косичкой с верхнего блока стоя",
+      "description": null,
+      "muscleGroup": "трицепс",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "4e5d0599-9a57-4032-bde7-25e7a50ad758",
+      "name": "Тяга верхнего блока средним хватом",
+      "description": null,
+      "muscleGroup": "широчайшие,бицепс",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "b462805f-ea0e-4481-a82c-d0940b6ee24d",
+      "name": "Разведение гантелей лежа на скамье",
+      "description": null,
+      "muscleGroup": "грудь",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "c3afc2c8-3058-493e-beb8-b2f9e860f272",
+      "name": "Протяжка в кроссовере на среднюю дельту",
+      "description": null,
+      "muscleGroup": "средние дельты",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "dc117599-a2d4-44cc-9476-f4e76474f56c",
+      "name": "Гиперэкстензия на ноги",
+      "description": null,
+      "muscleGroup": "бицепс бедра,ягодицы,поясница",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "caec63ce-0575-44e1-b64f-9c756453ade8",
+      "name": "Румынская тяга",
+      "description": null,
+      "muscleGroup": "бицепс бедра,ягодицы,поясница",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "1957c52a-6914-4787-ad48-32d326113636",
+      "name": "Верхний блок",
+      "description": null,
+      "muscleGroup": "широчайшие,бицепс",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "207796bf-ee02-4714-9f0b-0fe1f68f32fd",
+      "name": "Жим штанги лежа",
+      "description": null,
+      "muscleGroup": "грудь,передние дельты,трицепс",
+      "difficulty": null,
+      "metadata": {}
+    },
+    {
+      "id": "6a918879-fd0c-460d-9e9b-a6e34e621cb0",
+      "name": "Жим лёжа с гантелями",
+      "description": null,
+      "muscleGroup": "грудь,передние дельты,трицепс",
+      "difficulty": null,
+      "metadata": {}
+    }
+  ],
+  "total": 20
+}

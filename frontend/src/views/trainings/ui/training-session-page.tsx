@@ -25,6 +25,7 @@ import {
   resumeBackgroundSync,
 } from '@/features/sync-trainings/model/background-sync'
 import { useExerciseStore } from '@/entities/exercise/model/store'
+import { SessionExerciseMedia } from '@/entities/exercise/ui/session-exercise-media'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import {
@@ -272,6 +273,9 @@ export function TrainingSessionPage({ id }: Props) {
     sortedExercises.findIndex((item) => item.id === activeExerciseId),
   )
   const activeExercise = sortedExercises[activeIndex] ?? null
+  const activeCatalogExercise = activeExercise
+    ? exercises.find((item) => item.id === activeExercise.exerciseId) ?? null
+    : null
   const title =
     (current.templateId
       ? templates.find((item) => item.id === current.templateId)?.name
@@ -389,6 +393,9 @@ export function TrainingSessionPage({ id }: Props) {
               if (selected) setActiveExerciseId(selected.id)
             }}
           />
+          {activeCatalogExercise ? (
+            <SessionExerciseMedia exercise={activeCatalogExercise} />
+          ) : null}
           <section>
             <EditTrainingExerciseRow
               trainingId={id}

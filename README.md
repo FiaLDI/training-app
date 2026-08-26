@@ -71,25 +71,31 @@ Docker Compose читает корневой `.env`. Backend при локаль
 
 Основные переменные:
 
-- `IMAGE_TAG` — тег образов `workout-backend` / `workout-frontend` (`local` при `npm run up --build`; на production выставляет Jenkins)
+- `IMAGE_TAG` — тег образов `workout-backend` / `workout-frontend` / `workout-upload` (`local` при `npm run up --build`; на production выставляет Jenkins)
 - `APP_PORT` / `HTTPS_PORT` — порты nginx на хосте (`80` / `443`)
 - `CERTBOT_IP` — для `npm run ssl:issue` (`CERTBOT_EMAIL` опционален)
 - `POSTGRES_*` / `DATABASE_URL` — база
 - `JWT_SECRET` — секрет JWT
-- `NEXT_PUBLIC_API_URL` / `API_PROXY_TARGET` — для локального `next dev` (в Docker API доступен как `/api`)
+- `UPLOAD_MAX_BYTES` — лимит размера одного файла (по умолчанию 5 МБ)
+- `UPLOAD_MAX_FILES` — максимум файлов в `./upload` (по умолчанию 100)
+- `NEXT_PUBLIC_API_URL` / `API_PROXY_TARGET` / `UPLOAD_PROXY_TARGET` — для локального `next dev`
 
 ## Стек в Docker
 
 ```
 browser → nginx:$APP_PORT / :$HTTPS_PORT
-            ├─ /       → frontend:3001
-            └─ /api    → backend:3000
-                          └─ postgres:5432
+            ├─ /              → frontend:3001
+            ├─ /api/uploads   → upload:3002  (файлы → ./upload)
+            ├─ /upload/       → upload:3002
+            └─ /api           → backend:3000
+                                 └─ postgres:5432
 
 certbot (profile: ssl) ↔ volume ↔ nginx (/etc/letsencrypt, /var/www/certbot)
 ```
 
-Сервисы: `postgres`, `backend` (миграции при старте), `frontend`, `nginx`; `certbot` — по запросу (`ssl:issue` / `ssl:renew`).
+Сервисы: `postgres`, `backend` (миграции при старте), `frontend`, `upload`, `nginx`; `certbot` — по запросу (`ssl:issue` / `ssl:renew`).
+
+Файлы упражнений (gif/картинки) кладутся в `./upload` на хосте и отдаются по `/upload/<filename>`. Загрузка: кнопка на карточке упражнения (только admin, онлайн-режим) → `POST /api/uploads`.
 
 ## Локальная разработка (без полного Docker)
 
@@ -118,7 +124,15 @@ npm ci
 npm run dev
 ```
 
-UI: `http://localhost:3001` (проксирует `/api` на backend через `API_PROXY_TARGET`).
+UI: `http://localhost:3001` (проксирует `/api` на backend и `/upload` + `/api/uploads` на upload-сервис).
+
+4. Upload-сервис (для загрузки файлов с ПК):
+
+```bash
+cd upload-service
+npm ci
+UPLOAD_DIR=../upload BACKEND_URL=http://127.0.0.1:3000 npm run start:dev
+```
 
 ## Полезные команды
 
@@ -133,6 +147,7 @@ UI: `http://localhost:3001` (проксирует `/api` на backend через
 | `npm run ssl:issue` | Выпустить LE-сертификат на `CERTBOT_IP` |
 | `npm run ssl:renew` | Обновить сертификаты и reload nginx |
 | `cd backend && npm run migration:run` | Миграции вручную |
+| `npm run seed:exercises` | Сид каталога упражнений (создаёт отсутствующие, обновляет `muscleGroup` при отличии) |
 
 ## Админ
 
@@ -154,7 +169,7 @@ docker compose exec workout-postgres \
 
 ## CI/CD (Jenkins)
 
-Production получает уже собранные образы `workout-backend` / `workout-frontend` по SSH (без Registry и без `docker build` на сервере). После успешного деплоя Jenkins удаляет локальный image и tar; на production хранятся текущий и предыдущий тег для rollback.
+Production получает уже собранные образы `workout-backend` / `workout-frontend` / `workout-upload` по SSH (без Registry и без `docker build` на сервере). После успешного деплоя Jenkins удаляет локальный image и tar; на production хранятся текущий и предыдущий тег для rollback.
 
 Подробности: [docs/jenkins-cicd.md](docs/jenkins-cicd.md).
 
@@ -167,7 +182,9 @@ Production получает уже собранные образы `workout-back
 ├── docs/             # в т.ч. jenkins-cicd.md
 ├── nginx/            # reverse proxy
 ├── certbot/          # LE webroot + certificates (gitignored)
+├── upload/           # загруженные медиа (gitignored, volume)
 ├── scripts/          # ssl + ci-deploy / ci-healthcheck
+├── upload-service/   # upload microservice (clean architecture)
 ├── backend/          # NestJS API
 └── frontend/         # Next.js UI
 ```
