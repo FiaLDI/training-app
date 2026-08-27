@@ -47,13 +47,21 @@ export class SourceTypeormRepository implements SourceRepositoryPort {
   }
 
   async list(input: ListSourcesRepositoryInput): Promise<ListSourcesRepositoryOutput> {
-    const where = input.exerciseId ? { exerciseId: input.exerciseId } : {}
-    const [items, total] = await this.sources.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      skip: (input.page - 1) * input.limit,
-      take: input.limit,
-    })
+    const qb = this.sources
+      .createQueryBuilder('s')
+      .innerJoin('exercises', 'e', 'e.id = s.exercise_id')
+      .where('(e.user_id IS NULL OR e.user_id = :viewerUserId)', {
+        viewerUserId: input.viewerUserId,
+      })
+      .orderBy('s.created_at', 'DESC')
+      .skip((input.page - 1) * input.limit)
+      .take(input.limit)
+
+    if (input.exerciseId) {
+      qb.andWhere('s.exercise_id = :exerciseId', { exerciseId: input.exerciseId })
+    }
+
+    const [items, total] = await qb.getManyAndCount()
 
     return {
       items: items.map((item) => this.mapSource(item)),

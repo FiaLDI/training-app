@@ -16,8 +16,11 @@ export class UserEntity {
   @Column({ type: 'text' })
   username!: string
 
-  @Column({ name: 'login_code', type: 'text', unique: true })
-  loginCode!: string
+  @Column({ name: 'login_code_hash', type: 'text' })
+  loginCodeHash!: string
+
+  @Column({ name: 'login_code_lookup', type: 'text', unique: true })
+  loginCodeLookup!: string
 
   @Column({ type: 'varchar', length: 16, default: 'user' })
   role!: 'user' | 'admin'
@@ -27,4 +30,10 @@ export class UserEntity {
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date
+
+  @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
+  lastLoginAt!: Date | null
+
+  @Column({ name: 'sessions_revoked_at', type: 'timestamptz', nullable: true })
+  sessionsRevokedAt!: Date | null
 }

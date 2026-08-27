@@ -73,7 +73,7 @@ async function pushExercise(id: string, op: OutboxOp) {
     )
   } catch (error) {
     if (error instanceof ApiError && error.status !== 404) throw error
-    await exerciseApi.create(
+    const created = await exerciseApi.create(
       {
         id: local.id,
         name: local.name,
@@ -84,6 +84,15 @@ async function pushExercise(id: string, op: OutboxOp) {
       },
       writeExtras,
     )
+    localData.exercises.upsert({
+      ...created,
+      metadata: {
+        ...created.metadata,
+        catalogSyncedAt: new Date().toISOString(),
+      },
+    })
+    dequeue('exercise', id)
+    return
   }
   const synced = localData.exercises.get(id)
   if (synced) {
@@ -167,6 +176,9 @@ export const catalogSync = {
     const pendingDeletes = new Set(
       readOutbox().filter((entry) => entry.op === 'delete').map((entry) => entry.id),
     )
+    const pendingUpserts = new Set(
+      readOutbox().filter((entry) => entry.op === 'upsert').map((entry) => entry.id),
+    )
     try {
       const exercises = await exerciseApi.list({
         limit: 200,
@@ -179,6 +191,7 @@ export const catalogSync = {
         if (!local || local.updatedAt <= item.updatedAt) {
           localData.exercises.upsert({
             ...item,
+            userId: item.userId ?? null,
             metadata: {
               ...item.metadata,
               catalogSyncedAt:
@@ -189,7 +202,14 @@ export const catalogSync = {
         }
       }
       for (const local of localData.exercises.list()) {
-        if (!serverIds.has(local.id) && local.metadata?.catalogSyncedAt) {
+        // Keep pending local customs and unsynced drafts; only drop previously synced
+        // rows that the server no longer returns for this user (system ∪ mine).
+        if (
+          !serverIds.has(local.id) &&
+          local.metadata?.catalogSyncedAt &&
+          !pendingUpserts.has(local.id) &&
+          !pendingDeletes.has(local.id)
+        ) {
           localData.exercises.remove(local.id)
         }
       }
@@ -214,6 +234,27 @@ export const catalogSync = {
     id: string,
     input: Parameters<typeof localData.exercises.update>[1],
   ): Promise<Exercise> {
+    if (input.isSystem === true) {
+      try {
+        const updated = await exerciseApi.update(id, input, { timeoutMs: 12000 })
+        localData.exercises.upsert({
+          ...updated,
+          metadata: {
+            ...updated.metadata,
+            catalogSyncedAt: new Date().toISOString(),
+          },
+        })
+        dequeue('exercise', id)
+        return localData.exercises.get(id) ?? updated
+      } catch (error) {
+        // Fall back to local promote if offline
+        const local = localData.exercises.update(id, input)
+        if (!local) throw error instanceof Error ? error : new Error('Упражнение не найдено')
+        catalogSync.enqueueUpsert('exercise', id)
+        throw error
+      }
+    }
+
     const exercise = localData.exercises.update(id, input)
     if (!exercise) throw new Error('Упражнение не найдено')
     catalogSync.enqueueUpsert('exercise', id)

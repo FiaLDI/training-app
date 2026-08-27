@@ -18,9 +18,11 @@ export function LoginPage() {
   const [step, setStep] = useState<Step>('choose')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
+  const [issuedCode, setIssuedCode] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   function goLocal() {
     continueLocal()
@@ -32,13 +34,19 @@ export function LoginPage() {
     setLoading(true)
     setError(null)
     setMessage(null)
+    setIssuedCode(null)
+    setCopied(false)
     try {
       const result = await register(email)
-      setMessage(
-        result.created
-          ? 'Аккаунт создан. Постоянный код — в консоли бэкенда; входите только по коду.'
-          : 'Аккаунт уже существует. Постоянный код снова выведен в консоль бэкенда.',
-      )
+      if (result.created && result.loginCode) {
+        setIssuedCode(result.loginCode)
+        setCode(result.loginCode)
+        setMessage('Аккаунт создан. Скопируйте код сейчас — он больше не покажется.')
+      } else {
+        setMessage(
+          'Аккаунт уже существует. Войдите своим кодом или попросите администратора сбросить его.',
+        )
+      }
       setStep('login')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось зарегистрироваться')
@@ -58,6 +66,16 @@ export function LoginPage() {
       setError(err instanceof Error ? err.message : 'Неверный код')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function copyIssuedCode() {
+    if (!issuedCode) return
+    try {
+      await navigator.clipboard.writeText(issuedCode)
+      setCopied(true)
+    } catch {
+      setCopied(false)
     }
   }
 
@@ -104,8 +122,8 @@ export function LoginPage() {
               />
             </label>
             <p className="text-xs text-[var(--muted)]">
-              Постоянный код входа будет создан один раз и выведен в консоль бэкенда.
-              Входите только по этому коду.
+              Код входа покажется один раз после регистрации. Сохраните его — в БД хранится только
+              хеш.
             </p>
             {error && <p className="text-sm text-red-300">{error}</p>}
             <div className="flex gap-2">
@@ -122,11 +140,25 @@ export function LoginPage() {
         {step === 'login' && (
           <form className="mt-8 space-y-4" onSubmit={onLogin}>
             {message && <p className="text-sm text-[var(--accent)]">{message}</p>}
+            {issuedCode ? (
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                <p className="text-xs text-[var(--muted)]">Ваш код (показывается один раз)</p>
+                <p className="mt-1 break-all font-mono text-sm">{issuedCode}</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-3 w-full"
+                  onClick={() => void copyIssuedCode()}
+                >
+                  {copied ? 'Скопировано' : 'Скопировать код'}
+                </Button>
+              </div>
+            ) : null}
             <label className="block space-y-2 text-sm">
               <span className="text-[var(--muted)]">Код</span>
               <Input
                 required
-                autoFocus
+                autoFocus={!issuedCode}
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="введите код"

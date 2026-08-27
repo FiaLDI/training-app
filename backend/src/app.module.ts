@@ -10,6 +10,7 @@ import { SourceModule } from './modules/source/source.module'
 import { StatsModule } from './modules/stats/stats.module'
 import { TemplateModule } from './modules/template/template.module'
 import { TrainingModule } from './modules/training/training.module'
+import { CacheModule } from './shared/cache/cache.module'
 import { ConfigModule } from './shared/config/config.module'
 import { DatabaseModule } from './shared/database/database.module'
 import { LoggerModule } from './shared/logger/logger.module'
@@ -18,6 +19,7 @@ import { LoggerModule } from './shared/logger/logger.module'
   imports: [
     ConfigModule,
     LoggerModule,
+    CacheModule,
     DatabaseModule,
     HealthModule,
     AuthModule,

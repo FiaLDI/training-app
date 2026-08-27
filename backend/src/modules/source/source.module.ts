@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 
+import { AuthModule } from '../auth/auth.module'
+import { ExerciseModule } from '../exercise/exercise.module'
+import { EXERCISE_REPOSITORY_PORT, ExerciseRepositoryPort } from '../exercise/core/ports/exercise-repository.port'
 import { SourceHttpController } from './controller/source.http-controller'
 import { SOURCE_REPOSITORY_PORT } from './core/ports/source-repository.port'
 import { CreateSourceUseCase } from './core/use-cases/create/create-source.use-case'
@@ -17,7 +20,11 @@ import { ExerciseTimecodeEntity } from './core/entity/exercise-timecode.entity'
 import { SourceTypeormRepository } from './infrastructure/source.typeorm-repository'
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExerciseSourceEntity, ExerciseTimecodeEntity])],
+  imports: [
+    AuthModule,
+    ExerciseModule,
+    TypeOrmModule.forFeature([ExerciseSourceEntity, ExerciseTimecodeEntity]),
+  ],
   controllers: [SourceHttpController],
   providers: [
     SourceTypeormRepository,
@@ -27,48 +34,57 @@ import { SourceTypeormRepository } from './infrastructure/source.typeorm-reposit
     },
     {
       provide: ListSourcesUseCase,
-      useFactory: (repo: SourceTypeormRepository) => new ListSourcesUseCase(repo),
-      inject: [SourceTypeormRepository],
+      useFactory: (repo: SourceTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new ListSourcesUseCase(repo, exercises),
+      inject: [SourceTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
     {
       provide: GetSourceUseCase,
-      useFactory: (repo: SourceTypeormRepository) => new GetSourceUseCase(repo),
-      inject: [SourceTypeormRepository],
+      useFactory: (repo: SourceTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new GetSourceUseCase(repo, exercises),
+      inject: [SourceTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
     {
       provide: CreateSourceUseCase,
-      useFactory: (repo: SourceTypeormRepository) => new CreateSourceUseCase(repo),
-      inject: [SourceTypeormRepository],
+      useFactory: (repo: SourceTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new CreateSourceUseCase(repo, exercises),
+      inject: [SourceTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
     {
       provide: UpdateSourceUseCase,
-      useFactory: (repo: SourceTypeormRepository) => new UpdateSourceUseCase(repo),
-      inject: [SourceTypeormRepository],
+      useFactory: (repo: SourceTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new UpdateSourceUseCase(repo, exercises),
+      inject: [SourceTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
     {
       provide: DeleteSourceUseCase,
-      useFactory: (repo: SourceTypeormRepository) => new DeleteSourceUseCase(repo),
-      inject: [SourceTypeormRepository],
+      useFactory: (repo: SourceTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new DeleteSourceUseCase(repo, exercises),
+      inject: [SourceTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
     {
       provide: ListTimecodesUseCase,
-      useFactory: (repo: SourceTypeormRepository) => new ListTimecodesUseCase(repo),
-      inject: [SourceTypeormRepository],
+      useFactory: (repo: SourceTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new ListTimecodesUseCase(repo, exercises),
+      inject: [SourceTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
     {
       provide: CreateTimecodeUseCase,
-      useFactory: (repo: SourceTypeormRepository) => new CreateTimecodeUseCase(repo),
-      inject: [SourceTypeormRepository],
+      useFactory: (repo: SourceTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new CreateTimecodeUseCase(repo, exercises),
+      inject: [SourceTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
     {
       provide: UpdateTimecodeUseCase,
-      useFactory: (repo: SourceTypeormRepository) => new UpdateTimecodeUseCase(repo),
-      inject: [SourceTypeormRepository],
+      useFactory: (repo: SourceTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new UpdateTimecodeUseCase(repo, exercises),
+      inject: [SourceTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
     {
       provide: DeleteTimecodeUseCase,
-      useFactory: (repo: SourceTypeormRepository) => new DeleteTimecodeUseCase(repo),
-      inject: [SourceTypeormRepository],
+      useFactory: (repo: SourceTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new DeleteTimecodeUseCase(repo, exercises),
+      inject: [SourceTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
   ],
   exports: [

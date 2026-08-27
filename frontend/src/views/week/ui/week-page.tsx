@@ -303,7 +303,7 @@ function DayTrainingCard({
   )
 }
 
-export function PlanPage() {
+export function WeekPage() {
   const todayWeek = useMemo(() => startOfWeekMonday(new Date()), [])
   const [weekStart, setWeekStart] = useState(() => todayWeek)
   const [selectedDayIndex, setSelectedDayIndex] = useState(() => weekdayIndexMonday(new Date()))

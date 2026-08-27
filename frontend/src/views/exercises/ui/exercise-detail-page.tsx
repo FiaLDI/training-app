@@ -15,6 +15,7 @@ import {
   isImageSource,
   withPrimaryImage,
 } from '@/entities/exercise/lib/primary-image'
+import { canEditExercise } from '@/entities/exercise/model/can-edit-exercise'
 import { parseMuscleGroups } from '@/entities/exercise/model/muscle-groups'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { isAdmin } from '@/entities/session/model/is-admin'
@@ -40,7 +41,11 @@ export function ExerciseDetailPage({ id }: Props) {
   const update = useExerciseStore((s) => s.update)
   const mode = useSessionStore((s) => s.mode)
   const user = useSessionStore((s) => s.user)
-  const canEditCatalog = isAdmin(user)
+  const canEdit =
+    mode === 'local' || (current ? canEditExercise(current, user) : false)
+  const canPromoteToSystem =
+    mode === 'cloud' && isAdmin(user) && Boolean(current?.userId)
+  const [promoting, setPromoting] = useState(false)
   const [sources, setSources] = useState<ExerciseSource[]>([])
   const [editing, setEditing] = useState(false)
   const [type, setType] = useState('youtube')
@@ -49,6 +54,23 @@ export function ExerciseDetailPage({ id }: Props) {
   const [sourceError, setSourceError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function onPromoteToSystem() {
+    if (!current) return
+    const ok = window.confirm(
+      `Сделать «${current.name}» системным? Оно станет общим для всех пользователей, править сможет только админ.`,
+    )
+    if (!ok) return
+    setPromoting(true)
+    setSourceError(null)
+    try {
+      await update(id, { isSystem: true })
+    } catch (err) {
+      setSourceError(err instanceof Error ? err.message : 'Не удалось сделать системным')
+    } finally {
+      setPromoting(false)
+    }
+  }
 
   async function loadSources() {
     if (mode === 'local') {
@@ -110,8 +132,8 @@ export function ExerciseDetailPage({ id }: Props) {
       setSourceError('Загрузка файлов доступна только в онлайн-режиме')
       return
     }
-    if (!canEditCatalog) {
-      setSourceError('Загрузка доступна только администратору')
+    if (!canEdit) {
+      setSourceError('Загрузка доступна только владельцу упражнения или администратору')
       return
     }
 
@@ -182,8 +204,18 @@ export function ExerciseDetailPage({ id }: Props) {
         title={current.name}
         description={current.description ?? undefined}
         action={
-          canEditCatalog ? (
+          canEdit ? (
           <div className="flex flex-wrap gap-2">
+            {canPromoteToSystem ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={promoting}
+                onClick={() => void onPromoteToSystem()}
+              >
+                {promoting ? '…' : 'В системные'}
+              </Button>
+            ) : null}
             {!editing ? (
               <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
                 <Pencil className="size-4" />
@@ -192,6 +224,7 @@ export function ExerciseDetailPage({ id }: Props) {
             <DeleteExerciseButton
               exerciseId={id}
               exerciseName={current.name}
+              exerciseUserId={current.userId}
               onDeleted={() => {
                 window.location.href = '/exercises'
               }}
@@ -201,7 +234,7 @@ export function ExerciseDetailPage({ id }: Props) {
         }
       />
 
-      {canEditCatalog && editing ? (
+      {canEdit && editing ? (
         <EditExerciseForm
           exercise={current}
           onCancel={() => setEditing(false)}
@@ -265,6 +298,8 @@ export function ExerciseDetailPage({ id }: Props) {
                       {source.title || 'изображение'}
                     </p>
                     <div className="flex shrink-0 gap-1">
+                      {canEdit ? (
+                        <>
                       <Button
                         type="button"
                         variant="ghost"
@@ -287,6 +322,8 @@ export function ExerciseDetailPage({ id }: Props) {
                       >
                         <Trash2 className="size-4" />
                       </Button>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 </li>
@@ -315,6 +352,7 @@ export function ExerciseDetailPage({ id }: Props) {
                 <ExternalLink className="size-3" />
               </a>
             </div>
+            {canEdit ? (
             <Button
               type="button"
               variant="ghost"
@@ -322,11 +360,12 @@ export function ExerciseDetailPage({ id }: Props) {
             >
               <Trash2 className="size-4" />
             </Button>
+            ) : null}
           </li>
         ))}
       </ul>
 
-      {canEditCatalog ? (
+      {canEdit ? (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-3">
           <input
             ref={fileInputRef}
@@ -350,6 +389,7 @@ export function ExerciseDetailPage({ id }: Props) {
         </div>
       ) : null}
 
+      {canEdit ? (
       <form
         onSubmit={onAddSource}
         className="flex flex-wrap items-end gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4"
@@ -374,6 +414,7 @@ export function ExerciseDetailPage({ id }: Props) {
         <Button type="submit">Добавить источник</Button>
         {sourceError ? <p className="w-full text-sm text-red-300">{sourceError}</p> : null}
       </form>
+      ) : null}
     </div>
   )
 }

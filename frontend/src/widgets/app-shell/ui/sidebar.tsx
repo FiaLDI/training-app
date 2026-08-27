@@ -3,48 +3,26 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import {
-  CalendarDays,
-  BarChart3,
-  ChevronDown,
-  CircleHelp,
-  Dumbbell,
-  Home,
-  LayoutTemplate,
-  LogOut,
-  MoreHorizontal,
-  Settings,
-} from 'lucide-react'
+import { ChevronDown, LogOut, Shield } from 'lucide-react'
 
+import { isAdmin } from '@/entities/session/model/is-admin'
 import { useSessionStore } from '@/entities/session/model/store'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
 
-const primaryLinks = [
-  { href: '/', label: 'Сегодня', icon: Home },
-  { href: '/plan', label: 'Неделя', icon: CalendarDays },
-  { href: '/stats', label: 'Статистика', icon: BarChart3 },
-]
-
-const moreLinks = [
-  { href: '/plans', label: 'Планы', icon: LayoutTemplate },
-  { href: '/exercises', label: 'Упражнения', icon: Dumbbell },
-  { href: '/settings', label: 'Профиль', icon: Settings },
-  { href: '/help', label: 'Помощь', icon: CircleHelp },
-]
-
-function isActive(pathname: string, href: string) {
-  if (href === '/') return pathname === '/'
-  if (pathname === href) return true
-  return pathname.startsWith(`${href}/`)
-}
+import { adminLinks, isActive, moreLinks, primaryLinks } from '../model/nav-links'
 
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const switchMode = useSessionStore((s) => s.switchMode)
+  const user = useSessionStore((s) => s.user)
+  const mode = useSessionStore((s) => s.mode)
+  const admin = mode === 'cloud' && isAdmin(user)
+
   const moreActive = moreLinks.some((link) => isActive(pathname, link.href))
-  const [moreOpen, setMoreOpen] = useState(moreActive)
+  const adminActive = admin && pathname.startsWith('/admin')
+  const [moreOpen, setMoreOpen] = useState(moreActive || Boolean(adminActive))
 
   async function onSwitchMode() {
     await switchMode()
@@ -97,17 +75,13 @@ export function Sidebar() {
             onClick={() => setMoreOpen((open) => !open)}
             className={cn(
               'inline-flex flex-1 flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] transition md:mt-1 md:flex-none md:w-full md:flex-row md:gap-2 md:px-3 md:py-2.5 md:text-sm',
-              moreActive || moreOpen
+              moreActive || adminActive || moreOpen
                 ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
                 : 'text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
             )}
           >
-            <MoreHorizontal className="size-4 shrink-0 md:hidden" />
             <ChevronDown
-              className={cn(
-                'hidden size-4 shrink-0 transition md:block',
-                moreOpen && 'rotate-180',
-              )}
+              className={cn('size-4 shrink-0 transition', moreOpen && 'rotate-180')}
             />
             <span>Ещё</span>
           </button>
@@ -118,10 +92,10 @@ export function Sidebar() {
             {moreLinks.map(({ href, label, icon: Icon }) => {
               const active = isActive(pathname, href)
               return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={cn(
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
                     'inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition',
                     active
                       ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
@@ -133,6 +107,33 @@ export function Sidebar() {
                 </Link>
               )
             })}
+
+            {admin ? (
+              <div className="col-span-2 mt-1 space-y-1 border-t border-[var(--border)] pt-2 md:col-span-1">
+                <div className="flex items-center gap-2 px-3 py-1 text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+                  <Shield className="size-3.5 shrink-0" />
+                  Админ-панель
+                </div>
+                {adminLinks.map(({ href, label, icon: Icon }) => {
+                  const active = isActive(pathname, href)
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={cn(
+                        'inline-flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition',
+                        active
+                          ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                          : 'text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)] md:hover:bg-[var(--surface-2)]',
+                      )}
+                    >
+                      <Icon className="size-4 shrink-0" />
+                      {label}
+                    </Link>
+                  )
+                })}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </nav>

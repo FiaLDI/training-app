@@ -139,7 +139,7 @@ export function DashboardPage() {
           {ctaLabel}
         </Button>
         <Link
-          href="/plan"
+          href="/week"
           className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 text-sm text-[var(--foreground)] transition hover:border-[var(--accent)]/30"
         >
           <CalendarDays className="size-4" />

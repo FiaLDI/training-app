@@ -36,23 +36,24 @@ export class CreateTrainingUseCase implements UseCase<CreateTrainingInput, Creat
 
     if (input.templateId) {
       const template = await this.templateRepository.getById(input.templateId, input.userId)
-      if (template) {
-        for (const item of template.exercises) {
-          await this.trainingRepository.createExercise({
-            trainingId: training.id,
-            userId: input.userId,
-            exerciseId: item.exerciseId,
-            exerciseOrder: item.exerciseOrder,
-            targetSets: item.targetSets,
-            isWarmup: item.isWarmup,
-            minReps: item.minReps,
-            maxReps: item.maxReps,
-            restSeconds: item.restSeconds,
-            notes: item.notes,
-            metadata:
-              item.targetWeight != null ? { targetWeight: item.targetWeight } : item.metadata,
-          })
-        }
+      if (!template) {
+        throw new BadRequestException('Template not found')
+      }
+      for (const item of template.exercises) {
+        await this.trainingRepository.createExercise({
+          trainingId: training.id,
+          userId: input.userId,
+          exerciseId: item.exerciseId,
+          exerciseOrder: item.exerciseOrder,
+          targetSets: item.targetSets,
+          isWarmup: item.isWarmup,
+          minReps: item.minReps,
+          maxReps: item.maxReps,
+          restSeconds: item.restSeconds,
+          notes: item.notes,
+          metadata:
+            item.targetWeight != null ? { targetWeight: item.targetWeight } : item.metadata,
+        })
       }
     }
 

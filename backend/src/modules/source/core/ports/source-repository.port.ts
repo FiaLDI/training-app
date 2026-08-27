@@ -1,6 +1,7 @@
 import { ExerciseSource, ExerciseTimecode } from '../types'
 
 export interface ListSourcesRepositoryInput {
+  viewerUserId: string
   page: number
   limit: number
   exerciseId?: string

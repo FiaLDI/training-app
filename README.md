@@ -156,9 +156,9 @@ UPLOAD_DIR=../upload BACKEND_URL=http://127.0.0.1:3000 npm run start:dev
 Команда к контейнеру Postgres (подставьте почту):
 
 ```bash
-docker compose exec workout-postgres \
+docker exec workout-postgres \
   psql -U postgres -d workout \
-  -c "UPDATE users SET role = 'admin' WHERE lower(email) = lower('you@example.com');"
+  -c "UPDATE users SET role = 'admin' WHERE lower(email) = lower('test@example.com');"
 ```
 
 Если в `.env` меняли `POSTGRES_USER` / `POSTGRES_DB` — подставьте их вместо `postgres` / `workout`.

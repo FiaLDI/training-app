@@ -31,7 +31,12 @@ type SessionState = {
   setHydrated: (value: boolean) => void
   continueLocal: () => void
   setCloudSession: (user: AuthUser, accessToken: string) => void
-  register: (email: string) => Promise<{ email: string; created: boolean; message: string }>
+  register: (email: string) => Promise<{
+    email: string
+    created: boolean
+    message: string
+    loginCode?: string
+  }>
   login: (code: string) => Promise<void>
   logout: () => Promise<void>
   switchMode: () => Promise<void>

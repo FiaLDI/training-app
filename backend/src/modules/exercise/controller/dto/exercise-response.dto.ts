@@ -4,6 +4,9 @@ export class ExerciseResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string
 
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'null = system exercise' })
+  userId!: string | null
+
   @ApiProperty()
   name!: string
 

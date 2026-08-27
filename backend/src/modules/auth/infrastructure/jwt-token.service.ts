@@ -7,6 +7,14 @@ export type JwtPayload = {
   email: string
 }
 
+/** `iat`/`exp` are always present on a verified token; revocation checks rely on them. */
+export type VerifiedJwtPayload = JwtPayload & {
+  iat: number
+  exp: number
+}
+
+export const TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
+
 @Injectable()
 export class JwtTokenService {
   constructor(private readonly config: ConfigService) {}
@@ -16,10 +24,10 @@ export class JwtTokenService {
   }
 
   sign(payload: JwtPayload): string {
-    return jwt.sign(payload, this.secret, { expiresIn: '30d' })
+    return jwt.sign(payload, this.secret, { expiresIn: TOKEN_TTL_SECONDS })
   }
 
-  verify(token: string): JwtPayload {
-    return jwt.verify(token, this.secret) as JwtPayload
+  verify(token: string): VerifiedJwtPayload {
+    return jwt.verify(token, this.secret) as VerifiedJwtPayload
   }
 }

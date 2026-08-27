@@ -1,3 +1,5 @@
+import { ConflictException } from '@nestjs/common'
+
 import { UseCase } from '../../../../../common/core/use-case'
 import { ExerciseRepositoryPort } from '../../ports/exercise-repository.port'
 import { CreateExerciseInput } from './interfaces/create-exercise.input'
@@ -8,10 +10,26 @@ export class CreateExerciseUseCase implements UseCase<CreateExerciseInput, Creat
 
   public async execute(input: CreateExerciseInput): Promise<CreateExerciseOutput> {
     if (input.id) {
-      const existing = await this.exerciseRepository.getById(input.id)
-      if (existing) return { exercise: existing }
+      // Prefer scoped lookup for the creating user (system ∪ mine).
+      if (input.userId) {
+        const visible = await this.exerciseRepository.getById(input.id, input.userId)
+        if (visible) return { exercise: visible }
+      }
+      // Creating a system exercise with a known id — repository create handles ownership match.
     }
-    const exercise = await this.exerciseRepository.create(input)
-    return { exercise }
+
+    try {
+      const exercise = await this.exerciseRepository.create(input)
+      return { exercise }
+    } catch (err: unknown) {
+      const code =
+        err && typeof err === 'object' && 'code' in err
+          ? String((err as { code: unknown }).code)
+          : null
+      if (code === '23505') {
+        throw new ConflictException('Exercise id already exists')
+      }
+      throw err
+    }
   }
 }

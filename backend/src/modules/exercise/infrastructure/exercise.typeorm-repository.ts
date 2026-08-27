@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
-import { ILike, Repository } from 'typeorm'
+import { Repository } from 'typeorm'
 
 import {
   CreateExerciseRepositoryInput,
@@ -22,6 +22,7 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
   private mapToDomain(entity: ExerciseEntity): Exercise {
     return {
       id: entity.id,
+      userId: entity.userId,
       name: entity.name,
       description: entity.description,
       muscleGroup: entity.muscleGroup,
@@ -32,15 +33,23 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
     }
   }
 
-  async list(input: ListExercisesRepositoryInput): Promise<ListExercisesRepositoryOutput> {
-    const where = input.q ? { name: ILike(`%${input.q}%`) } : {}
+  private visibilityWhere(alias: string): string {
+    return `(${alias}.user_id IS NULL OR ${alias}.user_id = :viewerUserId)`
+  }
 
-    const [items, total] = await this.exercises.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      skip: (input.page - 1) * input.limit,
-      take: input.limit,
-    })
+  async list(input: ListExercisesRepositoryInput): Promise<ListExercisesRepositoryOutput> {
+    const qb = this.exercises
+      .createQueryBuilder('e')
+      .where(this.visibilityWhere('e'), { viewerUserId: input.userId })
+      .orderBy('e.created_at', 'DESC')
+      .skip((input.page - 1) * input.limit)
+      .take(input.limit)
+
+    if (input.q) {
+      qb.andWhere('e.name ILIKE :q', { q: `%${input.q}%` })
+    }
+
+    const [items, total] = await qb.getManyAndCount()
 
     return {
       items: items.map((item) => this.mapToDomain(item)),
@@ -50,19 +59,33 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
     }
   }
 
-  async getById(id: string): Promise<Exercise | null> {
-    const entity = await this.exercises.findOne({ where: { id } })
+  async getById(id: string, viewerUserId: string): Promise<Exercise | null> {
+    const entity = await this.exercises
+      .createQueryBuilder('e')
+      .where('e.id = :id', { id })
+      .andWhere(this.visibilityWhere('e'), { viewerUserId })
+      .getOne()
+
     return entity ? this.mapToDomain(entity) : null
   }
 
   async create(input: CreateExerciseRepositoryInput): Promise<Exercise> {
     if (input.id) {
       const existing = await this.exercises.findOne({ where: { id: input.id } })
-      if (existing) return this.mapToDomain(existing)
+      if (existing) {
+        // Idempotent create: only return if caller owns it or it is system and they are creating as system.
+        if (
+          existing.userId === input.userId ||
+          (existing.userId === null && input.userId === null)
+        ) {
+          return this.mapToDomain(existing)
+        }
+      }
     }
 
     const entity = this.exercises.create({
       ...(input.id ? { id: input.id } : {}),
+      userId: input.userId,
       name: input.name,
       description: input.description ?? null,
       muscleGroup: input.muscleGroup ?? null,
@@ -80,6 +103,7 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
       return null
     }
 
+    if (input.userId !== undefined) entity.userId = input.userId
     if (input.name !== undefined) entity.name = input.name
     if (input.description !== undefined) entity.description = input.description
     if (input.muscleGroup !== undefined) entity.muscleGroup = input.muscleGroup

@@ -21,6 +21,7 @@ export function ExerciseCard({ exercise, onDeleted }: Props) {
       <DeleteExerciseButton
         exerciseId={exercise.id}
         exerciseName={exercise.name}
+        exerciseUserId={exercise.userId}
         variant="ghost"
         iconOnly
         className="absolute top-2 right-2 z-10 bg-[var(--surface)]/80 backdrop-blur-sm"

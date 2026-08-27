@@ -101,7 +101,7 @@ export function ProgramDetailPage({ id }: Props) {
       />
 
       <p className="mb-4 text-sm">
-        <Link href="/templates" className="text-[var(--accent)] hover:underline">
+        <Link href="/plans" className="text-[var(--accent)] hover:underline">
           Управление шаблонами
         </Link>
       </p>

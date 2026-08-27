@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 
 import { AuthModule } from '../auth/auth.module'
+import { ExerciseModule } from '../exercise/exercise.module'
+import { EXERCISE_REPOSITORY_PORT, ExerciseRepositoryPort } from '../exercise/core/ports/exercise-repository.port'
 import { TemplateModule } from '../template/template.module'
 import { TemplateTypeormRepository } from '../template/infrastructure/template.typeorm-repository'
 import { TrainingHttpController } from './controller/training.http-controller'
@@ -25,6 +27,7 @@ import { TrainingTypeormRepository } from './infrastructure/training.typeorm-rep
 @Module({
   imports: [
     AuthModule,
+    ExerciseModule,
     TemplateModule,
     TypeOrmModule.forFeature([TrainingEntity, TrainingExerciseEntity, TrainingSetEntity]),
   ],
@@ -63,8 +66,9 @@ import { TrainingTypeormRepository } from './infrastructure/training.typeorm-rep
     },
     {
       provide: CreateTrainingExerciseUseCase,
-      useFactory: (repo: TrainingTypeormRepository) => new CreateTrainingExerciseUseCase(repo),
-      inject: [TrainingTypeormRepository],
+      useFactory: (repo: TrainingTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new CreateTrainingExerciseUseCase(repo, exercises),
+      inject: [TrainingTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
     {
       provide: UpdateTrainingExerciseUseCase,

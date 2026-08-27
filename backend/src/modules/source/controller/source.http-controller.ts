@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Inject,
   NotFoundException,
@@ -10,8 +11,10 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common'
 import {
+  ApiBearerAuth,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -20,6 +23,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger'
 
+import { CurrentUser } from '../../auth/controller/current-user.decorator'
+import { User } from '../../auth/core/types'
+import { AuthGuard } from '../../auth/infrastructure/auth.guard'
 import { CreateSourceUseCase } from '../core/use-cases/create/create-source.use-case'
 import { CreateTimecodeUseCase } from '../core/use-cases/create-timecode/create-timecode.use-case'
 import { DeleteSourceUseCase } from '../core/use-cases/delete/delete-source.use-case'
@@ -36,6 +42,8 @@ import { UpdateSourceInputDto } from './dto/update-source-input.dto'
 import { UpdateTimecodeInputDto } from './dto/update-timecode-input.dto'
 
 @ApiTags('sources')
+@ApiBearerAuth()
+@UseGuards(AuthGuard)
 @Controller('sources')
 export class SourceHttpController {
   constructor(
@@ -50,17 +58,23 @@ export class SourceHttpController {
     @Inject(DeleteTimecodeUseCase) private readonly deleteTimecodeUseCase: DeleteTimecodeUseCase,
   ) {}
 
+  private actor(user: User) {
+    return { userId: user.id, role: user.role }
+  }
+
   @Get()
-  @ApiOperation({ summary: 'List exercise sources' })
+  @ApiOperation({ summary: 'List exercise sources (visible exercises only)' })
   @ApiQuery({ name: 'page', required: false, schema: { type: 'integer', default: 1 } })
   @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', default: 20 } })
   @ApiQuery({ name: 'exerciseId', required: false, schema: { type: 'string', format: 'uuid' } })
   async list(
+    @CurrentUser() user: User,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
     @Query('exerciseId') exerciseId?: string,
   ) {
     return this.listUseCase.execute({
+      ...this.actor(user),
       page: Math.max(1, Number(page) || 1),
       limit: Math.min(100, Math.max(1, Number(limit) || 20)),
       exerciseId,
@@ -71,17 +85,17 @@ export class SourceHttpController {
   @ApiOperation({ summary: 'Get source by ID' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: SourceResponseDto })
-  async getById(@Param('id', ParseUUIDPipe) id: string) {
-    const result = await this.getUseCase.execute({ id })
+  async getById(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.getUseCase.execute({ id, ...this.actor(user) })
     if (!result.source) throw new NotFoundException('Source not found')
     return result.source
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create source' })
+  @ApiOperation({ summary: 'Create source (exercise owner or admin for system)' })
   @ApiCreatedResponse({ type: SourceResponseDto })
-  async create(@Body() dto: CreateSourceInputDto) {
-    const result = await this.createUseCase.execute(dto)
+  async create(@CurrentUser() user: User, @Body() dto: CreateSourceInputDto) {
+    const result = await this.createUseCase.execute({ ...dto, ...this.actor(user) })
     return result.source
   }
 
@@ -89,17 +103,26 @@ export class SourceHttpController {
   @ApiOperation({ summary: 'Update source' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: SourceResponseDto })
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateSourceInputDto) {
-    const result = await this.updateUseCase.execute({ id, ...dto })
-    if (!result.source) throw new NotFoundException('Source not found')
-    return result.source
+  async update(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSourceInputDto,
+  ) {
+    try {
+      const result = await this.updateUseCase.execute({ id, ...dto, ...this.actor(user) })
+      if (!result.source) throw new NotFoundException('Source not found')
+      return result.source
+    } catch (err) {
+      if (err instanceof ForbiddenException) throw err
+      throw err
+    }
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete source' })
   @ApiParam({ name: 'id', format: 'uuid' })
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    const result = await this.deleteUseCase.execute({ id })
+  async remove(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.deleteUseCase.execute({ id, ...this.actor(user) })
     if (!result.deleted) throw new NotFoundException('Source not found')
     return result
   }
@@ -108,20 +131,28 @@ export class SourceHttpController {
   @ApiOperation({ summary: 'List timecodes for source' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: TimecodeResponseDto, isArray: true })
-  async listTimecodes(@Param('id', ParseUUIDPipe) id: string) {
-    const source = await this.getUseCase.execute({ id })
+  async listTimecodes(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    const source = await this.getUseCase.execute({ id, ...this.actor(user) })
     if (!source.source) throw new NotFoundException('Source not found')
-    return this.listTimecodesUseCase.execute({ sourceId: id })
+    return this.listTimecodesUseCase.execute({ sourceId: id, ...this.actor(user) })
   }
 
   @Post(':id/timecodes')
   @ApiOperation({ summary: 'Create timecode for source' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiCreatedResponse({ type: TimecodeResponseDto })
-  async createTimecode(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateTimecodeInputDto) {
-    const source = await this.getUseCase.execute({ id })
+  async createTimecode(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateTimecodeInputDto,
+  ) {
+    const source = await this.getUseCase.execute({ id, ...this.actor(user) })
     if (!source.source) throw new NotFoundException('Source not found')
-    const result = await this.createTimecodeUseCase.execute({ sourceId: id, ...dto })
+    const result = await this.createTimecodeUseCase.execute({
+      sourceId: id,
+      ...dto,
+      ...this.actor(user),
+    })
     return result.timecode
   }
 
@@ -130,10 +161,15 @@ export class SourceHttpController {
   @ApiParam({ name: 'timecodeId', format: 'uuid' })
   @ApiOkResponse({ type: TimecodeResponseDto })
   async updateTimecode(
+    @CurrentUser() user: User,
     @Param('timecodeId', ParseUUIDPipe) timecodeId: string,
     @Body() dto: UpdateTimecodeInputDto,
   ) {
-    const result = await this.updateTimecodeUseCase.execute({ id: timecodeId, ...dto })
+    const result = await this.updateTimecodeUseCase.execute({
+      id: timecodeId,
+      ...dto,
+      ...this.actor(user),
+    })
     if (!result.timecode) throw new NotFoundException('Timecode not found')
     return result.timecode
   }
@@ -141,8 +177,14 @@ export class SourceHttpController {
   @Delete('timecodes/:timecodeId')
   @ApiOperation({ summary: 'Delete timecode' })
   @ApiParam({ name: 'timecodeId', format: 'uuid' })
-  async removeTimecode(@Param('timecodeId', ParseUUIDPipe) timecodeId: string) {
-    const result = await this.deleteTimecodeUseCase.execute({ id: timecodeId })
+  async removeTimecode(
+    @CurrentUser() user: User,
+    @Param('timecodeId', ParseUUIDPipe) timecodeId: string,
+  ) {
+    const result = await this.deleteTimecodeUseCase.execute({
+      id: timecodeId,
+      ...this.actor(user),
+    })
     if (!result.deleted) throw new NotFoundException('Timecode not found')
     return result
   }

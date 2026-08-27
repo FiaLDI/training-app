@@ -9,6 +9,8 @@
     "restart": "bash scripts/ssl-ensure-dummy.sh && docker compose up --build -d --force-recreate",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose stop postgres",
+    "redis:up": "docker compose up -d redis",
+    "redis:down": "docker compose stop redis",
     "ssl:issue": "bash scripts/ssl-issue.sh",
     "ssl:renew": "bash scripts/ssl-renew.sh",
     "seed:exercises": "npm --prefix backend run seed:exercises"

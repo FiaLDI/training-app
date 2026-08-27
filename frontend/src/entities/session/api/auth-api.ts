@@ -13,11 +13,29 @@ export type RegisterResult = {
   email: string
   created: boolean
   message: string
+  /** Present only when a new account was created — show once. */
+  loginCode?: string
 }
 
 export type AuthSessionResult = {
   user: AuthUser
   accessToken: string
+}
+
+export type AdminUser = {
+  id: string
+  email: string
+  username: string
+  role: 'user' | 'admin'
+  createdAt: string
+  lastLoginAt: string | null
+}
+
+export type IssuedLoginCode = {
+  id: string
+  email: string
+  username?: string
+  loginCode: string
 }
 
 export const authApi = {
@@ -45,5 +63,22 @@ export const authApi = {
 
   me() {
     return apiRequest<AuthUser>('/auth/me')
+  },
+
+  listUsers() {
+    return apiRequest<{ users: AdminUser[] }>('/auth/admin/users')
+  },
+
+  createUser(email: string) {
+    return apiRequest<IssuedLoginCode>('/auth/admin/users', {
+      method: 'POST',
+      body: { email },
+    })
+  },
+
+  resetLoginCode(userId: string) {
+    return apiRequest<IssuedLoginCode>(`/auth/admin/users/${userId}/reset-code`, {
+      method: 'POST',
+    })
   },
 }

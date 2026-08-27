@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 
+import { canEditExercise } from '@/entities/exercise/model/can-edit-exercise'
+import type { Exercise } from '@/entities/exercise/model/types'
 import { useExerciseStore } from '@/entities/exercise/model/store'
-import { isAdmin } from '@/entities/session/model/is-admin'
 import { useSessionStore } from '@/entities/session/model/store'
 import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/lib/cn'
@@ -12,6 +13,8 @@ import { cn } from '@/shared/lib/cn'
 type Props = {
   exerciseId: string
   exerciseName: string
+  /** Ownership fields for access check; omit → only admin (legacy). */
+  exerciseUserId?: Exercise['userId']
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   className?: string
   iconOnly?: boolean
@@ -21,6 +24,7 @@ type Props = {
 export function DeleteExerciseButton({
   exerciseId,
   exerciseName,
+  exerciseUserId,
   variant = 'danger',
   className,
   iconOnly = false,
@@ -28,8 +32,12 @@ export function DeleteExerciseButton({
 }: Props) {
   const remove = useExerciseStore((s) => s.remove)
   const user = useSessionStore((s) => s.user)
+  const mode = useSessionStore((s) => s.mode)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const allowed =
+    mode === 'local' || canEditExercise({ userId: exerciseUserId ?? null }, user)
 
   async function onDelete() {
     const ok = window.confirm(
@@ -49,7 +57,7 @@ export function DeleteExerciseButton({
     }
   }
 
-  if (!isAdmin(user)) return null
+  if (!allowed) return null
 
   return (
     <div className={cn(!iconOnly && 'space-y-1', className)}>

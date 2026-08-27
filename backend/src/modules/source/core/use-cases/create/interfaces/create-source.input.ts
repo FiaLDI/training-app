@@ -1,4 +1,6 @@
 export interface CreateSourceInput {
+  userId: string
+  role: 'user' | 'admin'
   exerciseId: string
   type: string
   title?: string | null

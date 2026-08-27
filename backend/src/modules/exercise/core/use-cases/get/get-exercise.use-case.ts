@@ -7,7 +7,7 @@ export class GetExerciseUseCase implements UseCase<GetExerciseInput, GetExercise
   constructor(private readonly exerciseRepository: ExerciseRepositoryPort) {}
 
   public async execute(input: GetExerciseInput): Promise<GetExerciseOutput> {
-    const exercise = await this.exerciseRepository.getById(input.id)
+    const exercise = await this.exerciseRepository.getById(input.id, input.userId)
     return { exercise }
   }
 }

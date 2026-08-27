@@ -22,7 +22,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger'
 
-import { AdminGuard } from '../../auth/infrastructure/admin.guard'
+import { CurrentUser } from '../../auth/controller/current-user.decorator'
+import { User } from '../../auth/core/types'
 import { AuthGuard } from '../../auth/infrastructure/auth.guard'
 import { CreateExerciseUseCase } from '../core/use-cases/create/create-exercise.use-case'
 import { DeleteExerciseUseCase } from '../core/use-cases/delete/delete-exercise.use-case'
@@ -34,6 +35,8 @@ import { ExerciseResponseDto } from './dto/exercise-response.dto'
 import { UpdateExerciseInputDto } from './dto/update-exercise-input.dto'
 
 @ApiTags('exercises')
+@ApiBearerAuth()
+@UseGuards(AuthGuard)
 @Controller('exercises')
 export class ExerciseHttpController {
   constructor(
@@ -45,17 +48,19 @@ export class ExerciseHttpController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List exercises' })
+  @ApiOperation({ summary: 'List system + own custom exercises' })
   @ApiQuery({ name: 'page', required: false, schema: { type: 'integer', default: 1, minimum: 1 } })
   @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', default: 20, minimum: 1, maximum: 100 } })
   @ApiQuery({ name: 'q', required: false, schema: { type: 'string' } })
   @ApiOkResponse({ type: ExerciseResponseDto, isArray: true })
   async list(
+    @CurrentUser() user: User,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
     @Query('q') q?: string,
   ) {
     return this.listUseCase.execute({
+      userId: user.id,
       page: Math.max(1, Number(page) || 1),
       limit: Math.min(100, Math.max(1, Number(limit) || 20)),
       q,
@@ -63,11 +68,11 @@ export class ExerciseHttpController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get exercise by ID' })
+  @ApiOperation({ summary: 'Get exercise by ID (system or own)' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: ExerciseResponseDto })
-  async getById(@Param('id', ParseUUIDPipe) id: string) {
-    const result = await this.getUseCase.execute({ id })
+  async getById(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.getUseCase.execute({ id, userId: user.id })
     if (!result.exercise) {
       throw new NotFoundException('Exercise not found')
     }
@@ -75,23 +80,39 @@ export class ExerciseHttpController {
   }
 
   @Post()
-  @UseGuards(AuthGuard, AdminGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create exercise (admin)' })
+  @ApiOperation({ summary: 'Create custom exercise (or system if admin + isSystem)' })
   @ApiCreatedResponse({ type: ExerciseResponseDto })
-  async create(@Body() dto: CreateExerciseInputDto) {
-    const result = await this.createUseCase.execute(dto)
+  async create(@CurrentUser() user: User, @Body() dto: CreateExerciseInputDto) {
+    const isSystem = user.role === 'admin' && dto.isSystem === true
+    const result = await this.createUseCase.execute({
+      id: dto.id,
+      userId: isSystem ? null : user.id,
+      name: dto.name,
+      description: dto.description,
+      muscleGroup: dto.muscleGroup,
+      difficulty: dto.difficulty,
+      metadata: dto.metadata,
+    })
     return result.exercise
   }
 
   @Patch(':id')
-  @UseGuards(AuthGuard, AdminGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update exercise (admin)' })
+  @ApiOperation({
+    summary: 'Update exercise (owner or admin for system; admin may set isSystem to promote)',
+  })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: ExerciseResponseDto })
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateExerciseInputDto) {
-    const result = await this.updateUseCase.execute({ id, ...dto })
+  async update(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateExerciseInputDto,
+  ) {
+    const result = await this.updateUseCase.execute({
+      id,
+      userId: user.id,
+      role: user.role,
+      ...dto,
+    })
     if (!result.exercise) {
       throw new NotFoundException('Exercise not found')
     }
@@ -99,13 +120,15 @@ export class ExerciseHttpController {
   }
 
   @Delete(':id')
-  @UseGuards(AuthGuard, AdminGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete exercise (admin)' })
+  @ApiOperation({ summary: 'Delete exercise (owner or admin for system)' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ schema: { type: 'object', properties: { deleted: { type: 'boolean' } } } })
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    const result = await this.deleteUseCase.execute({ id })
+  async remove(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.deleteUseCase.execute({
+      id,
+      userId: user.id,
+      role: user.role,
+    })
     if (!result.deleted) {
       throw new NotFoundException('Exercise not found')
     }

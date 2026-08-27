@@ -9,7 +9,6 @@ import {
   serializeMuscleGroups,
 } from '@/entities/exercise/model/muscle-groups'
 import { useExerciseStore } from '@/entities/exercise/model/store'
-import { isAdmin } from '@/entities/session/model/is-admin'
 import { useSessionStore } from '@/entities/session/model/store'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
@@ -23,6 +22,7 @@ type Props = {
 export function CreateExerciseForm({ onCreated }: Props) {
   const create = useExerciseStore((s) => s.create)
   const user = useSessionStore((s) => s.user)
+  const mode = useSessionStore((s) => s.mode)
 
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -61,7 +61,8 @@ export function CreateExerciseForm({ onCreated }: Props) {
     }
   }
 
-  if (!isAdmin(user)) return null
+  // Local mode always; cloud needs an authenticated user.
+  if (mode === 'cloud' && !user) return null
 
   if (!open) {
     return (

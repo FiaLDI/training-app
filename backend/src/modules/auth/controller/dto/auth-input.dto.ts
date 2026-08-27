@@ -8,10 +8,16 @@ export class RegisterInputDto {
 }
 
 export class LoginInputDto {
-  @ApiProperty({ example: 'd&R&IDMk', description: 'Permanent login code' })
+  @ApiProperty({ example: 'aB3!xY9@kLm2', description: 'Permanent login code (12+ chars)' })
   @IsString()
   @IsNotEmpty()
-  @MinLength(4)
-  @MaxLength(32)
+  @MinLength(8)
+  @MaxLength(64)
   code!: string
+}
+
+export class CreateUserByAdminInputDto {
+  @ApiProperty({ example: 'athlete@example.com' })
+  @IsEmail()
+  email!: string
 }

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
-import { IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator'
+import { IsBoolean, IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator'
 
 export class CreateExerciseInputDto {
   @ApiPropertyOptional({ format: 'uuid' })
@@ -31,4 +31,10 @@ export class CreateExerciseInputDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>
+
+  /** Admin only: create a shared system exercise (user_id NULL). Ignored for non-admins. */
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isSystem?: boolean
 }

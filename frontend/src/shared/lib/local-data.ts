@@ -137,6 +137,7 @@ export const localData = {
       const stamp = nowIso()
       return exercisesDb.upsert({
         id: input.id ?? createLocalId(),
+        userId: null,
         name: input.name,
         description: input.description ?? null,
         muscleGroup: input.muscleGroup ?? null,
@@ -152,9 +153,11 @@ export const localData = {
     update(id: string, input: UpdateExerciseInput): Exercise | null {
       const current = exercisesDb.get(id)
       if (!current) return null
+      const { isSystem: _isSystem, ...fields } = input
       return exercisesDb.upsert({
         ...current,
-        ...input,
+        ...fields,
+        userId: input.isSystem === true ? null : current.userId,
         description: input.description === undefined ? current.description : input.description,
         muscleGroup: input.muscleGroup === undefined ? current.muscleGroup : input.muscleGroup,
         difficulty: input.difficulty === undefined ? current.difficulty : input.difficulty,

@@ -6,6 +6,7 @@ loadEnv()
 
 import { ValidationPipe } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
+import { NestExpressApplication } from '@nestjs/platform-express'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import cookieParser from 'cookie-parser'
 import { Logger } from 'nestjs-pino'
@@ -13,9 +14,14 @@ import { Logger } from 'nestjs-pino'
 import { AppModule } from './app.module'
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true })
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  })
 
   app.useLogger(app.get(Logger))
+  // Required for per-IP rate limiting: without it every request arrives with the
+  // nginx container IP and all clients would share one bucket.
+  app.set('trust proxy', 1)
   app.use(cookieParser())
   app.enableCors({
     origin: [

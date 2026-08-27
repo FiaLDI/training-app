@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { ConflictException, Injectable } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
@@ -65,7 +65,12 @@ export class FeedbackTypeormRepository {
   }): Promise<Feedback> {
     if (input.id) {
       const existing = await this.repo.findOne({ where: { id: input.id } })
-      if (existing) return this.map(existing)
+      if (existing) {
+        if (existing.userId === input.userId) {
+          return this.map(existing)
+        }
+        throw new ConflictException('Feedback id already exists')
+      }
     }
 
     const entity = this.repo.create({

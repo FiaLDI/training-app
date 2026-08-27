@@ -11,6 +11,9 @@ export class ExerciseEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string
 
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
+  userId!: string | null
+
   @Column({ type: 'text' })
   name!: string
 

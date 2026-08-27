@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger'
-import { IsObject, IsOptional, IsString, MinLength } from 'class-validator'
+import { IsBoolean, IsObject, IsOptional, IsString, MinLength } from 'class-validator'
 
 export class UpdateExerciseInputDto {
   @ApiPropertyOptional()
@@ -27,4 +27,10 @@ export class UpdateExerciseInputDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>
+
+  /** Admin only: promote custom → system (clears user_id). */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isSystem?: boolean
 }

@@ -228,7 +228,7 @@ export function TrainingSessionPage({ id }: Props) {
     try {
       await remove(id)
       setRemoveConfirmOpen(false)
-      router.push('/plan')
+      router.push('/week')
     } finally {
       setRemoving(false)
     }
@@ -291,7 +291,7 @@ export function TrainingSessionPage({ id }: Props) {
     <div className="mx-auto max-w-lg">
       <header className="mb-6 flex items-center gap-2">
         <Link
-          href="/plan"
+          href="/week"
           aria-label="Неделя"
           className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
         >

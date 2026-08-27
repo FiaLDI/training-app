@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 
 import { AuthModule } from '../auth/auth.module'
+import { ExerciseModule } from '../exercise/exercise.module'
+import { EXERCISE_REPOSITORY_PORT, ExerciseRepositoryPort } from '../exercise/core/ports/exercise-repository.port'
 import { TemplateHttpController } from './controller/template.http-controller'
 import { TEMPLATE_REPOSITORY_PORT } from './core/ports/template-repository.port'
 import { CreateTemplateUseCase } from './core/use-cases/create/create-template.use-case'
@@ -19,6 +21,7 @@ import { WorkoutTemplateEntity } from './core/entity/workout-template.entity'
 @Module({
   imports: [
     AuthModule,
+    ExerciseModule,
     TypeOrmModule.forFeature([WorkoutTemplateEntity, TemplateExerciseEntity]),
   ],
   controllers: [TemplateHttpController],
@@ -55,8 +58,9 @@ import { WorkoutTemplateEntity } from './core/entity/workout-template.entity'
     },
     {
       provide: CreateTemplateExerciseUseCase,
-      useFactory: (repo: TemplateTypeormRepository) => new CreateTemplateExerciseUseCase(repo),
-      inject: [TemplateTypeormRepository],
+      useFactory: (repo: TemplateTypeormRepository, exercises: ExerciseRepositoryPort) =>
+        new CreateTemplateExerciseUseCase(repo, exercises),
+      inject: [TemplateTypeormRepository, EXERCISE_REPOSITORY_PORT],
     },
     {
       provide: UpdateTemplateExerciseUseCase,

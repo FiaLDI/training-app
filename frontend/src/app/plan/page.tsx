@@ -1,5 +1,5 @@
-import { PlanPage } from '@/views/plan/ui/plan-page'
+import { redirect } from 'next/navigation'
 
 export default function Page() {
-  return <PlanPage />
+  redirect('/week')
 }

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 
 import { AuthModule } from '../auth/auth.module'
+import { TEMPLATE_REPOSITORY_PORT, TemplateRepositoryPort } from '../template/core/ports/template-repository.port'
 import { TemplateModule } from '../template/template.module'
 import { TemplateTypeormRepository } from '../template/infrastructure/template.typeorm-repository'
 import { TrainingModule } from '../training/training.module'
@@ -62,13 +63,15 @@ import { ProgramTypeormRepository } from './infrastructure/program.typeorm-repos
     },
     {
       provide: CreateProgramDayUseCase,
-      useFactory: (repo: ProgramTypeormRepository) => new CreateProgramDayUseCase(repo),
-      inject: [ProgramTypeormRepository],
+      useFactory: (repo: ProgramTypeormRepository, templates: TemplateRepositoryPort) =>
+        new CreateProgramDayUseCase(repo, templates),
+      inject: [ProgramTypeormRepository, TEMPLATE_REPOSITORY_PORT],
     },
     {
       provide: UpdateProgramDayUseCase,
-      useFactory: (repo: ProgramTypeormRepository) => new UpdateProgramDayUseCase(repo),
-      inject: [ProgramTypeormRepository],
+      useFactory: (repo: ProgramTypeormRepository, templates: TemplateRepositoryPort) =>
+        new UpdateProgramDayUseCase(repo, templates),
+      inject: [ProgramTypeormRepository, TEMPLATE_REPOSITORY_PORT],
     },
     {
       provide: DeleteProgramDayUseCase,

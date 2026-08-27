@@ -1,5 +1,7 @@
 export interface Exercise {
   id: string
+  /** null = system (shared) exercise; uuid = custom owned by that user */
+  userId: string | null
   name: string
   description: string | null
   muscleGroup: string | null
