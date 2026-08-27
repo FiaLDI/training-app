@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { Copy, KeyRound } from 'lucide-react'
 
 import type { AdminUser } from '@/entities/session/api/auth-api'
+import { useSessionStore } from '@/entities/session/model/store'
 import { Button } from '@/shared/ui/button'
 import { Modal } from '@/shared/ui/modal'
 import { Input } from '@/shared/ui/input'
@@ -24,6 +25,7 @@ type DialogState =
   | { type: 'issued'; email: string; loginCode: string; reason: 'create' | 'reset' }
 
 export function AdminUsersPanel() {
+  const currentUserId = useSessionStore((s) => s.user?.id)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -142,29 +144,43 @@ export function AdminUsersPanel() {
       ) : null}
 
       <ul className="space-y-3">
-        {users.map((user) => (
-          <li
-            key={user.id}
-            className="flex flex-col gap-3 border-b border-[var(--border)] pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="min-w-0 text-sm">
-              <p className="truncate font-medium">{user.email}</p>
-              <p className="text-[var(--muted)]">
-                создан {formatDate(user.createdAt)} · вход {formatDate(user.lastLoginAt)}
-                {user.role === 'admin' ? ' · admin' : ''}
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={resetting}
-              onClick={() => setDialog({ type: 'reset-confirm', user })}
+        {users.map((user) => {
+          const isSelf = currentUserId != null && user.id === currentUserId
+          return (
+            <li
+              key={user.id}
+              className="flex flex-col gap-3 border-b border-[var(--border)] pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
             >
-              <KeyRound className="size-4" />
-              Сбросить код
-            </Button>
-          </li>
-        ))}
+              <div className="min-w-0 text-sm">
+                <p className="truncate font-medium">
+                  {user.email}
+                  {isSelf ? (
+                    <span className="ml-2 font-normal text-[var(--muted)]">· вы</span>
+                  ) : null}
+                </p>
+                <p className="text-[var(--muted)]">
+                  создан {formatDate(user.createdAt)} · вход {formatDate(user.lastLoginAt)}
+                  {user.role === 'admin' ? ' · admin' : ''}
+                </p>
+              </div>
+              {isSelf ? (
+                <p className="text-xs text-[var(--muted)] sm:text-right">
+                  Свой код сбросить нельзя
+                </p>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={resetting}
+                  onClick={() => setDialog({ type: 'reset-confirm', user })}
+                >
+                  <KeyRound className="size-4" />
+                  Сбросить код
+                </Button>
+              )}
+            </li>
+          )
+        })}
       </ul>
 
       <Modal

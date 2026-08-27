@@ -1,4 +1,4 @@
-import { Logger, NotFoundException } from '@nestjs/common'
+import { ForbiddenException, Logger, NotFoundException } from '@nestjs/common'
 
 import { UseCase } from '../../../../../common/core/use-case'
 import { AuthRepositoryPort } from '../../ports/auth-repository.port'
@@ -7,6 +7,7 @@ import { LoginCodeService } from '../../../infrastructure/login-code.service'
 
 export type ResetLoginCodeInput = {
   userId: string
+  actorUserId: string
 }
 
 export type ResetLoginCodeOutput = {
@@ -28,6 +29,10 @@ export class ResetLoginCodeUseCase
   ) {}
 
   public async execute(input: ResetLoginCodeInput): Promise<ResetLoginCodeOutput> {
+    if (input.userId === input.actorUserId) {
+      throw new ForbiddenException('Нельзя сбросить собственный код входа')
+    }
+
     const user = await this.authRepository.findUserById(input.userId)
     if (!user) throw new NotFoundException('User not found')
 

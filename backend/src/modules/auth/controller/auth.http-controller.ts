@@ -166,7 +166,13 @@ export class AuthHttpController {
     summary: 'Reset login code and revoke all sessions (admin); code shown once',
   })
   @ApiOkResponse({ type: IssuedLoginCodeResponseDto })
-  async resetCode(@Param('id', ParseUUIDPipe) id: string) {
-    return this.resetLoginCodeUseCase.execute({ userId: id })
+  async resetCode(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: User,
+  ) {
+    return this.resetLoginCodeUseCase.execute({
+      userId: id,
+      actorUserId: actor.id,
+    })
   }
 }

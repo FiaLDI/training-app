@@ -24,6 +24,7 @@ import { uploadFile } from '@/shared/api/upload-api'
 import { cn } from '@/shared/lib/cn'
 import { localData } from '@/shared/lib/local-data'
 import { Button } from '@/shared/ui/button'
+import { ConfirmModal } from '@/shared/ui/confirm-modal'
 import { Input } from '@/shared/ui/input'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Select } from '@/shared/ui/select'
@@ -46,6 +47,7 @@ export function ExerciseDetailPage({ id }: Props) {
   const canPromoteToSystem =
     mode === 'cloud' && isAdmin(user) && Boolean(current?.userId)
   const [promoting, setPromoting] = useState(false)
+  const [promoteConfirmOpen, setPromoteConfirmOpen] = useState(false)
   const [sources, setSources] = useState<ExerciseSource[]>([])
   const [editing, setEditing] = useState(false)
   const [type, setType] = useState('youtube')
@@ -55,16 +57,13 @@ export function ExerciseDetailPage({ id }: Props) {
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  async function onPromoteToSystem() {
-    if (!current) return
-    const ok = window.confirm(
-      `Сделать «${current.name}» системным? Оно станет общим для всех пользователей, править сможет только админ.`,
-    )
-    if (!ok) return
+  async function onConfirmPromoteToSystem() {
+    if (!current || promoting) return
     setPromoting(true)
     setSourceError(null)
     try {
       await update(id, { isSystem: true })
+      setPromoteConfirmOpen(false)
     } catch (err) {
       setSourceError(err instanceof Error ? err.message : 'Не удалось сделать системным')
     } finally {
@@ -211,7 +210,7 @@ export function ExerciseDetailPage({ id }: Props) {
                 type="button"
                 variant="secondary"
                 disabled={promoting}
-                onClick={() => void onPromoteToSystem()}
+                onClick={() => setPromoteConfirmOpen(true)}
               >
                 {promoting ? '…' : 'В системные'}
               </Button>
@@ -415,6 +414,16 @@ export function ExerciseDetailPage({ id }: Props) {
         {sourceError ? <p className="w-full text-sm text-red-300">{sourceError}</p> : null}
       </form>
       ) : null}
+
+      <ConfirmModal
+        open={promoteConfirmOpen}
+        onClose={() => setPromoteConfirmOpen(false)}
+        onConfirm={onConfirmPromoteToSystem}
+        title={`Сделать «${current.name}» системным?`}
+        description="Оно станет общим для всех пользователей, править сможет только админ."
+        confirmLabel="Сделать системным"
+        pending={promoting}
+      />
     </div>
   )
 }

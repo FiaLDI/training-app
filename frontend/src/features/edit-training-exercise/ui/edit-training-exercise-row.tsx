@@ -15,6 +15,7 @@ import type { TrainingExercise, TrainingSet } from '@/entities/training/model/ty
 import { useTrainingStore } from '@/entities/training/model/store'
 import { DropdownItem, DropdownMenu } from '@/shared/ui/dropdown-menu'
 import { Button } from '@/shared/ui/button'
+import { ConfirmModal } from '@/shared/ui/confirm-modal'
 import { Input } from '@/shared/ui/input'
 
 type Props = {
@@ -76,6 +77,8 @@ export function EditTrainingExerciseRow({
   )
   const [saving, setSaving] = useState(false)
   const [moving, setMoving] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -136,19 +139,18 @@ export function EditTrainingExerciseRow({
     }
   }
 
-  async function onRemove() {
-    if (
-      !window.confirm(
-        `Убрать «${exerciseName}» из тренировки? Записанные подходы тоже исчезнут.`,
-      )
-    ) {
-      return
-    }
+  async function onConfirmRemove() {
+    if (removing) return
+
+    setRemoving(true)
     setError(null)
     try {
       await removeExercise(trainingId, item.id)
+      setRemoveConfirmOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось убрать')
+    } finally {
+      setRemoving(false)
     }
   }
 
@@ -284,7 +286,7 @@ export function EditTrainingExerciseRow({
                   danger
                   onClick={() => {
                     close()
-                    void onRemove()
+                    setRemoveConfirmOpen(true)
                   }}
                 >
                   Убрать упражнение
@@ -294,6 +296,17 @@ export function EditTrainingExerciseRow({
           )}
         </DropdownMenu>
       ) : null}
+
+      <ConfirmModal
+        open={removeConfirmOpen}
+        onClose={() => setRemoveConfirmOpen(false)}
+        onConfirm={onConfirmRemove}
+        title={`Убрать «${exerciseName}» из тренировки?`}
+        description="Записанные подходы тоже исчезнут."
+        confirmLabel="Убрать"
+        confirmVariant="danger"
+        pending={removing}
+      />
     </div>
   )
 }

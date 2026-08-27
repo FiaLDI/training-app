@@ -8,6 +8,7 @@ import type { Exercise } from '@/entities/exercise/model/types'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useSessionStore } from '@/entities/session/model/store'
 import { Button } from '@/shared/ui/button'
+import { ConfirmModal } from '@/shared/ui/confirm-modal'
 import { cn } from '@/shared/lib/cn'
 
 type Props = {
@@ -33,22 +34,21 @@ export function DeleteExerciseButton({
   const remove = useExerciseStore((s) => s.remove)
   const user = useSessionStore((s) => s.user)
   const mode = useSessionStore((s) => s.mode)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const allowed =
     mode === 'local' || canEditExercise({ userId: exerciseUserId ?? null }, user)
 
-  async function onDelete() {
-    const ok = window.confirm(
-      `Удалить упражнение «${exerciseName}»? Оно исчезнет из библиотеки на этом устройстве.`,
-    )
-    if (!ok) return
+  async function onConfirmDelete() {
+    if (pending) return
 
     setPending(true)
     setError(null)
     try {
       await remove(exerciseId)
+      setConfirmOpen(false)
       onDeleted?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось удалить')
@@ -70,13 +70,24 @@ export function DeleteExerciseButton({
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
-          void onDelete()
+          setConfirmOpen(true)
         }}
       >
         <Trash2 className="size-4" />
         {!iconOnly ? 'Удалить' : null}
       </Button>
       {error ? <p className="text-xs text-red-300">{error}</p> : null}
+
+      <ConfirmModal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={onConfirmDelete}
+        title={`Удалить упражнение «${exerciseName}»?`}
+        description="Оно исчезнет из библиотеки на этом устройстве."
+        confirmLabel="Удалить"
+        confirmVariant="danger"
+        pending={pending}
+      />
     </div>
   )
 }

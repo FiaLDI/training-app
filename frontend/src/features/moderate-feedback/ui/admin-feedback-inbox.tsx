@@ -5,6 +5,7 @@ import { Inbox } from 'lucide-react'
 
 import type { Feedback, FeedbackStatus } from '@/entities/feedback/model/types'
 import { Button } from '@/shared/ui/button'
+import { ConfirmModal } from '@/shared/ui/confirm-modal'
 
 import {
   deleteResolvedFeedback,
@@ -36,6 +37,7 @@ export function AdminFeedbackInbox() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setError(null)
@@ -73,13 +75,14 @@ export function AdminFeedbackInbox() {
     }
   }
 
-  async function onDelete(id: string) {
-    const ok = window.confirm('Удалить решённое сообщение?')
-    if (!ok) return
+  async function onConfirmDelete() {
+    if (!deleteConfirmId) return
+    const id = deleteConfirmId
     setBusyId(id)
     setError(null)
     try {
       await deleteResolvedFeedback(id)
+      setDeleteConfirmId(null)
       await refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось удалить')
@@ -135,7 +138,7 @@ export function AdminFeedbackInbox() {
                       type="button"
                       variant="danger"
                       disabled={busy}
-                      onClick={() => void onDelete(item.id)}
+                      onClick={() => setDeleteConfirmId(item.id)}
                     >
                       Удалить
                     </Button>
@@ -146,6 +149,16 @@ export function AdminFeedbackInbox() {
           })}
         </ul>
       ) : null}
+
+      <ConfirmModal
+        open={deleteConfirmId != null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={onConfirmDelete}
+        title="Удалить решённое сообщение?"
+        confirmLabel="Удалить"
+        confirmVariant="danger"
+        pending={busyId != null && busyId === deleteConfirmId}
+      />
     </section>
   )
 }
