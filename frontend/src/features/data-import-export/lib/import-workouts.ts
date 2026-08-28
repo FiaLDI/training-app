@@ -223,9 +223,10 @@ export function importJsonBundle(
     const item = measurement as Record<string, unknown>
     if (typeof item.id !== 'string') continue
     if (localData.bodyMeasurements.list().some((row) => row.id === item.id)) continue
+    if (typeof item.weight !== 'number') continue
     localData.bodyMeasurements.upsert({
       id: item.id,
-      weight: typeof item.weight === 'number' ? item.weight : null,
+      weight: item.weight,
       measuredAt:
         typeof item.measuredAt === 'string' ? item.measuredAt : new Date().toISOString(),
       metadata:
