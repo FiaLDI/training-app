@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nest start",
-    "start:dev": "nest start --watch",
+    "start": "npm run migration:run && nest start",
+    "start:dev": "npm run migration:run && nest start --watch",
     "build": "nest build",
     "lint": "eslint .",
     "db:up": "docker compose up -d postgres",

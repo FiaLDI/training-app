@@ -251,6 +251,12 @@ curl -fsS "http://127.0.0.1:${APP_PORT:-80}/api/upload-health"
 
 В консоли явно видны: commit, branch, build number, image tag, validation, deploy/rollback, cleanup.
 
+## Миграции БД
+
+Jenkins **не** запускает `migration:run` отдельно на агенте (на shared-хосте нельзя поднимать тот же compose, что и production).
+
+На production миграции применяются **при старте контейнера backend** — см. `backend/Dockerfile` (`npm run migration:run && node …`). Каждый деплой с `--force-recreate` пересоздаёт backend и прогоняет pending-миграции перед healthcheck.
+
 ## Безопасность
 
 - Секреты только в Jenkins Credentials и в production `.env`

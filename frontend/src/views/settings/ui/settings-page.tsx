@@ -7,6 +7,7 @@ import { Cloud, HardDrive, LogOut, User } from 'lucide-react'
 import { useSessionStore } from '@/entities/session/model/store'
 import { ClearLocalDataActions } from '@/features/clear-local-data/ui/clear-local-data-actions'
 import { SetStepSettings } from '@/features/edit-set-steps/ui/set-step-settings'
+import { RestTimerSettings } from '@/features/rest-timer-settings/ui/rest-timer-settings'
 import {
   formatPendingSummary,
   getPendingSyncSummary,
@@ -111,6 +112,8 @@ export function SettingsPage() {
         ) : null}
 
         <SetStepSettings />
+
+        <RestTimerSettings />
 
         <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">

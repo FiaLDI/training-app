@@ -14,7 +14,7 @@ type Props = {
   exerciseId: string
   nextSetNumber: number
   defaultWeight?: number | null
-  onLogged?: () => void
+  onLogged?: (info: { isWarmup: boolean }) => void
 }
 
 export function LogSetForm({
@@ -50,7 +50,7 @@ export function LogSetForm({
       setWeight(weight)
       setReps('')
       setIsWarmup(false)
-      onLogged?.()
+      onLogged?.({ isWarmup })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось записать подход')
     } finally {

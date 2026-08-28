@@ -20,11 +20,15 @@ import { EditSetRow } from '@/features/edit-set/ui/edit-set-row'
 import { EditTrainingExerciseRow } from '@/features/edit-training-exercise/ui/edit-training-exercise-row'
 import { EditTrainingForm } from '@/features/edit-training/ui/edit-training-form'
 import { LogSetForm } from '@/features/log-set/ui/log-set-form'
+import { resolveRestSeconds } from '@/features/rest-timer/lib/resolve-rest-seconds'
+import { useRestTimerStore } from '@/features/rest-timer/model/store'
+import { RestTimerBar } from '@/features/rest-timer/ui/rest-timer-bar'
 import {
   pauseBackgroundSync,
   resumeBackgroundSync,
 } from '@/features/sync-trainings/model/background-sync'
 import { useExerciseStore } from '@/entities/exercise/model/store'
+import { usePreferencesStore } from '@/entities/preferences/model/store'
 import { SessionExerciseMedia } from '@/entities/exercise/ui/session-exercise-media'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
@@ -181,6 +185,28 @@ export function TrainingSessionPage({ id }: Props) {
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
 
+  const autoStartRestTimer = usePreferencesStore((s) => s.autoStartRestTimer)
+  const restTimerSkipWarmup = usePreferencesStore((s) => s.restTimerSkipWarmup)
+  const defaultRestSeconds = usePreferencesStore((s) => s.defaultRestSeconds)
+  const startRestTimer = useRestTimerStore((s) => s.start)
+  const dismissRestTimer = useRestTimerStore((s) => s.dismiss)
+
+  function handleSetLogged({ isWarmup }: { isWarmup: boolean }) {
+    if (!autoStartRestTimer || !current || !activeExerciseId) return
+    if (isWarmup && restTimerSkipWarmup) return
+
+    const exercise = current.exercises.find((item) => item.id === activeExerciseId)
+    if (!exercise) return
+
+    startRestTimer(resolveRestSeconds(exercise, defaultRestSeconds))
+  }
+
+  useEffect(() => {
+    return () => {
+      dismissRestTimer()
+    }
+  }, [dismissRestTimer])
+
   useEffect(() => {
     void fetchOne(id)
     void fetchExercises()
@@ -288,7 +314,7 @@ export function TrainingSessionPage({ id }: Props) {
         : 'Не начата'
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto max-w-lg pb-24">
       <header className="mb-6 flex items-center gap-2">
         <Link
           href="/week"
@@ -458,6 +484,7 @@ export function TrainingSessionPage({ id }: Props) {
                   activeExercise.previousMaxWeight ??
                   targetWeightFrom(activeExercise.metadata)
                 }
+                onLogged={handleSetLogged}
               />
             ) : null}
           </section>
@@ -498,6 +525,8 @@ export function TrainingSessionPage({ id }: Props) {
         confirmVariant="danger"
         pending={removing}
       />
+
+      {current.status === 'in_progress' ? <RestTimerBar /> : null}
     </div>
   )
 }

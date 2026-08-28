@@ -105,7 +105,7 @@ certbot (profile: ssl) ↔ volume ↔ nginx (/etc/letsencrypt, /var/www/certbot)
 npm run db:up
 ```
 
-2. Backend:
+2. Backend (миграции применяются автоматически перед стартом):
 
 ```bash
 cd backend
@@ -146,8 +146,18 @@ UPLOAD_DIR=../upload BACKEND_URL=http://127.0.0.1:3000 npm run start:dev
 | `npm run db:down` | Остановить Postgres |
 | `npm run ssl:issue` | Выпустить LE-сертификат на `CERTBOT_IP` |
 | `npm run ssl:renew` | Обновить сертификаты и reload nginx |
-| `cd backend && npm run migration:run` | Миграции вручную |
+| `cd backend && npm run migration:run` | Миграции вручную (если нужно без перезапуска backend) |
 | `npm run seed:exercises` | Сид каталога упражнений (создаёт отсутствующие, обновляет `muscleGroup` при отличии) |
+
+### Миграции БД
+
+| Среда | Когда применяются |
+|-------|-------------------|
+| Docker / production | При каждом старте контейнера `backend` (`Dockerfile` → `migration:run` → `node`) |
+| Локальный dev | Перед `npm run start:dev` / `npm run start` в `backend/` |
+| Jenkins CI | Отдельного шага нет: на production миграции идут при `docker compose up` вместе со стартом backend |
+
+Если Postgres ещё не поднят, `start:dev` упадёт на миграции — сначала `npm run db:up`.
 
 ## Админ
 
