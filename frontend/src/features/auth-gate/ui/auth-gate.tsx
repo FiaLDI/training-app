@@ -34,12 +34,18 @@ export function AuthGate({ children }: Props) {
       setHydrated(true)
     }
 
+    // Subscribe first, then check — otherwise a sync rehydrate between the two
+    // never fires onFinishHydration and the gate stays on «Загрузка…».
+    const unsub = useSessionStore.persist.onFinishHydration(finishHydration)
     if (useSessionStore.persist.hasHydrated()) {
       finishHydration()
-      return
     }
 
-    return useSessionStore.persist.onFinishHydration(finishHydration)
+    const fallback = window.setTimeout(finishHydration, 1500)
+    return () => {
+      unsub()
+      window.clearTimeout(fallback)
+    }
   }, [setHydrated])
 
   useEffect(() => {

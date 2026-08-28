@@ -121,11 +121,13 @@ export const useSessionStore = create<SessionState>()(
         if (state) {
           syncStorageScopeFromSession(state.mode, state.user?.id ?? null)
         }
-        useSessionStore.getState().setHydrated(true)
-        if (state?.mode === 'cloud') {
-          // Already in cloud from a previous session — still surface unsynced local data.
-          queueMicrotask(() => afterEnterCloud())
-        }
+        // Defer: persist can finish during `create()`, before the const is assigned.
+        queueMicrotask(() => {
+          useSessionStore.setState({ hydrated: true })
+          if (useSessionStore.getState().mode === 'cloud') {
+            afterEnterCloud()
+          }
+        })
       },
     },
   ),
