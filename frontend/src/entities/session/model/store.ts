@@ -121,7 +121,7 @@ export const useSessionStore = create<SessionState>()(
         if (state) {
           syncStorageScopeFromSession(state.mode, state.user?.id ?? null)
         }
-        state?.setHydrated(true)
+        useSessionStore.getState().setHydrated(true)
         if (state?.mode === 'cloud') {
           // Already in cloud from a previous session — still surface unsynced local data.
           queueMicrotask(() => afterEnterCloud())

@@ -28,12 +28,18 @@ export function AuthGate({ children }: Props) {
   const refreshUser = useSessionStore((s) => s.refreshUser)
 
   useEffect(() => {
-    // persist may already be rehydrated before mount
-    if (useSessionStore.persist.hasHydrated()) {
+    const finishHydration = () => {
       const { mode, user } = useSessionStore.getState()
       syncStorageScopeFromSession(mode, user?.id ?? null)
       setHydrated(true)
     }
+
+    if (useSessionStore.persist.hasHydrated()) {
+      finishHydration()
+      return
+    }
+
+    return useSessionStore.persist.onFinishHydration(finishHydration)
   }, [setHydrated])
 
   useEffect(() => {
@@ -51,16 +57,16 @@ export function AuthGate({ children }: Props) {
     void refreshUser()
   }, [hydrated, mode, refreshUser])
 
+  if (isPublicPath(pathname)) {
+    return <>{children}</>
+  }
+
   if (!hydrated) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-[var(--muted)]">
         Загрузка…
       </div>
     )
-  }
-
-  if (isPublicPath(pathname)) {
-    return <>{children}</>
   }
 
   if (!mode) {

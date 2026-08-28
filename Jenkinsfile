@@ -4,7 +4,7 @@ pipeline {
   options {
     timestamps()
     disableConcurrentBuilds()
-    buildDiscarder(logRotator(numToKeepStr: '20'))
+    buildDiscarder(logRotator(numToKeepStr: '10'))
   }
 
   environment {
@@ -56,8 +56,7 @@ pipeline {
           # Extra reclaim before build on tiny disks
           docker builder prune -af || true
           journalctl --vacuum-size=200M 2>/dev/null || true
-          df -h / || true
-          true
+          bash scripts/ci-disk-check.sh 2.5
         '''
       }
     }
@@ -69,19 +68,31 @@ pipeline {
             set -euo pipefail
             export DOCKER_BUILDKIT=1
 
+            reclaim_disk() {
+              docker builder prune -af || true
+              df -h / /var/lib/docker 2>/dev/null || df -h /
+            }
+
             echo "Disk before build:"
-            df -h / /var/lib/docker 2>/dev/null || df -h /
+            reclaim_disk
+            bash scripts/ci-disk-check.sh 2.5
 
             docker build -t "${BACKEND_IMAGE}:${IMAGE_TAG}" ./backend
 
             # Give the host a moment after peak memory from previous layer work.
             sleep 2
+            echo "Reclaim disk before frontend (Next.js build is the heaviest step)…"
+            reclaim_disk
+            bash scripts/ci-disk-check.sh 2.5
 
             docker build \
               --build-arg NEXT_PUBLIC_API_URL=/api \
               -t "${FRONTEND_IMAGE}:${IMAGE_TAG}" ./frontend
 
             sleep 2
+            echo "Reclaim disk before upload-service build…"
+            reclaim_disk
+            bash scripts/ci-disk-check.sh 2.5
 
             docker build -t "${UPLOAD_IMAGE}:${IMAGE_TAG}" ./upload-service
 
@@ -220,8 +231,16 @@ pipeline {
       sh '''
         set +e
         rm -f "${ARTIFACT_PATH}"
-        # Keep failed-build images briefly for debugging; still drop the tar to save disk
-        echo "Left images ${BACKEND_IMAGE}:${IMAGE_TAG} / ${FRONTEND_IMAGE}:${IMAGE_TAG} / ${UPLOAD_IMAGE}:${IMAGE_TAG} on agent for inspection."
+        echo "Post-failure cleanup on Jenkins agent"
+        for img in \
+          "${BACKEND_IMAGE}:${IMAGE_TAG}" \
+          "${FRONTEND_IMAGE}:${IMAGE_TAG}" \
+          "${UPLOAD_IMAGE}:${IMAGE_TAG}"; do
+          docker rmi "$img" 2>/dev/null || true
+        done
+        docker builder prune -af || true
+        bash scripts/ci-cleanup.sh --agent --aggressive || true
+        df -h / || true
       '''
     }
   }
