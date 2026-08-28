@@ -18,10 +18,12 @@ import {
 import { trainingApi } from '../api/training-api'
 import type {
   CreateTrainingExerciseInput,
+  CreateTrainingExerciseGroupInput,
   CreateTrainingInput,
   CreateTrainingSetInput,
   Training,
   TrainingWithDetails,
+  UpdateTrainingExerciseGroupInput,
   UpdateTrainingExerciseInput,
 } from './types'
 
@@ -89,6 +91,17 @@ type TrainingStore = {
     input: Partial<CreateTrainingSetInput>,
   ) => Promise<void>
   removeSet: (trainingId: string, setId: string) => Promise<void>
+  createGroup: (
+    trainingId: string,
+    input: CreateTrainingExerciseGroupInput,
+  ) => Promise<void>
+  addExerciseToGroup: (trainingId: string, groupId: string, exerciseId: string) => Promise<void>
+  updateGroup: (
+    trainingId: string,
+    groupId: string,
+    input: UpdateTrainingExerciseGroupInput,
+  ) => Promise<void>
+  deleteGroup: (trainingId: string, groupId: string) => Promise<void>
 }
 
 export const useTrainingStore = create<TrainingStore>((set, get) => ({
@@ -120,6 +133,7 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
         if (!local) {
           const shell = {
             ...item,
+            groups: [] as TrainingWithDetails['groups'],
             exercises: [] as TrainingWithDetails['exercises'],
           }
           localData.trainings.upsert({
@@ -344,5 +358,37 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     if (!isCloudMode()) return
     deleteOutbox.enqueue('training-set', setId)
     scheduleCloudSync()
+  },
+
+  async createGroup(trainingId, input) {
+    ensureLocalTrainingShell(trainingId, get().current)
+    localData.trainings.createGroup(trainingId, input)
+    markTrainingPending(trainingId, pendingReason())
+    set({ current: localData.trainings.get(trainingId) })
+    if (isCloudMode()) scheduleCloudSync()
+  },
+
+  async addExerciseToGroup(trainingId, groupId, exerciseId) {
+    ensureLocalTrainingShell(trainingId, get().current)
+    localData.trainings.addExerciseToGroup(groupId, exerciseId)
+    markTrainingPending(trainingId, pendingReason())
+    set({ current: localData.trainings.get(trainingId) })
+    if (isCloudMode()) scheduleCloudSync()
+  },
+
+  async updateGroup(trainingId, groupId, input) {
+    ensureLocalTrainingShell(trainingId, get().current)
+    localData.trainings.updateGroup(groupId, input)
+    markTrainingPending(trainingId, pendingReason())
+    set({ current: localData.trainings.get(trainingId) })
+    if (isCloudMode()) scheduleCloudSync()
+  },
+
+  async deleteGroup(trainingId, groupId) {
+    ensureLocalTrainingShell(trainingId, get().current)
+    localData.trainings.deleteGroup(groupId)
+    markTrainingPending(trainingId, pendingReason())
+    set({ current: localData.trainings.get(trainingId) })
+    if (isCloudMode()) scheduleCloudSync()
   },
 }))

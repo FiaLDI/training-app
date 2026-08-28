@@ -1,5 +1,18 @@
 export type TrainingStatus = 'planned' | 'in_progress' | 'finished' | 'cancelled'
 
+import { ExerciseGroupType } from '../../../common/core/exercise-group'
+
+export type { ExerciseGroupType }
+
+export interface TrainingExerciseGroup {
+  id: string
+  trainingId: string
+  type: ExerciseGroupType
+  groupOrder: number
+  restSeconds: number | null
+  metadata: Record<string, unknown>
+}
+
 export interface Training {
   id: string
   userId: string
@@ -28,6 +41,8 @@ export interface TrainingExercise {
   previousMaxWeight: number | null
   restSeconds: number | null
   notes: string | null
+  groupId: string | null
+  positionInGroup: number | null
   metadata: Record<string, unknown>
 }
 
@@ -46,6 +61,7 @@ export interface TrainingSet {
 }
 
 export interface TrainingWithDetails extends Training {
+  groups: TrainingExerciseGroup[]
   exercises: Array<TrainingExercise & { sets: TrainingSet[] }>
 }
 

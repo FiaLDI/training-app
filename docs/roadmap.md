@@ -57,6 +57,11 @@
     - Ключи локальных данных и persist-middleware scoped по `userId` (или `local` vs `cloud:{userId}`), чтобы данные разных аккаунтов на одном устройстве не пересекались.
     - После смены пользователя — принудительный refetch актуальных списков с сервера; не гидрировать UI из «чужого» кеша.
     - Регрессионный сценарий: User A → данные → logout → User B → только данные B; refresh страницы не возвращает A.
+- [ ] Автотесты (backend + frontend):
+  - **Backend (NestJS):** Jest + `@nestjs/testing`; unit-тесты use-case и domain-логики (auth, exercise groups, sync-критичные репозитории); integration/e2e на HTTP API с тестовой БД (Docker / in-memory Postgres).
+  - **Frontend (Next.js):** Vitest + React Testing Library для pure utils и компонентов; e2e (Playwright) на ключевые сценарии: login, неделя, сессия, офлайн-sync.
+  - CI: `test` в pipeline на каждый PR; минимальный порог покрытия для новых модулей (auth, training, sync).
+  - Приоритет первых тестов: изоляция пользователей, exercise groups (superset/triset/circuit), sync payload whitelist, session flow (rest timer, drops).
 
 ---
 
@@ -77,7 +82,7 @@
   - Манифест для бесшовной установки как нативное приложение (iOS / Android).
   - Публикация в Store и полностью нативные клиенты: см. [docs/native-apps.md](./native-apps.md) (TWA, Android Studio, Jetpack Compose, Flutter, SwiftUI).
   - REST API, auth и офлайн-sync для локальных клиентов: [docs/native-integration.md](./native-integration.md).
-- [ ] Сложные тренировочные структуры:
+- [x] Сложные тренировочные структуры:
   - Поддержка суперсетов, трисетов, дропсетов и круговых тренировок в структуре сессии.
 
 ---

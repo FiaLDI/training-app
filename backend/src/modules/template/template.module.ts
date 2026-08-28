@@ -8,12 +8,17 @@ import { TemplateHttpController } from './controller/template.http-controller'
 import { TEMPLATE_REPOSITORY_PORT } from './core/ports/template-repository.port'
 import { CreateTemplateUseCase } from './core/use-cases/create/create-template.use-case'
 import { CreateTemplateExerciseUseCase } from './core/use-cases/create-exercise/create-template-exercise.use-case'
+import { AddExerciseToTemplateGroupUseCase } from './core/use-cases/add-to-group/add-exercise-to-template-group.use-case'
+import { CreateTemplateExerciseGroupUseCase } from './core/use-cases/create-group/create-template-exercise-group.use-case'
 import { DeleteTemplateUseCase } from './core/use-cases/delete/delete-template.use-case'
 import { DeleteTemplateExerciseUseCase } from './core/use-cases/delete-exercise/delete-template-exercise.use-case'
+import { DeleteTemplateExerciseGroupUseCase } from './core/use-cases/delete-group/delete-template-exercise-group.use-case'
 import { GetTemplateUseCase } from './core/use-cases/get/get-template.use-case'
 import { ListTemplatesUseCase } from './core/use-cases/list/list-templates.use-case'
 import { UpdateTemplateUseCase } from './core/use-cases/update/update-template.use-case'
 import { UpdateTemplateExerciseUseCase } from './core/use-cases/update-exercise/update-template-exercise.use-case'
+import { UpdateTemplateExerciseGroupUseCase } from './core/use-cases/update-group/update-template-exercise-group.use-case'
+import { TemplateExerciseGroupEntity } from './core/entity/template-exercise-group.entity'
 import { TemplateExerciseEntity } from './core/entity/template-exercise.entity'
 import { TemplateTypeormRepository } from './infrastructure/template.typeorm-repository'
 import { WorkoutTemplateEntity } from './core/entity/workout-template.entity'
@@ -22,7 +27,11 @@ import { WorkoutTemplateEntity } from './core/entity/workout-template.entity'
   imports: [
     AuthModule,
     ExerciseModule,
-    TypeOrmModule.forFeature([WorkoutTemplateEntity, TemplateExerciseEntity]),
+    TypeOrmModule.forFeature([
+      WorkoutTemplateEntity,
+      TemplateExerciseEntity,
+      TemplateExerciseGroupEntity,
+    ]),
   ],
   controllers: [TemplateHttpController],
   providers: [
@@ -70,6 +79,26 @@ import { WorkoutTemplateEntity } from './core/entity/workout-template.entity'
     {
       provide: DeleteTemplateExerciseUseCase,
       useFactory: (repo: TemplateTypeormRepository) => new DeleteTemplateExerciseUseCase(repo),
+      inject: [TemplateTypeormRepository],
+    },
+    {
+      provide: CreateTemplateExerciseGroupUseCase,
+      useFactory: (repo: TemplateTypeormRepository) => new CreateTemplateExerciseGroupUseCase(repo),
+      inject: [TemplateTypeormRepository],
+    },
+    {
+      provide: AddExerciseToTemplateGroupUseCase,
+      useFactory: (repo: TemplateTypeormRepository) => new AddExerciseToTemplateGroupUseCase(repo),
+      inject: [TemplateTypeormRepository],
+    },
+    {
+      provide: UpdateTemplateExerciseGroupUseCase,
+      useFactory: (repo: TemplateTypeormRepository) => new UpdateTemplateExerciseGroupUseCase(repo),
+      inject: [TemplateTypeormRepository],
+    },
+    {
+      provide: DeleteTemplateExerciseGroupUseCase,
+      useFactory: (repo: TemplateTypeormRepository) => new DeleteTemplateExerciseGroupUseCase(repo),
       inject: [TemplateTypeormRepository],
     },
   ],

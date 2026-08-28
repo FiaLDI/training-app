@@ -4,9 +4,11 @@ import type {
   CreateTrainingExerciseInput,
   CreateTrainingInput,
   CreateTrainingSetInput,
+  ExerciseGroupType,
   ListTrainingsResult,
   Training,
   TrainingExercise,
+  TrainingExerciseGroup,
   TrainingSet,
   TrainingStatus,
   TrainingWithDetails,
@@ -118,6 +120,54 @@ export const trainingApi = {
 
   removeSet(setId: string, extras: RequestExtras = {}) {
     return apiRequest<{ deleted: boolean }>(`/trainings/sets/${setId}`, {
+      method: 'DELETE',
+      ...extras,
+    })
+  },
+
+  createGroup(
+    trainingId: string,
+    input: {
+      id?: string
+      exerciseIds: string[]
+      type?: ExerciseGroupType
+      restSeconds?: number | null
+    },
+    extras: RequestExtras = {},
+  ) {
+    return apiRequest<TrainingExerciseGroup>(`/trainings/${trainingId}/groups`, {
+      method: 'POST',
+      body: input,
+      ...extras,
+    })
+  },
+
+  addExerciseToGroup(
+    groupId: string,
+    input: { exerciseId: string },
+    extras: RequestExtras = {},
+  ) {
+    return apiRequest<TrainingExerciseGroup>(`/trainings/groups/${groupId}/exercises`, {
+      method: 'POST',
+      body: input,
+      ...extras,
+    })
+  },
+
+  updateGroup(
+    groupId: string,
+    input: { restSeconds?: number | null },
+    extras: RequestExtras = {},
+  ) {
+    return apiRequest<TrainingExerciseGroup>(`/trainings/groups/${groupId}`, {
+      method: 'PATCH',
+      body: input,
+      ...extras,
+    })
+  },
+
+  deleteGroup(groupId: string, extras: RequestExtras = {}) {
+    return apiRequest<{ deleted: boolean }>(`/trainings/groups/${groupId}`, {
       method: 'DELETE',
       ...extras,
     })

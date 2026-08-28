@@ -27,16 +27,23 @@ import { CurrentUser } from '../../auth/controller/current-user.decorator'
 import { User } from '../../auth/core/types'
 import { CreateTemplateUseCase } from '../core/use-cases/create/create-template.use-case'
 import { CreateTemplateExerciseUseCase } from '../core/use-cases/create-exercise/create-template-exercise.use-case'
+import { AddExerciseToTemplateGroupUseCase } from '../core/use-cases/add-to-group/add-exercise-to-template-group.use-case'
+import { CreateTemplateExerciseGroupUseCase } from '../core/use-cases/create-group/create-template-exercise-group.use-case'
 import { DeleteTemplateUseCase } from '../core/use-cases/delete/delete-template.use-case'
 import { DeleteTemplateExerciseUseCase } from '../core/use-cases/delete-exercise/delete-template-exercise.use-case'
+import { DeleteTemplateExerciseGroupUseCase } from '../core/use-cases/delete-group/delete-template-exercise-group.use-case'
 import { GetTemplateUseCase } from '../core/use-cases/get/get-template.use-case'
 import { ListTemplatesUseCase } from '../core/use-cases/list/list-templates.use-case'
 import { UpdateTemplateUseCase } from '../core/use-cases/update/update-template.use-case'
 import { UpdateTemplateExerciseUseCase } from '../core/use-cases/update-exercise/update-template-exercise.use-case'
+import { UpdateTemplateExerciseGroupUseCase } from '../core/use-cases/update-group/update-template-exercise-group.use-case'
 import { CreateTemplateExerciseInputDto } from './dto/create-template-exercise-input.dto'
+import { AddExerciseToTemplateGroupInputDto } from './dto/add-exercise-to-template-group-input.dto'
+import { CreateTemplateExerciseGroupInputDto } from './dto/create-template-exercise-group-input.dto'
 import { CreateTemplateInputDto } from './dto/create-template-input.dto'
 import { TemplateExerciseResponseDto, TemplateResponseDto } from './dto/template-response.dto'
 import { UpdateTemplateExerciseInputDto } from './dto/update-template-exercise-input.dto'
+import { UpdateTemplateExerciseGroupInputDto } from './dto/update-template-exercise-group-input.dto'
 import { UpdateTemplateInputDto } from './dto/update-template-input.dto'
 
 @ApiTags('templates')
@@ -56,6 +63,14 @@ export class TemplateHttpController {
     private readonly updateExerciseUseCase: UpdateTemplateExerciseUseCase,
     @Inject(DeleteTemplateExerciseUseCase)
     private readonly deleteExerciseUseCase: DeleteTemplateExerciseUseCase,
+    @Inject(CreateTemplateExerciseGroupUseCase)
+    private readonly createGroupUseCase: CreateTemplateExerciseGroupUseCase,
+    @Inject(AddExerciseToTemplateGroupUseCase)
+    private readonly addToGroupUseCase: AddExerciseToTemplateGroupUseCase,
+    @Inject(UpdateTemplateExerciseGroupUseCase)
+    private readonly updateGroupUseCase: UpdateTemplateExerciseGroupUseCase,
+    @Inject(DeleteTemplateExerciseGroupUseCase)
+    private readonly deleteGroupUseCase: DeleteTemplateExerciseGroupUseCase,
   ) {}
 
   @Get()
@@ -164,6 +179,68 @@ export class TemplateHttpController {
   ) {
     const result = await this.deleteExerciseUseCase.execute({ id: exerciseId, userId: user.id })
     if (!result.deleted) throw new NotFoundException('Template exercise not found')
+    return result
+  }
+
+  @Post(':id/groups')
+  @ApiOperation({ summary: 'Create exercise group in template' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  async createGroup(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateTemplateExerciseGroupInputDto,
+  ) {
+    const result = await this.createGroupUseCase.execute({
+      templateId: id,
+      userId: user.id,
+      id: dto.id,
+      exerciseIds: dto.exerciseIds,
+      type: dto.type,
+      restSeconds: dto.restSeconds,
+    })
+    return result.group
+  }
+
+  @Post('groups/:groupId/exercises')
+  @ApiOperation({ summary: 'Add exercise to template group' })
+  @ApiParam({ name: 'groupId', format: 'uuid' })
+  async addExerciseToGroup(
+    @CurrentUser() user: User,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Body() dto: AddExerciseToTemplateGroupInputDto,
+  ) {
+    const result = await this.addToGroupUseCase.execute({
+      groupId,
+      userId: user.id,
+      exerciseId: dto.exerciseId,
+    })
+    return result.group
+  }
+
+  @Patch('groups/:groupId')
+  @ApiOperation({ summary: 'Update template exercise group' })
+  @ApiParam({ name: 'groupId', format: 'uuid' })
+  async updateGroup(
+    @CurrentUser() user: User,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Body() dto: UpdateTemplateExerciseGroupInputDto,
+  ) {
+    const result = await this.updateGroupUseCase.execute({
+      id: groupId,
+      userId: user.id,
+      ...dto,
+    })
+    return result.group
+  }
+
+  @Delete('groups/:groupId')
+  @ApiOperation({ summary: 'Ungroup template exercises' })
+  @ApiParam({ name: 'groupId', format: 'uuid' })
+  async removeGroup(
+    @CurrentUser() user: User,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+  ) {
+    const result = await this.deleteGroupUseCase.execute({ id: groupId, userId: user.id })
     return result
   }
 }

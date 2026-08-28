@@ -3,8 +3,12 @@ import { apiRequest } from '@/shared/api/client'
 import type {
   CreateTemplateExerciseInput,
   CreateTemplateInput,
+  CreateTemplateExerciseGroupInput,
+  ExerciseGroupType,
   ListTemplatesResult,
   TemplateExercise,
+  TemplateExerciseGroup,
+  UpdateTemplateExerciseGroupInput,
   UpdateTemplateExerciseInput,
   WorkoutTemplate,
   WorkoutTemplateWithExercises,
@@ -78,6 +82,54 @@ export const templateApi = {
 
   removeExercise(exerciseId: string, extras: RequestExtras = {}) {
     return apiRequest<{ deleted: boolean }>(`/templates/exercises/${exerciseId}`, {
+      method: 'DELETE',
+      ...extras,
+    })
+  },
+
+  createGroup(
+    templateId: string,
+    input: {
+      id?: string
+      exerciseIds: string[]
+      type?: ExerciseGroupType
+      restSeconds?: number | null
+    },
+    extras: RequestExtras = {},
+  ) {
+    return apiRequest<TemplateExerciseGroup>(`/templates/${templateId}/groups`, {
+      method: 'POST',
+      body: input,
+      ...extras,
+    })
+  },
+
+  addExerciseToGroup(
+    groupId: string,
+    input: { exerciseId: string },
+    extras: RequestExtras = {},
+  ) {
+    return apiRequest<TemplateExerciseGroup>(`/templates/groups/${groupId}/exercises`, {
+      method: 'POST',
+      body: input,
+      ...extras,
+    })
+  },
+
+  updateGroup(
+    groupId: string,
+    input: { restSeconds?: number | null },
+    extras: RequestExtras = {},
+  ) {
+    return apiRequest<TemplateExerciseGroup>(`/templates/groups/${groupId}`, {
+      method: 'PATCH',
+      body: input,
+      ...extras,
+    })
+  },
+
+  deleteGroup(groupId: string, extras: RequestExtras = {}) {
+    return apiRequest<{ deleted: boolean }>(`/templates/groups/${groupId}`, {
       method: 'DELETE',
       ...extras,
     })

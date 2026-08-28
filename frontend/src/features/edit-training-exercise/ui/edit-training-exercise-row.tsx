@@ -5,12 +5,15 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  Link2,
+  Link2Off,
   MoreHorizontal,
   Pencil,
   Trash2,
   X,
 } from 'lucide-react'
 
+import type { LinkWithBelowAction } from '@/entities/session/lib/exercise-group-utils'
 import type { TrainingExercise, TrainingSet } from '@/entities/training/model/types'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { DropdownItem, DropdownMenu } from '@/shared/ui/dropdown-menu'
@@ -30,6 +33,9 @@ type Props = {
   neighborAboveOrder?: number
   neighborBelowId?: string
   neighborBelowOrder?: number
+  canLinkWithBelow?: boolean
+  groupId?: string | null
+  linkAction?: LinkWithBelowAction
 }
 
 function targetWeightFrom(item: TrainingExercise) {
@@ -61,9 +67,15 @@ export function EditTrainingExerciseRow({
   neighborAboveOrder,
   neighborBelowId,
   neighborBelowOrder,
+  canLinkWithBelow = false,
+  groupId = null,
+  linkAction,
 }: Props) {
   const updateExercise = useTrainingStore((s) => s.updateExercise)
   const removeExercise = useTrainingStore((s) => s.removeExercise)
+  const createGroup = useTrainingStore((s) => s.createGroup)
+  const addExerciseToGroup = useTrainingStore((s) => s.addExerciseToGroup)
+  const deleteGroup = useTrainingStore((s) => s.deleteGroup)
   const [editing, setEditing] = useState(false)
   const [targetSets, setTargetSets] = useState(String(item.targetSets))
   const [minReps, setMinReps] = useState(item.minReps == null ? '' : String(item.minReps))
@@ -77,6 +89,7 @@ export function EditTrainingExerciseRow({
   )
   const [saving, setSaving] = useState(false)
   const [moving, setMoving] = useState(false)
+  const [linking, setLinking] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -136,6 +149,38 @@ export function EditTrainingExerciseRow({
       setError(err instanceof Error ? err.message : 'Не удалось переместить')
     } finally {
       setMoving(false)
+    }
+  }
+
+  async function linkWithBelow() {
+    if (!linkAction) return
+    setLinking(true)
+    setError(null)
+    try {
+      if (linkAction.kind === 'create') {
+        await createGroup(trainingId, {
+          exerciseIds: linkAction.exerciseIds,
+        })
+      } else {
+        await addExerciseToGroup(trainingId, linkAction.groupId, linkAction.exerciseId)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось объединить упражнения')
+    } finally {
+      setLinking(false)
+    }
+  }
+
+  async function ungroup() {
+    if (!groupId) return
+    setLinking(true)
+    setError(null)
+    try {
+      await deleteGroup(trainingId, groupId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось разъединить')
+    } finally {
+      setLinking(false)
     }
   }
 
@@ -278,6 +323,30 @@ export function EditTrainingExerciseRow({
                   }}
                 >
                   Ниже в списке
+                </DropdownItem>
+              ) : null}
+              {canEdit && canLinkWithBelow ? (
+                <DropdownItem
+                  icon={<Link2 className="size-4" />}
+                  disabled={linking}
+                  onClick={() => {
+                    close()
+                    void linkWithBelow()
+                  }}
+                >
+                  Супerset со следующим
+                </DropdownItem>
+              ) : null}
+              {canEdit && groupId ? (
+                <DropdownItem
+                  icon={<Link2Off className="size-4" />}
+                  disabled={linking}
+                  onClick={() => {
+                    close()
+                    void ungroup()
+                  }}
+                >
+                  Разъединить супerset
                 </DropdownItem>
               ) : null}
               {canRemove ? (

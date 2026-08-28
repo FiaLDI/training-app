@@ -15,8 +15,10 @@ import { ExerciseTimecodeEntity } from './src/modules/source/core/entity/exercis
 import { ProgramDayEntity } from './src/modules/program/core/entity/program-day.entity'
 import { ProgramEntity } from './src/modules/program/core/entity/program.entity'
 import { TemplateExerciseEntity } from './src/modules/template/core/entity/template-exercise.entity'
+import { TemplateExerciseGroupEntity } from './src/modules/template/core/entity/template-exercise-group.entity'
 import { WorkoutTemplateEntity } from './src/modules/template/core/entity/workout-template.entity'
 import { TrainingExerciseEntity } from './src/modules/training/core/entity/training-exercise.entity'
+import { TrainingExerciseGroupEntity } from './src/modules/training/core/entity/training-exercise-group.entity'
 import { TrainingSetEntity } from './src/modules/training/core/entity/training-set.entity'
 import { TrainingEntity } from './src/modules/training/core/entity/training.entity'
 
@@ -55,10 +57,12 @@ export default new DataSource({
     ExerciseTimecodeEntity,
     WorkoutTemplateEntity,
     TemplateExerciseEntity,
+    TemplateExerciseGroupEntity,
     ProgramEntity,
     ProgramDayEntity,
     TrainingEntity,
     TrainingExerciseEntity,
+    TrainingExerciseGroupEntity,
     TrainingSetEntity,
   ],
 

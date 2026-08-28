@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common'
 
 import { UseCase } from '../../../../../common/core/use-case'
 import { TemplateRepositoryPort } from '../../../../template/core/ports/template-repository.port'
+import { copyTemplateStructureToTraining } from '../../../../training/core/lib/copy-template-structure'
 import { TrainingRepositoryPort } from '../../../../training/core/ports/training-repository.port'
 import { ProgramRepositoryPort } from '../../ports/program-repository.port'
 import { ApplyProgramInput } from './interfaces/apply-program.input'
@@ -16,7 +17,6 @@ function parseWeekStart(weekStart: string): Date {
   const month = Number(match[2]) - 1
   const day = Number(match[3])
   const date = new Date(Date.UTC(year, month, day, 12, 0, 0))
-  // Monday = 1 in UTC getUTCDay mapping: Sun=0 ... 
   if (date.getUTCDay() !== 1) {
     throw new BadRequestException('weekStart must be a Monday')
   }
@@ -82,22 +82,12 @@ export class ApplyProgramUseCase implements UseCase<ApplyProgramInput, ApplyProg
 
       const template = await this.templateRepository.getById(day.templateId, input.userId)
       if (template) {
-        for (const item of template.exercises) {
-          await this.trainingRepository.createExercise({
-            trainingId: training.id,
-            userId: input.userId,
-            exerciseId: item.exerciseId,
-            exerciseOrder: item.exerciseOrder,
-            targetSets: item.targetSets,
-            isWarmup: item.isWarmup,
-            minReps: item.minReps,
-            maxReps: item.maxReps,
-            restSeconds: item.restSeconds,
-            notes: item.notes,
-            metadata:
-              item.targetWeight != null ? { targetWeight: item.targetWeight } : item.metadata,
-          })
-        }
+        await copyTemplateStructureToTraining(
+          template,
+          training.id,
+          input.userId,
+          this.trainingRepository,
+        )
       }
 
       created.push(training)

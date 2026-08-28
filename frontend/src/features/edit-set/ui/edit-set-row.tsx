@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Check, Trash2, X } from 'lucide-react'
 
+import { isDropSet } from '@/entities/training/lib/drop-set'
 import type { TrainingSet } from '@/entities/training/model/types'
 import { usePreferencesStore } from '@/entities/preferences/model/store'
 import { formatKg } from '@/entities/training/lib/session-weight'
@@ -165,6 +166,11 @@ export function EditSetRow({ trainingId, set, canEdit }: Props) {
         {set.isWarmup ? (
           <span className="rounded-md bg-sky-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">
             разм.
+          </span>
+        ) : null}
+        {isDropSet(set.metadata) ? (
+          <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-300">
+            дроп
           </span>
         ) : null}
       </button>

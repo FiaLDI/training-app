@@ -1,8 +1,9 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, ChevronDown, ChevronUp, Pencil, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Link2, Pencil, Trash2, X } from 'lucide-react'
 
+import type { LinkWithBelowAction } from '@/entities/session/lib/exercise-group-utils'
 import type { TemplateExercise } from '@/entities/template/model/types'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { Button } from '@/shared/ui/button'
@@ -19,6 +20,9 @@ type Props = {
   neighborAboveOrder?: number
   neighborBelowId?: string
   neighborBelowOrder?: number
+  canLinkWithBelow?: boolean
+  hideLinkWithBelow?: boolean
+  linkAction?: LinkWithBelowAction
 }
 
 export function EditTemplateExerciseRow({
@@ -32,9 +36,14 @@ export function EditTemplateExerciseRow({
   neighborAboveOrder,
   neighborBelowId,
   neighborBelowOrder,
+  canLinkWithBelow = false,
+  hideLinkWithBelow = false,
+  linkAction = undefined,
 }: Props) {
   const updateExercise = useTemplateStore((s) => s.updateExercise)
   const removeExercise = useTemplateStore((s) => s.removeExercise)
+  const createGroup = useTemplateStore((s) => s.createGroup)
+  const addExerciseToGroup = useTemplateStore((s) => s.addExerciseToGroup)
   const [editing, setEditing] = useState(false)
   const [targetSets, setTargetSets] = useState(String(item.targetSets))
   const [minReps, setMinReps] = useState(item.minReps == null ? '' : String(item.minReps))
@@ -44,6 +53,7 @@ export function EditTemplateExerciseRow({
   )
   const [saving, setSaving] = useState(false)
   const [moving, setMoving] = useState(false)
+  const [linking, setLinking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -99,6 +109,25 @@ export function EditTemplateExerciseRow({
     }
   }
 
+  async function linkWithBelow() {
+    if (!linkAction) return
+    setLinking(true)
+    setError(null)
+    try {
+      if (linkAction.kind === 'create') {
+        await createGroup(templateId, {
+          exerciseIds: linkAction.exerciseIds,
+        })
+      } else {
+        await addExerciseToGroup(templateId, linkAction.groupId, linkAction.exerciseId)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось объединить упражнения')
+    } finally {
+      setLinking(false)
+    }
+  }
+
   if (!editing) {
     return (
       <li className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
@@ -136,6 +165,11 @@ export function EditTemplateExerciseRow({
           </div>
         </div>
         <div className="flex gap-1">
+          {canLinkWithBelow && !hideLinkWithBelow ? (
+            <Button type="button" variant="ghost" disabled={linking} onClick={() => void linkWithBelow()}>
+              <Link2 className="size-4" />
+            </Button>
+          ) : null}
           <Button type="button" variant="ghost" onClick={() => setEditing(true)}>
             <Pencil className="size-4" />
           </Button>

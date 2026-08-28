@@ -1,6 +1,7 @@
 import { templateApi } from '@/entities/template/api/template-api'
 import type {
   TemplateExercise,
+  TemplateExerciseGroup,
   WorkoutTemplateWithExercises,
 } from '@/entities/template/model/types'
 import { ApiError } from '@/shared/api/client'
@@ -48,6 +49,7 @@ async function ensureTemplateShell(template: WorkoutTemplateWithExercises) {
 }
 
 async function upsertTemplateExercise(templateId: string, exercise: TemplateExercise) {
+  // Group membership is synced via createGroup — not on exercise POST/PATCH.
   const updateBody = {
     exerciseOrder: exercise.exerciseOrder,
     targetSets: exercise.targetSets,
@@ -65,7 +67,45 @@ async function upsertTemplateExercise(templateId: string, exercise: TemplateExer
     exerciseId: exercise.exerciseId,
     ...updateBody,
   })
-  await templateApi.updateExercise(exercise.id, updateBody)
+  try {
+    await templateApi.updateExercise(exercise.id, updateBody)
+  } catch (error) {
+    if (!(error instanceof ApiError && (error.status === 400 || error.status === 404))) {
+      throw error
+    }
+  }
+}
+
+async function upsertTemplateGroup(
+  template: WorkoutTemplateWithExercises,
+  group: TemplateExerciseGroup,
+) {
+  const members = template.exercises
+    .filter((item) => item.groupId === group.id)
+    .sort((a, b) => (a.positionInGroup ?? 0) - (b.positionInGroup ?? 0))
+  if (members.length < 2) return
+
+  const exerciseIds = members.map((member) => member.id)
+  try {
+    await templateApi.createGroup(template.id, {
+      id: group.id,
+      exerciseIds,
+      type: group.type,
+      restSeconds: group.restSeconds,
+    })
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 400)) throw error
+    await templateApi.createGroup(template.id, {
+      id: group.id,
+      exerciseIds: [exerciseIds[0], exerciseIds[1]],
+      type: group.type,
+      restSeconds: group.restSeconds,
+    })
+    for (let i = 2; i < exerciseIds.length; i += 1) {
+      await templateApi.addExerciseToGroup(group.id, { exerciseId: exerciseIds[i] })
+    }
+  }
+  await templateApi.updateGroup(group.id, { restSeconds: group.restSeconds })
 }
 
 export async function syncTemplates(
@@ -111,6 +151,10 @@ async function uploadTemplate(template: WorkoutTemplateWithExercises) {
 
   for (const exercise of template.exercises) {
     await upsertTemplateExercise(template.id, exercise)
+  }
+
+  for (const group of template.groups ?? []) {
+    await upsertTemplateGroup(template, group)
   }
 
   // Removals go through deleteOutbox only — never diff-delete remote from a snapshot.

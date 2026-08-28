@@ -2,6 +2,7 @@ import {
   ExerciseProgressPoint,
   Training,
   TrainingExercise,
+  TrainingExerciseGroup,
   TrainingSet,
   TrainingStatus,
   TrainingWithDetails,
@@ -67,6 +68,8 @@ export interface CreateTrainingExerciseRepositoryInput {
   restSeconds?: number | null
   notes?: string | null
   metadata?: Record<string, unknown>
+  groupId?: string | null
+  positionInGroup?: number | null
 }
 
 export interface UpdateTrainingExerciseRepositoryInput {
@@ -81,6 +84,8 @@ export interface UpdateTrainingExerciseRepositoryInput {
   previousMaxWeight?: number | null
   restSeconds?: number | null
   notes?: string | null
+  groupId?: string | null
+  positionInGroup?: number | null
   metadata?: Record<string, unknown>
 }
 
@@ -108,6 +113,32 @@ export interface UpdateTrainingSetRepositoryInput {
   rpe?: number | null
   completed?: boolean
   isWarmup?: boolean
+  metadata?: Record<string, unknown>
+}
+
+import { ExerciseGroupType } from '../../../../common/core/exercise-group'
+
+export interface CreateTrainingExerciseGroupRepositoryInput {
+  id?: string
+  trainingId: string
+  userId: string
+  type?: ExerciseGroupType
+  groupOrder: number
+  restSeconds?: number | null
+  exerciseIds: string[]
+  metadata?: Record<string, unknown>
+}
+
+export interface AddExerciseToTrainingGroupRepositoryInput {
+  groupId: string
+  exerciseId: string
+  userId: string
+}
+
+export interface UpdateTrainingExerciseGroupRepositoryInput {
+  id: string
+  userId: string
+  restSeconds?: number | null
   metadata?: Record<string, unknown>
 }
 
@@ -146,6 +177,12 @@ export interface TrainingRepositoryPort {
   createSet(input: CreateTrainingSetRepositoryInput): Promise<TrainingSet | null>
   updateSet(input: UpdateTrainingSetRepositoryInput): Promise<TrainingSet | null>
   deleteSet(id: string, userId: string): Promise<boolean>
+
+  listGroups(trainingId: string): Promise<TrainingExerciseGroup[]>
+  createGroup(input: CreateTrainingExerciseGroupRepositoryInput): Promise<TrainingExerciseGroup | null>
+  addExerciseToGroup(input: AddExerciseToTrainingGroupRepositoryInput): Promise<TrainingExerciseGroup | null>
+  updateGroup(input: UpdateTrainingExerciseGroupRepositoryInput): Promise<TrainingExerciseGroup | null>
+  deleteGroup(id: string, userId: string): Promise<boolean>
 
   getVolumeStats(input: VolumeStatsRepositoryInput): Promise<VolumeStatPoint[]>
   getExerciseProgress(input: ExerciseProgressRepositoryInput): Promise<ExerciseProgressPoint[]>

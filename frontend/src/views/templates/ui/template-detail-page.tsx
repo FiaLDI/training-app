@@ -4,8 +4,11 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 
+import { buildTemplateSessionItems } from '@/entities/session/lib/build-session-items'
+import { resolveLinkWithBelowAction } from '@/entities/session/lib/exercise-group-utils'
 import { AddTemplateExerciseForm } from '@/features/add-template-exercise/ui/add-template-exercise-form'
 import { EditTemplateExerciseRow } from '@/features/edit-template-exercise/ui/edit-template-exercise-row'
+import { TemplateExerciseGroupCard } from '@/features/manage-exercise-group/ui/template-exercise-group-card'
 import { StartTrainingButton } from '@/features/start-training/ui/start-training-button'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
@@ -43,6 +46,11 @@ export function TemplateDetailPage({ id }: Props) {
     return <p className="text-sm text-red-300">{error ?? 'План не найден'}</p>
   }
 
+  const sortedExercises = [...current.exercises].sort(
+    (a, b) => a.exerciseOrder - b.exerciseOrder,
+  )
+  const sessionItems = buildTemplateSessionItems(sortedExercises, current.groups ?? [])
+
   return (
     <div>
       <Link
@@ -76,13 +84,30 @@ export function TemplateDetailPage({ id }: Props) {
       />
 
       <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl">Упражнения</h2>
-      {current.exercises.length === 0 ? (
+      {sortedExercises.length === 0 ? (
         <EmptyState>В этом плане пока нет упражнений.</EmptyState>
       ) : (
         <ul className="space-y-2">
-          {current.exercises.map((item, index) => {
-            const above = current.exercises[index - 1]
-            const below = current.exercises[index + 1]
+          {sessionItems.map((sessionItem) => {
+            if (sessionItem.kind === 'group') {
+              return (
+                <TemplateExerciseGroupCard
+                  key={sessionItem.group.id}
+                  templateId={id}
+                  group={sessionItem.group}
+                  exercises={sessionItem.exercises}
+                  exerciseName={exerciseName}
+                  allExercises={sortedExercises}
+                />
+              )
+            }
+
+            const item = sessionItem.exercise
+            const index = sortedExercises.findIndex((row) => row.id === item.id)
+            const above = sortedExercises[index - 1]
+            const below = sortedExercises[index + 1]
+            const linkAction = resolveLinkWithBelowAction(item, below, sortedExercises)
+
             return (
               <EditTemplateExerciseRow
                 key={item.id}
@@ -91,11 +116,13 @@ export function TemplateDetailPage({ id }: Props) {
                 exerciseName={exerciseName(item.exerciseId)}
                 displayIndex={index + 1}
                 canMoveUp={index > 0}
-                canMoveDown={index < current.exercises.length - 1}
+                canMoveDown={index < sortedExercises.length - 1}
                 neighborAboveId={above?.id}
                 neighborAboveOrder={above?.exerciseOrder}
                 neighborBelowId={below?.id}
                 neighborBelowOrder={below?.exerciseOrder}
+                canLinkWithBelow={linkAction != null}
+                linkAction={linkAction}
               />
             )
           })}

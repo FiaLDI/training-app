@@ -35,6 +35,26 @@ export class TrainingSetResponseDto {
   createdAt!: string
 }
 
+export class TrainingExerciseGroupResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ format: 'uuid' })
+  trainingId!: string
+
+  @ApiProperty({ enum: ['superset', 'triset', 'circuit'] })
+  type!: 'superset' | 'triset' | 'circuit'
+
+  @ApiProperty()
+  groupOrder!: number
+
+  @ApiPropertyOptional({ nullable: true })
+  restSeconds!: number | null
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  metadata!: Record<string, unknown>
+}
+
 export class TrainingExerciseResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string
@@ -71,6 +91,12 @@ export class TrainingExerciseResponseDto {
 
   @ApiPropertyOptional({ nullable: true })
   notes!: string | null
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  groupId!: string | null
+
+  @ApiPropertyOptional({ nullable: true })
+  positionInGroup!: number | null
 
   @ApiProperty({ type: 'object', additionalProperties: true })
   metadata!: Record<string, unknown>
@@ -118,4 +144,7 @@ export class TrainingResponseDto {
 
   @ApiPropertyOptional({ type: [TrainingExerciseResponseDto] })
   exercises?: TrainingExerciseResponseDto[]
+
+  @ApiPropertyOptional({ type: [TrainingExerciseGroupResponseDto] })
+  groups?: TrainingExerciseGroupResponseDto[]
 }

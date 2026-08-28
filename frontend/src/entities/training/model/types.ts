@@ -1,5 +1,16 @@
 export type TrainingStatus = 'planned' | 'in_progress' | 'finished' | 'cancelled'
 
+export type ExerciseGroupType = 'superset' | 'triset' | 'circuit'
+
+export type TrainingExerciseGroup = {
+  id: string
+  trainingId: string
+  type: ExerciseGroupType
+  groupOrder: number
+  restSeconds: number | null
+  metadata: Record<string, unknown>
+}
+
 export type Training = {
   id: string
   templateId: string | null
@@ -27,6 +38,8 @@ export type TrainingExercise = {
   previousMaxWeight: number | null
   restSeconds: number | null
   notes: string | null
+  groupId: string | null
+  positionInGroup: number | null
   metadata: Record<string, unknown>
 }
 
@@ -45,6 +58,7 @@ export type TrainingSet = {
 }
 
 export type TrainingWithDetails = Training & {
+  groups: TrainingExerciseGroup[]
   exercises: Array<TrainingExercise & { sets: TrainingSet[] }>
 }
 
@@ -54,7 +68,6 @@ export type TrainingSyncMeta = {
   status: TrainingSyncStatus
   reason?: 'local_mode' | 'queued' | 'timeout' | 'network' | 'server'
   serverSyncedAt?: string
-  /** Hash of last successfully uploaded training content; mismatch ⇒ needs re-sync. */
   contentHash?: string
   error?: string
   failedAt?: string
@@ -85,7 +98,25 @@ export type CreateTrainingExerciseInput = {
   previousMaxWeight?: number | null
   restSeconds?: number | null
   notes?: string | null
+  groupId?: string | null
+  positionInGroup?: number | null
   metadata?: Record<string, unknown>
+}
+
+export type CreateTrainingExerciseGroupInput = {
+  id?: string
+  exerciseIds: string[]
+  type?: ExerciseGroupType
+  restSeconds?: number | null
+}
+
+export type AddExerciseToTrainingGroupInput = {
+  groupId: string
+  exerciseId: string
+}
+
+export type UpdateTrainingExerciseGroupInput = {
+  restSeconds?: number | null
 }
 
 export type CreateTrainingSetInput = {
@@ -111,6 +142,8 @@ export type UpdateTrainingExerciseInput = {
   targetWeight?: number | null
   restSeconds?: number | null
   notes?: string | null
+  groupId?: string | null
+  positionInGroup?: number | null
   metadata?: Record<string, unknown>
 }
 

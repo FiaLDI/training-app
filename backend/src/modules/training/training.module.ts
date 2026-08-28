@@ -10,15 +10,20 @@ import { TrainingHttpController } from './controller/training.http-controller'
 import { TRAINING_REPOSITORY_PORT } from './core/ports/training-repository.port'
 import { CreateTrainingUseCase } from './core/use-cases/create/create-training.use-case'
 import { CreateTrainingExerciseUseCase } from './core/use-cases/create-exercise/create-training-exercise.use-case'
+import { AddExerciseToTrainingGroupUseCase } from './core/use-cases/add-to-group/add-exercise-to-training-group.use-case'
+import { CreateTrainingExerciseGroupUseCase } from './core/use-cases/create-group/create-training-exercise-group.use-case'
 import { CreateTrainingSetUseCase } from './core/use-cases/create-set/create-training-set.use-case'
 import { DeleteTrainingUseCase } from './core/use-cases/delete/delete-training.use-case'
 import { DeleteTrainingExerciseUseCase } from './core/use-cases/delete-exercise/delete-training-exercise.use-case'
+import { DeleteTrainingExerciseGroupUseCase } from './core/use-cases/delete-group/delete-training-exercise-group.use-case'
 import { DeleteTrainingSetUseCase } from './core/use-cases/delete-set/delete-training-set.use-case'
 import { GetTrainingUseCase } from './core/use-cases/get/get-training.use-case'
 import { ListTrainingsUseCase } from './core/use-cases/list/list-trainings.use-case'
 import { UpdateTrainingUseCase } from './core/use-cases/update/update-training.use-case'
 import { UpdateTrainingExerciseUseCase } from './core/use-cases/update-exercise/update-training-exercise.use-case'
+import { UpdateTrainingExerciseGroupUseCase } from './core/use-cases/update-group/update-training-exercise-group.use-case'
 import { UpdateTrainingSetUseCase } from './core/use-cases/update-set/update-training-set.use-case'
+import { TrainingExerciseGroupEntity } from './core/entity/training-exercise-group.entity'
 import { TrainingExerciseEntity } from './core/entity/training-exercise.entity'
 import { TrainingSetEntity } from './core/entity/training-set.entity'
 import { TrainingEntity } from './core/entity/training.entity'
@@ -29,7 +34,12 @@ import { TrainingTypeormRepository } from './infrastructure/training.typeorm-rep
     AuthModule,
     ExerciseModule,
     TemplateModule,
-    TypeOrmModule.forFeature([TrainingEntity, TrainingExerciseEntity, TrainingSetEntity]),
+    TypeOrmModule.forFeature([
+      TrainingEntity,
+      TrainingExerciseEntity,
+      TrainingExerciseGroupEntity,
+      TrainingSetEntity,
+    ]),
   ],
   controllers: [TrainingHttpController],
   providers: [
@@ -93,6 +103,26 @@ import { TrainingTypeormRepository } from './infrastructure/training.typeorm-rep
     {
       provide: DeleteTrainingSetUseCase,
       useFactory: (repo: TrainingTypeormRepository) => new DeleteTrainingSetUseCase(repo),
+      inject: [TrainingTypeormRepository],
+    },
+    {
+      provide: CreateTrainingExerciseGroupUseCase,
+      useFactory: (repo: TrainingTypeormRepository) => new CreateTrainingExerciseGroupUseCase(repo),
+      inject: [TrainingTypeormRepository],
+    },
+    {
+      provide: AddExerciseToTrainingGroupUseCase,
+      useFactory: (repo: TrainingTypeormRepository) => new AddExerciseToTrainingGroupUseCase(repo),
+      inject: [TrainingTypeormRepository],
+    },
+    {
+      provide: UpdateTrainingExerciseGroupUseCase,
+      useFactory: (repo: TrainingTypeormRepository) => new UpdateTrainingExerciseGroupUseCase(repo),
+      inject: [TrainingTypeormRepository],
+    },
+    {
+      provide: DeleteTrainingExerciseGroupUseCase,
+      useFactory: (repo: TrainingTypeormRepository) => new DeleteTrainingExerciseGroupUseCase(repo),
       inject: [TrainingTypeormRepository],
     },
   ],

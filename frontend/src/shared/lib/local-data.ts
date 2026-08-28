@@ -1,3 +1,7 @@
+import {
+  areExerciseOrdersContiguous,
+  groupTypeFromMemberCount,
+} from '@/entities/session/lib/exercise-group-utils'
 import { createLocalCollection } from '@/shared/lib/local-db'
 import { createLocalId } from '@/shared/lib/local-id'
 import {
@@ -34,22 +38,28 @@ import type {
   UpdateProgramDayInput,
 } from '@/entities/program/model/types'
 import type {
+  CreateTemplateExerciseGroupInput,
   CreateTemplateExerciseInput,
   CreateTemplateInput,
   TemplateExercise,
+  TemplateExerciseGroup,
+  UpdateTemplateExerciseGroupInput,
   UpdateTemplateExerciseInput,
   WorkoutTemplate,
   WorkoutTemplateWithExercises,
 } from '@/entities/template/model/types'
 import type {
+  CreateTrainingExerciseGroupInput,
   CreateTrainingExerciseInput,
   CreateTrainingInput,
   CreateTrainingSetInput,
   Training,
   TrainingExercise,
+  TrainingExerciseGroup,
   TrainingSet,
   TrainingSyncMeta,
   TrainingWithDetails,
+  UpdateTrainingExerciseGroupInput,
   UpdateTrainingExerciseInput,
 } from '@/entities/training/model/types'
 import type {
@@ -65,13 +75,67 @@ const exercisesDb = createLocalCollection<Exercise>('exercises')
 const sourcesDb = createLocalCollection<ExerciseSource>('sources')
 const templatesDb = createLocalCollection<WorkoutTemplate>('templates')
 const templateExercisesDb = createLocalCollection<TemplateExercise>('template-exercises')
+const templateGroupsDb = createLocalCollection<TemplateExerciseGroup>('template-groups')
 const programsDb = createLocalCollection<Program>('programs')
 const programDaysDb = createLocalCollection<ProgramDay>('program-days')
 const trainingsDb = createLocalCollection<Training>('trainings')
 const trainingExercisesDb = createLocalCollection<TrainingExercise>('training-exercises')
+const trainingGroupsDb = createLocalCollection<TrainingExerciseGroup>('training-groups')
 const trainingSetsDb = createLocalCollection<TrainingSet>('training-sets')
 const bodyMeasurementsDb = createLocalCollection<BodyMeasurement>('body-measurements')
 const feedbacksDb = createLocalCollection<LocalFeedback>('feedbacks')
+
+function normalizeTemplateExercise(exercise: TemplateExercise): TemplateExercise {
+  return {
+    ...exercise,
+    groupId: exercise.groupId ?? null,
+    positionInGroup: exercise.positionInGroup ?? null,
+  }
+}
+
+function normalizeTrainingExercise(exercise: TrainingExercise): TrainingExercise {
+  return {
+    ...exercise,
+    groupId: exercise.groupId ?? null,
+    positionInGroup: exercise.positionInGroup ?? null,
+  }
+}
+
+function copyTemplateStructureToTrainingLocal(template: WorkoutTemplateWithExercises, trainingId: string) {
+  const exerciseIdMap = new Map<string, string>()
+
+  for (const item of [...template.exercises].sort((a, b) => a.exerciseOrder - b.exerciseOrder)) {
+    const created = localData.trainings.addExercise(trainingId, {
+      exerciseId: item.exerciseId,
+      exerciseOrder: item.exerciseOrder,
+      targetSets: item.targetSets,
+      isWarmup: item.isWarmup ?? false,
+      minReps: item.minReps,
+      maxReps: item.maxReps,
+      restSeconds: item.restSeconds,
+      notes: item.notes,
+      metadata:
+        item.targetWeight != null ? { targetWeight: item.targetWeight } : item.metadata,
+    })
+    if (created) exerciseIdMap.set(item.id, created.id)
+  }
+
+  for (const group of [...(template.groups ?? [])].sort((a, b) => a.groupOrder - b.groupOrder)) {
+    const members = template.exercises
+      .filter((item) => item.groupId === group.id)
+      .sort((a, b) => (a.positionInGroup ?? 0) - (b.positionInGroup ?? 0))
+    if (members.length < 2) continue
+    const mappedIds = members
+      .map((member) => exerciseIdMap.get(member.id))
+      .filter((memberId): memberId is string => Boolean(memberId))
+    if (mappedIds.length !== members.length) continue
+    localData.trainings.createGroup(trainingId, {
+      exerciseIds: mappedIds,
+      type: group.type,
+      restSeconds: group.restSeconds,
+    })
+  }
+}
 
 function nowIso() {
   return new Date().toISOString()
@@ -210,7 +274,12 @@ export const localData = {
         .list()
         .filter((item) => item.templateId === id)
         .sort((a, b) => a.exerciseOrder - b.exerciseOrder)
-      return { ...template, exercises }
+        .map(normalizeTemplateExercise)
+      const groups = templateGroupsDb
+        .list()
+        .filter((item) => item.templateId === id)
+        .sort((a, b) => a.groupOrder - b.groupOrder)
+      return { ...template, exercises, groups }
     },
     create(input: CreateTemplateInput): WorkoutTemplate {
       const stamp = nowIso()
@@ -253,6 +322,7 @@ export const localData = {
       templateExercisesDb.save(
         templateExercisesDb.list().filter((item) => item.templateId !== id),
       )
+      templateGroupsDb.save(templateGroupsDb.list().filter((item) => item.templateId !== id))
       return templatesDb.remove(id)
     },
     addExercise(templateId: string, input: CreateTemplateExerciseInput): TemplateExercise | null {
@@ -269,11 +339,16 @@ export const localData = {
         targetWeight: input.targetWeight ?? null,
         restSeconds: input.restSeconds ?? null,
         notes: input.notes ?? null,
+        groupId: input.groupId ?? null,
+        positionInGroup: input.positionInGroup ?? null,
         metadata: input.metadata ?? {},
       })
     },
     upsertExercise(exercise: TemplateExercise): TemplateExercise {
       return templateExercisesDb.upsert(exercise)
+    },
+    upsertGroup(group: TemplateExerciseGroup): TemplateExerciseGroup {
+      return templateGroupsDb.upsert(group)
     },
     updateExercise(
       exerciseRowId: string,
@@ -290,10 +365,113 @@ export const localData = {
         targetWeight: input.targetWeight === undefined ? current.targetWeight : input.targetWeight,
         restSeconds: input.restSeconds === undefined ? current.restSeconds : input.restSeconds,
         notes: input.notes === undefined ? current.notes : input.notes,
+        groupId: input.groupId === undefined ? current.groupId : input.groupId,
+        positionInGroup:
+          input.positionInGroup === undefined ? current.positionInGroup : input.positionInGroup,
       })
     },
     removeExercise(exerciseRowId: string) {
+      const current = templateExercisesDb.get(exerciseRowId)
+      if (current?.groupId) {
+        const groupId = current.groupId
+        for (const partner of templateExercisesDb.list().filter((item) => item.groupId === groupId)) {
+          if (partner.id === exerciseRowId) continue
+          templateExercisesDb.upsert({ ...partner, groupId: null, positionInGroup: null })
+        }
+        templateGroupsDb.remove(groupId)
+      }
       return templateExercisesDb.remove(exerciseRowId)
+    },
+    createGroup(
+      templateId: string,
+      input: CreateTemplateExerciseGroupInput,
+    ): TemplateExerciseGroup | null {
+      if (!templatesDb.get(templateId)) return null
+
+      const resolved = input.exerciseIds.map((id) => templateExercisesDb.get(id))
+      if (resolved.some((item) => !item)) return null
+
+      const exercises = resolved.filter((item): item is TemplateExercise => item != null)
+      if (exercises.some((item) => item.templateId !== templateId)) return null
+      if (exercises.some((item) => item.groupId)) return null
+
+      const orders = exercises.map((item) => item.exerciseOrder)
+      if (!areExerciseOrdersContiguous(orders)) return null
+
+      const sorted = [...exercises].sort((a, b) => a.exerciseOrder - b.exerciseOrder)
+      const syncedTargetSets = Math.max(...sorted.map((item) => item.targetSets))
+      const groupOrder = Math.min(...orders)
+      const memberCount = sorted.length
+
+      const group = templateGroupsDb.upsert({
+        id: input.id ?? createLocalId(),
+        templateId,
+        type: input.type ?? groupTypeFromMemberCount(memberCount),
+        groupOrder,
+        restSeconds: input.restSeconds ?? null,
+        metadata: {},
+      })
+
+      sorted.forEach((exercise, index) => {
+        templateExercisesDb.upsert({
+          ...exercise,
+          groupId: group.id,
+          positionInGroup: index,
+          targetSets: syncedTargetSets,
+        })
+      })
+
+      return group
+    },
+    addExerciseToGroup(
+      groupId: string,
+      exerciseId: string,
+    ): TemplateExerciseGroup | null {
+      const group = templateGroupsDb.get(groupId)
+      const exercise = templateExercisesDb.get(exerciseId)
+      if (!group || !exercise || exercise.templateId !== group.templateId) return null
+      if (exercise.groupId === groupId) return group
+      if (exercise.groupId) return null
+
+      const members = templateExercisesDb
+        .list()
+        .filter((item) => item.groupId === groupId)
+        .sort((a, b) => (a.positionInGroup ?? 0) - (b.positionInGroup ?? 0))
+      const maxOrder = Math.max(...members.map((item) => item.exerciseOrder))
+      if (exercise.exerciseOrder !== maxOrder + 1) return null
+
+      const syncedTargetSets = Math.max(...members.map((item) => item.targetSets), exercise.targetSets)
+      templateExercisesDb.upsert({
+        ...exercise,
+        groupId: group.id,
+        positionInGroup: members.length,
+        targetSets: syncedTargetSets,
+      })
+      for (const member of members) {
+        templateExercisesDb.upsert({ ...member, targetSets: syncedTargetSets })
+      }
+
+      return templateGroupsDb.upsert({
+        ...group,
+        type: groupTypeFromMemberCount(members.length + 1),
+      })
+    },
+    updateGroup(
+      groupId: string,
+      input: UpdateTemplateExerciseGroupInput,
+    ): TemplateExerciseGroup | null {
+      const current = templateGroupsDb.get(groupId)
+      if (!current) return null
+      return templateGroupsDb.upsert({
+        ...current,
+        restSeconds: input.restSeconds === undefined ? current.restSeconds : input.restSeconds,
+      })
+    },
+    deleteGroup(groupId: string) {
+      for (const member of templateExercisesDb.list().filter((item) => item.groupId === groupId)) {
+        templateExercisesDb.upsert({ ...member, groupId: null, positionInGroup: null })
+      }
+      return templateGroupsDb.remove(groupId)
     },
   },
 
@@ -584,7 +762,7 @@ export const localData = {
             }))
 
           return {
-            ...exercise,
+            ...normalizeTrainingExercise(exercise),
             isWarmup: exercise.isWarmup ?? false,
             maxWeight:
               exercise.maxWeight !== undefined
@@ -599,7 +777,11 @@ export const localData = {
             sets,
           }
         })
-      return { ...training, exercises }
+      const groups = trainingGroupsDb
+        .list()
+        .filter((item) => item.trainingId === id)
+        .sort((a, b) => a.groupOrder - b.groupOrder)
+      return { ...training, exercises, groups }
     },
     create(input: CreateTrainingInput): Training {
       const existingSync = input.metadata?.sync as TrainingSyncMeta | undefined
@@ -623,20 +805,7 @@ export const localData = {
       if (input.templateId) {
         const template = localData.templates.get(input.templateId)
         if (template) {
-          for (const item of template.exercises) {
-            localData.trainings.addExercise(training.id, {
-              exerciseId: item.exerciseId,
-              exerciseOrder: item.exerciseOrder,
-              targetSets: item.targetSets,
-              isWarmup: item.isWarmup ?? false,
-              minReps: item.minReps,
-              maxReps: item.maxReps,
-              restSeconds: item.restSeconds,
-              notes: item.notes,
-              metadata:
-                item.targetWeight != null ? { targetWeight: item.targetWeight } : undefined,
-            })
-          }
+          copyTemplateStructureToTrainingLocal(template, training.id)
         }
       }
       return training
@@ -696,6 +865,7 @@ export const localData = {
       trainingExercisesDb.save(
         trainingExercisesDb.list().filter((item) => item.trainingId !== id),
       )
+      trainingGroupsDb.save(trainingGroupsDb.list().filter((item) => item.trainingId !== id))
       return trainingsDb.remove(id)
     },
     addExercise(
@@ -717,11 +887,16 @@ export const localData = {
           input.previousMaxWeight ?? findPreviousMaxWeight(input.exerciseId, trainingId),
         restSeconds: input.restSeconds ?? null,
         notes: input.notes ?? null,
+        groupId: input.groupId ?? null,
+        positionInGroup: input.positionInGroup ?? null,
         metadata: input.metadata ?? {},
       })
     },
     upsertExercise(exercise: TrainingExercise): TrainingExercise {
       return trainingExercisesDb.upsert(exercise)
+    },
+    upsertGroup(group: TrainingExerciseGroup): TrainingExerciseGroup {
+      return trainingGroupsDb.upsert(group)
     },
     updateExercise(
       exerciseRowId: string,
@@ -754,14 +929,117 @@ export const localData = {
             : input.previousMaxWeight,
         restSeconds: input.restSeconds === undefined ? current.restSeconds : input.restSeconds,
         notes: input.notes === undefined ? current.notes : input.notes,
+        groupId: input.groupId === undefined ? current.groupId : input.groupId,
+        positionInGroup:
+          input.positionInGroup === undefined ? current.positionInGroup : input.positionInGroup,
         metadata,
       })
     },
     removeExercise(exerciseRowId: string) {
+      const current = trainingExercisesDb.get(exerciseRowId)
+      if (current?.groupId) {
+        const groupId = current.groupId
+        for (const partner of trainingExercisesDb.list().filter((item) => item.groupId === groupId)) {
+          if (partner.id === exerciseRowId) continue
+          trainingExercisesDb.upsert({ ...partner, groupId: null, positionInGroup: null })
+        }
+        trainingGroupsDb.remove(groupId)
+      }
       trainingSetsDb.save(
         trainingSetsDb.list().filter((set) => set.trainingExerciseId !== exerciseRowId),
       )
       return trainingExercisesDb.remove(exerciseRowId)
+    },
+    createGroup(
+      trainingId: string,
+      input: CreateTrainingExerciseGroupInput,
+    ): TrainingExerciseGroup | null {
+      if (!trainingsDb.get(trainingId)) return null
+
+      const resolved = input.exerciseIds.map((id) => trainingExercisesDb.get(id))
+      if (resolved.some((item) => !item)) return null
+
+      const exercises = resolved.filter((item): item is TrainingExercise => item != null)
+      if (exercises.some((item) => item.trainingId !== trainingId)) return null
+      if (exercises.some((item) => item.groupId)) return null
+
+      const orders = exercises.map((item) => item.exerciseOrder)
+      if (!areExerciseOrdersContiguous(orders)) return null
+
+      const sorted = [...exercises].sort((a, b) => a.exerciseOrder - b.exerciseOrder)
+      const syncedTargetSets = Math.max(...sorted.map((item) => item.targetSets))
+      const groupOrder = Math.min(...orders)
+      const memberCount = sorted.length
+
+      const group = trainingGroupsDb.upsert({
+        id: input.id ?? createLocalId(),
+        trainingId,
+        type: input.type ?? groupTypeFromMemberCount(memberCount),
+        groupOrder,
+        restSeconds: input.restSeconds ?? null,
+        metadata: {},
+      })
+
+      sorted.forEach((exercise, index) => {
+        trainingExercisesDb.upsert({
+          ...exercise,
+          groupId: group.id,
+          positionInGroup: index,
+          targetSets: syncedTargetSets,
+        })
+      })
+
+      return group
+    },
+    addExerciseToGroup(
+      groupId: string,
+      exerciseId: string,
+    ): TrainingExerciseGroup | null {
+      const group = trainingGroupsDb.get(groupId)
+      const exercise = trainingExercisesDb.get(exerciseId)
+      if (!group || !exercise || exercise.trainingId !== group.trainingId) return null
+      if (exercise.groupId === groupId) return group
+      if (exercise.groupId) return null
+
+      const members = trainingExercisesDb
+        .list()
+        .filter((item) => item.groupId === groupId)
+        .sort((a, b) => (a.positionInGroup ?? 0) - (b.positionInGroup ?? 0))
+      const maxOrder = Math.max(...members.map((item) => item.exerciseOrder))
+      if (exercise.exerciseOrder !== maxOrder + 1) return null
+
+      const syncedTargetSets = Math.max(...members.map((item) => item.targetSets), exercise.targetSets)
+      trainingExercisesDb.upsert({
+        ...exercise,
+        groupId: group.id,
+        positionInGroup: members.length,
+        targetSets: syncedTargetSets,
+      })
+      for (const member of members) {
+        trainingExercisesDb.upsert({ ...member, targetSets: syncedTargetSets })
+      }
+
+      return trainingGroupsDb.upsert({
+        ...group,
+        type: groupTypeFromMemberCount(members.length + 1),
+      })
+    },
+    updateGroup(
+      groupId: string,
+      input: UpdateTrainingExerciseGroupInput,
+    ): TrainingExerciseGroup | null {
+      const current = trainingGroupsDb.get(groupId)
+      if (!current) return null
+      return trainingGroupsDb.upsert({
+        ...current,
+        restSeconds: input.restSeconds === undefined ? current.restSeconds : input.restSeconds,
+      })
+    },
+    deleteGroup(groupId: string) {
+      for (const member of trainingExercisesDb.list().filter((item) => item.groupId === groupId)) {
+        trainingExercisesDb.upsert({ ...member, groupId: null, positionInGroup: null })
+      }
+      return trainingGroupsDb.remove(groupId)
     },
     addSet(
       exerciseId: string,

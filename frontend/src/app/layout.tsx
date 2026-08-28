@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Manrope } from 'next/font/google'
-import { SerwistProvider } from '@serwist/turbopack/react'
 
 import { AuthGate } from '@/features/auth-gate/ui/auth-gate'
-
+import { AppSerwistProvider } from '@/shared/pwa/ui/app-serwist-provider'
 import './globals.css'
 
 const manrope = Manrope({
@@ -57,13 +56,9 @@ export default function RootLayout({
       className={`${manrope.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <SerwistProvider
-          swUrl="/serwist/sw.js"
-          cacheOnNavigation
-          reloadOnOnline
-        >
+        <AppSerwistProvider>
           <AuthGate>{children}</AuthGate>
-        </SerwistProvider>
+        </AppSerwistProvider>
       </body>
     </html>
   )

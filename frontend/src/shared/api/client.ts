@@ -1,3 +1,4 @@
+import { useSessionStore } from '@/entities/session/model/store'
 import { API_URL } from '@/shared/config/env'
 
 export class ApiError extends Error {
@@ -110,6 +111,7 @@ export async function apiRequest<T>(
         } catch {
           // ignore
         }
+        useSessionStore.setState({ mode: null, user: null, accessToken: null, hydrated: true })
         if (!window.location.pathname.startsWith('/login')) {
           window.location.href = '/login'
         }

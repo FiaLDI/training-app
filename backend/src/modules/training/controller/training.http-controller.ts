@@ -27,17 +27,23 @@ import { CurrentUser } from '../../auth/controller/current-user.decorator'
 import { User } from '../../auth/core/types'
 import { CreateTrainingUseCase } from '../core/use-cases/create/create-training.use-case'
 import { CreateTrainingExerciseUseCase } from '../core/use-cases/create-exercise/create-training-exercise.use-case'
+import { AddExerciseToTrainingGroupUseCase } from '../core/use-cases/add-to-group/add-exercise-to-training-group.use-case'
+import { CreateTrainingExerciseGroupUseCase } from '../core/use-cases/create-group/create-training-exercise-group.use-case'
 import { CreateTrainingSetUseCase } from '../core/use-cases/create-set/create-training-set.use-case'
 import { DeleteTrainingUseCase } from '../core/use-cases/delete/delete-training.use-case'
 import { DeleteTrainingExerciseUseCase } from '../core/use-cases/delete-exercise/delete-training-exercise.use-case'
+import { DeleteTrainingExerciseGroupUseCase } from '../core/use-cases/delete-group/delete-training-exercise-group.use-case'
 import { DeleteTrainingSetUseCase } from '../core/use-cases/delete-set/delete-training-set.use-case'
 import { GetTrainingUseCase } from '../core/use-cases/get/get-training.use-case'
 import { ListTrainingsUseCase } from '../core/use-cases/list/list-trainings.use-case'
 import { UpdateTrainingUseCase } from '../core/use-cases/update/update-training.use-case'
 import { UpdateTrainingExerciseUseCase } from '../core/use-cases/update-exercise/update-training-exercise.use-case'
+import { UpdateTrainingExerciseGroupUseCase } from '../core/use-cases/update-group/update-training-exercise-group.use-case'
 import { UpdateTrainingSetUseCase } from '../core/use-cases/update-set/update-training-set.use-case'
 import { TrainingStatus } from '../core/types'
 import { CreateTrainingExerciseInputDto } from './dto/create-training-exercise-input.dto'
+import { AddExerciseToTrainingGroupInputDto } from './dto/add-exercise-to-training-group-input.dto'
+import { CreateTrainingExerciseGroupInputDto } from './dto/create-training-exercise-group-input.dto'
 import { CreateTrainingInputDto } from './dto/create-training-input.dto'
 import { CreateTrainingSetInputDto } from './dto/create-training-set-input.dto'
 import {
@@ -46,6 +52,7 @@ import {
   TrainingSetResponseDto,
 } from './dto/training-response.dto'
 import { UpdateTrainingExerciseInputDto } from './dto/update-training-exercise-input.dto'
+import { UpdateTrainingExerciseGroupInputDto } from './dto/update-training-exercise-group-input.dto'
 import { UpdateTrainingInputDto } from './dto/update-training-input.dto'
 import { UpdateTrainingSetInputDto } from './dto/update-training-set-input.dto'
 
@@ -69,6 +76,14 @@ export class TrainingHttpController {
     @Inject(CreateTrainingSetUseCase) private readonly createSetUseCase: CreateTrainingSetUseCase,
     @Inject(UpdateTrainingSetUseCase) private readonly updateSetUseCase: UpdateTrainingSetUseCase,
     @Inject(DeleteTrainingSetUseCase) private readonly deleteSetUseCase: DeleteTrainingSetUseCase,
+    @Inject(CreateTrainingExerciseGroupUseCase)
+    private readonly createGroupUseCase: CreateTrainingExerciseGroupUseCase,
+    @Inject(AddExerciseToTrainingGroupUseCase)
+    private readonly addToGroupUseCase: AddExerciseToTrainingGroupUseCase,
+    @Inject(UpdateTrainingExerciseGroupUseCase)
+    private readonly updateGroupUseCase: UpdateTrainingExerciseGroupUseCase,
+    @Inject(DeleteTrainingExerciseGroupUseCase)
+    private readonly deleteGroupUseCase: DeleteTrainingExerciseGroupUseCase,
   ) {}
 
   @Get()
@@ -228,6 +243,68 @@ export class TrainingHttpController {
   async removeSet(@CurrentUser() user: User, @Param('setId', ParseUUIDPipe) setId: string) {
     const result = await this.deleteSetUseCase.execute({ id: setId, userId: user.id })
     if (!result.deleted) throw new NotFoundException('Training set not found')
+    return result
+  }
+
+  @Post(':id/groups')
+  @ApiOperation({ summary: 'Create exercise group in training' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  async createGroup(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateTrainingExerciseGroupInputDto,
+  ) {
+    const result = await this.createGroupUseCase.execute({
+      trainingId: id,
+      userId: user.id,
+      id: dto.id,
+      exerciseIds: dto.exerciseIds,
+      type: dto.type,
+      restSeconds: dto.restSeconds,
+    })
+    return result.group
+  }
+
+  @Post('groups/:groupId/exercises')
+  @ApiOperation({ summary: 'Add exercise to training group' })
+  @ApiParam({ name: 'groupId', format: 'uuid' })
+  async addExerciseToGroup(
+    @CurrentUser() user: User,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Body() dto: AddExerciseToTrainingGroupInputDto,
+  ) {
+    const result = await this.addToGroupUseCase.execute({
+      groupId,
+      userId: user.id,
+      exerciseId: dto.exerciseId,
+    })
+    return result.group
+  }
+
+  @Patch('groups/:groupId')
+  @ApiOperation({ summary: 'Update training exercise group' })
+  @ApiParam({ name: 'groupId', format: 'uuid' })
+  async updateGroup(
+    @CurrentUser() user: User,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Body() dto: UpdateTrainingExerciseGroupInputDto,
+  ) {
+    const result = await this.updateGroupUseCase.execute({
+      id: groupId,
+      userId: user.id,
+      ...dto,
+    })
+    return result.group
+  }
+
+  @Delete('groups/:groupId')
+  @ApiOperation({ summary: 'Ungroup training exercises' })
+  @ApiParam({ name: 'groupId', format: 'uuid' })
+  async removeGroup(
+    @CurrentUser() user: User,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+  ) {
+    const result = await this.deleteGroupUseCase.execute({ id: groupId, userId: user.id })
     return result
   }
 }

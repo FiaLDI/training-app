@@ -35,6 +35,12 @@ export class TemplateExerciseEntity {
   @Column({ type: 'text', nullable: true })
   notes!: string | null
 
+  @Column({ name: 'group_id', type: 'uuid', nullable: true })
+  groupId!: string | null
+
+  @Column({ name: 'position_in_group', type: 'integer', nullable: true })
+  positionInGroup!: number | null
+
   @Column({ type: 'jsonb', default: {} })
   metadata!: Record<string, unknown>
 }

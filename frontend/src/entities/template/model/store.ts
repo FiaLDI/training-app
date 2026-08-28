@@ -17,7 +17,9 @@ import {
 import { templateApi } from '../api/template-api'
 import type {
   CreateTemplateExerciseInput,
+  CreateTemplateExerciseGroupInput,
   CreateTemplateInput,
+  UpdateTemplateExerciseGroupInput,
   UpdateTemplateExerciseInput,
   WorkoutTemplate,
   WorkoutTemplateWithExercises,
@@ -76,6 +78,17 @@ type TemplateStore = {
     input: UpdateTemplateExerciseInput,
   ) => Promise<void>
   removeExercise: (templateId: string, exerciseRowId: string) => Promise<void>
+  createGroup: (
+    templateId: string,
+    input: CreateTemplateExerciseGroupInput,
+  ) => Promise<void>
+  addExerciseToGroup: (templateId: string, groupId: string, exerciseId: string) => Promise<void>
+  updateGroup: (
+    templateId: string,
+    groupId: string,
+    input: UpdateTemplateExerciseGroupInput,
+  ) => Promise<void>
+  deleteGroup: (templateId: string, groupId: string) => Promise<void>
 }
 
 export const useTemplateStore = create<TemplateStore>((set, get) => ({
@@ -228,6 +241,39 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
     set({ current: localData.templates.get(templateId) })
     if (!isCloudMode()) return
     deleteOutbox.enqueue('template-exercise', exerciseRowId)
+    scheduleCloudSync()
+  },
+
+  async createGroup(templateId, input) {
+    ensureLocalTemplateShell(templateId, get().current)
+    localData.templates.createGroup(templateId, input)
+    markTemplatePending(templateId, pendingReason())
+    set({ current: localData.templates.get(templateId) })
+    if (isCloudMode()) scheduleCloudSync()
+  },
+
+  async addExerciseToGroup(templateId, groupId, exerciseId) {
+    ensureLocalTemplateShell(templateId, get().current)
+    localData.templates.addExerciseToGroup(groupId, exerciseId)
+    markTemplatePending(templateId, pendingReason())
+    set({ current: localData.templates.get(templateId) })
+    if (isCloudMode()) scheduleCloudSync()
+  },
+
+  async updateGroup(templateId, groupId, input) {
+    ensureLocalTemplateShell(templateId, get().current)
+    localData.templates.updateGroup(groupId, input)
+    markTemplatePending(templateId, pendingReason())
+    set({ current: localData.templates.get(templateId) })
+    if (isCloudMode()) scheduleCloudSync()
+  },
+
+  async deleteGroup(templateId, groupId) {
+    ensureLocalTemplateShell(templateId, get().current)
+    localData.templates.deleteGroup(groupId)
+    markTemplatePending(templateId, pendingReason())
+    set({ current: localData.templates.get(templateId) })
+    if (!isCloudMode()) return
     scheduleCloudSync()
   },
 }))

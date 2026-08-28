@@ -15,6 +15,10 @@ function isTrainingSessionPath(pathname: string) {
   return /^\/trainings\/[^/]+$/.test(pathname)
 }
 
+function isPublicPath(pathname: string) {
+  return pathname === '/login' || pathname === '/~offline'
+}
+
 export function AuthGate({ children }: Props) {
   const pathname = usePathname()
   const router = useRouter()
@@ -34,7 +38,7 @@ export function AuthGate({ children }: Props) {
 
   useEffect(() => {
     if (!hydrated) return
-    if (!mode && pathname !== '/login') {
+    if (!mode && !isPublicPath(pathname)) {
       router.replace('/login')
     }
     if (mode && pathname === '/login') {
@@ -55,7 +59,7 @@ export function AuthGate({ children }: Props) {
     )
   }
 
-  if (pathname === '/login') {
+  if (isPublicPath(pathname)) {
     return <>{children}</>
   }
 

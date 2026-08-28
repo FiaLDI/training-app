@@ -1,3 +1,14 @@
+export type ExerciseGroupType = 'superset' | 'triset' | 'circuit'
+
+export type TemplateExerciseGroup = {
+  id: string
+  templateId: string
+  type: ExerciseGroupType
+  groupOrder: number
+  restSeconds: number | null
+  metadata: Record<string, unknown>
+}
+
 export type WorkoutTemplate = {
   id: string
   name: string
@@ -19,10 +30,13 @@ export type TemplateExercise = {
   targetWeight: number | null
   restSeconds: number | null
   notes: string | null
+  groupId: string | null
+  positionInGroup: number | null
   metadata: Record<string, unknown>
 }
 
 export type WorkoutTemplateWithExercises = WorkoutTemplate & {
+  groups: TemplateExerciseGroup[]
   exercises: TemplateExercise[]
 }
 
@@ -44,7 +58,25 @@ export type CreateTemplateExerciseInput = {
   targetWeight?: number | null
   restSeconds?: number | null
   notes?: string | null
+  groupId?: string | null
+  positionInGroup?: number | null
   metadata?: Record<string, unknown>
+}
+
+export type CreateTemplateExerciseGroupInput = {
+  id?: string
+  exerciseIds: string[]
+  type?: ExerciseGroupType
+  restSeconds?: number | null
+}
+
+export type AddExerciseToTemplateGroupInput = {
+  groupId: string
+  exerciseId: string
+}
+
+export type UpdateTemplateExerciseGroupInput = {
+  restSeconds?: number | null
 }
 
 export type UpdateTemplateExerciseInput = {
@@ -56,6 +88,8 @@ export type UpdateTemplateExerciseInput = {
   targetWeight?: number | null
   restSeconds?: number | null
   notes?: string | null
+  groupId?: string | null
+  positionInGroup?: number | null
 }
 
 export type ListTemplatesResult = {

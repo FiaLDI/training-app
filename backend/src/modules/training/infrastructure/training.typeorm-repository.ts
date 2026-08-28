@@ -1,8 +1,11 @@
+import { areExerciseOrdersContiguous, groupTypeFromMemberCount } from '../../../common/core/exercise-group'
 import { Injectable } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
 import {
+  AddExerciseToTrainingGroupRepositoryInput,
+  CreateTrainingExerciseGroupRepositoryInput,
   CreateTrainingExerciseRepositoryInput,
   CreateTrainingRepositoryInput,
   CreateTrainingSetRepositoryInput,
@@ -10,6 +13,7 @@ import {
   ListTrainingsRepositoryInput,
   ListTrainingsRepositoryOutput,
   TrainingRepositoryPort,
+  UpdateTrainingExerciseGroupRepositoryInput,
   UpdateTrainingExerciseRepositoryInput,
   UpdateTrainingRepositoryInput,
   UpdateTrainingSetRepositoryInput,
@@ -19,11 +23,13 @@ import {
   ExerciseProgressPoint,
   Training,
   TrainingExercise,
+  TrainingExerciseGroup,
   TrainingSet,
   TrainingStatus,
   TrainingWithDetails,
   VolumeStatPoint,
 } from '../core/types'
+import { TrainingExerciseGroupEntity } from '../core/entity/training-exercise-group.entity'
 import { TrainingExerciseEntity } from '../core/entity/training-exercise.entity'
 import { TrainingSetEntity } from '../core/entity/training-set.entity'
 import { TrainingEntity } from '../core/entity/training.entity'
@@ -37,6 +43,8 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     private readonly trainingExercises: Repository<TrainingExerciseEntity>,
     @InjectRepository(TrainingSetEntity)
     private readonly trainingSets: Repository<TrainingSetEntity>,
+    @InjectRepository(TrainingExerciseGroupEntity)
+    private readonly trainingGroups: Repository<TrainingExerciseGroupEntity>,
   ) {}
 
   private mapTraining(entity: TrainingEntity): Training {
@@ -56,6 +64,17 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     }
   }
 
+  private mapGroup(entity: TrainingExerciseGroupEntity): TrainingExerciseGroup {
+    return {
+      id: entity.id,
+      trainingId: entity.trainingId,
+      type: entity.type as TrainingExerciseGroup['type'],
+      groupOrder: entity.groupOrder,
+      restSeconds: entity.restSeconds,
+      metadata: entity.metadata ?? {},
+    }
+  }
+
   private mapExercise(entity: TrainingExerciseEntity): TrainingExercise {
     return {
       id: entity.id,
@@ -70,6 +89,8 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       previousMaxWeight: entity.previousMaxWeight == null ? null : Number(entity.previousMaxWeight),
       restSeconds: entity.restSeconds,
       notes: entity.notes,
+      groupId: entity.groupId,
+      positionInGroup: entity.positionInGroup,
       metadata: entity.metadata ?? {},
     }
   }
@@ -173,6 +194,7 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
 
     return {
       ...this.mapTraining(entity),
+      groups: await this.listGroups(id),
       exercises: mappedExercises,
     }
   }
@@ -303,6 +325,8 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       previousMaxWeight: previousMaxWeight == null ? null : String(previousMaxWeight),
       restSeconds: input.restSeconds ?? null,
       notes: input.notes ?? null,
+      groupId: input.groupId ?? null,
+      positionInGroup: input.positionInGroup ?? null,
       metadata: input.metadata ?? {},
     })
     return this.mapExercise(await this.trainingExercises.save(entity))
@@ -328,6 +352,8 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     }
     if (input.restSeconds !== undefined) entity.restSeconds = input.restSeconds
     if (input.notes !== undefined) entity.notes = input.notes
+    if (input.groupId !== undefined) entity.groupId = input.groupId
+    if (input.positionInGroup !== undefined) entity.positionInGroup = input.positionInGroup
     if (input.metadata !== undefined) entity.metadata = input.metadata
 
     return this.mapExercise(await this.trainingExercises.save(entity))
@@ -336,7 +362,150 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
   async deleteExercise(id: string, userId: string): Promise<boolean> {
     const entity = await this.findOwnedExercise(id, userId)
     if (!entity) return false
+
+    if (entity.groupId) {
+      const groupId = entity.groupId
+      const partners = await this.trainingExercises.find({ where: { groupId } })
+      for (const partner of partners) {
+        if (partner.id === entity.id) continue
+        partner.groupId = null
+        partner.positionInGroup = null
+        await this.trainingExercises.save(partner)
+      }
+      await this.trainingGroups.delete(groupId)
+    }
+
     const result = await this.trainingExercises.delete(id)
+    return (result.affected ?? 0) > 0
+  }
+
+  async listGroups(trainingId: string): Promise<TrainingExerciseGroup[]> {
+    const items = await this.trainingGroups.find({
+      where: { trainingId },
+      order: { groupOrder: 'ASC' },
+    })
+    return items.map((item) => this.mapGroup(item))
+  }
+
+  async createGroup(
+    input: CreateTrainingExerciseGroupRepositoryInput,
+  ): Promise<TrainingExerciseGroup | null> {
+    if (input.id) {
+      const existing = await this.trainingGroups.findOne({ where: { id: input.id } })
+      if (existing && (await this.ownsTraining(existing.trainingId, input.userId))) {
+        return this.mapGroup(existing)
+      }
+    }
+
+    if (!(await this.ownsTraining(input.trainingId, input.userId))) return null
+
+    const resolved = await Promise.all(
+      input.exerciseIds.map((id) => this.findOwnedExercise(id, input.userId)),
+    )
+    if (resolved.some((item) => !item)) return null
+
+    const exercises = resolved.filter((item): item is NonNullable<typeof item> => item != null)
+    if (exercises.some((item) => item.trainingId !== input.trainingId)) return null
+
+    const alreadyGrouped = exercises.filter((item) => item.groupId)
+    if (alreadyGrouped.length > 0) {
+      if (
+        input.id &&
+        alreadyGrouped.length === exercises.length &&
+        alreadyGrouped.every((item) => item.groupId === input.id)
+      ) {
+        const existing = await this.trainingGroups.findOne({ where: { id: input.id } })
+        if (existing) return this.mapGroup(existing)
+      }
+      return null
+    }
+
+    const orders = exercises.map((item) => item.exerciseOrder)
+    if (!areExerciseOrdersContiguous(orders)) return null
+
+    const sorted = [...exercises].sort((a, b) => a.exerciseOrder - b.exerciseOrder)
+    const syncedTargetSets = Math.max(...sorted.map((item) => item.targetSets))
+    const memberCount = sorted.length
+
+    const groupEntity = this.trainingGroups.create({
+      ...(input.id ? { id: input.id } : {}),
+      trainingId: input.trainingId,
+      type: input.type ?? groupTypeFromMemberCount(memberCount),
+      groupOrder: input.groupOrder,
+      restSeconds: input.restSeconds ?? null,
+      metadata: input.metadata ?? {},
+    })
+    const savedGroup = await this.trainingGroups.save(groupEntity)
+
+    for (let i = 0; i < sorted.length; i += 1) {
+      sorted[i].groupId = savedGroup.id
+      sorted[i].positionInGroup = i
+      sorted[i].targetSets = syncedTargetSets
+    }
+    await this.trainingExercises.save(sorted)
+
+    return this.mapGroup(savedGroup)
+  }
+
+  async addExerciseToGroup(
+    input: AddExerciseToTrainingGroupRepositoryInput,
+  ): Promise<TrainingExerciseGroup | null> {
+    const group = await this.trainingGroups.findOne({ where: { id: input.groupId } })
+    if (!group || !(await this.ownsTraining(group.trainingId, input.userId))) return null
+
+    const exercise = await this.findOwnedExercise(input.exerciseId, input.userId)
+    if (!exercise || exercise.trainingId !== group.trainingId) return null
+    if (exercise.groupId === group.id) return this.mapGroup(group)
+    if (exercise.groupId) return null
+
+    const members = await this.trainingExercises.find({
+      where: { groupId: group.id },
+      order: { positionInGroup: 'ASC' },
+    })
+    const maxOrder = Math.max(...members.map((item) => item.exerciseOrder))
+    if (exercise.exerciseOrder !== maxOrder + 1) return null
+
+    const syncedTargetSets = Math.max(...members.map((item) => item.targetSets), exercise.targetSets)
+    exercise.groupId = group.id
+    exercise.positionInGroup = members.length
+    exercise.targetSets = syncedTargetSets
+    await this.trainingExercises.save(exercise)
+
+    for (const member of members) {
+      member.targetSets = syncedTargetSets
+    }
+    await this.trainingExercises.save(members)
+
+    group.type = groupTypeFromMemberCount(members.length + 1)
+    return this.mapGroup(await this.trainingGroups.save(group))
+  }
+
+  async updateGroup(
+    input: UpdateTrainingExerciseGroupRepositoryInput,
+  ): Promise<TrainingExerciseGroup | null> {
+    const entity = await this.trainingGroups.findOne({ where: { id: input.id } })
+    if (!entity) return null
+    if (!(await this.ownsTraining(entity.trainingId, input.userId))) return null
+
+    if (input.restSeconds !== undefined) entity.restSeconds = input.restSeconds
+    if (input.metadata !== undefined) entity.metadata = input.metadata
+
+    return this.mapGroup(await this.trainingGroups.save(entity))
+  }
+
+  async deleteGroup(id: string, userId: string): Promise<boolean> {
+    const entity = await this.trainingGroups.findOne({ where: { id } })
+    if (!entity) return false
+    if (!(await this.ownsTraining(entity.trainingId, userId))) return false
+
+    const members = await this.trainingExercises.find({ where: { groupId: id } })
+    for (const member of members) {
+      member.groupId = null
+      member.positionInGroup = null
+      await this.trainingExercises.save(member)
+    }
+
+    const result = await this.trainingGroups.delete(id)
     return (result.affected ?? 0) > 0
   }
 

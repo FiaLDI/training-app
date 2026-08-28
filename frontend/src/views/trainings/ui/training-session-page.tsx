@@ -30,6 +30,14 @@ import {
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { usePreferencesStore } from '@/entities/preferences/model/store'
 import { SessionExerciseMedia } from '@/entities/exercise/ui/session-exercise-media'
+import {
+  countCompletedGroupRounds,
+  getNextExerciseInGroup,
+} from '@/entities/session/lib/build-session-items'
+import {
+  groupTypeLabel,
+  resolveLinkWithBelowAction,
+} from '@/entities/session/lib/exercise-group-utils'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import {
@@ -90,16 +98,24 @@ function ExerciseStepper({
   name,
   index,
   total,
+  groupPartners,
+  groupType,
+  activeExerciseId,
   onPrev,
   onNext,
   onSelect,
+  onSelectExercise,
 }: {
   name: string
   index: number
   total: number
+  groupPartners?: Array<{ id: string; name: string }>
+  groupType?: string
+  activeExerciseId?: string
   onPrev: () => void
   onNext: () => void
   onSelect: (index: number) => void
+  onSelectExercise?: (exerciseId: string) => void
 }) {
   return (
     <div className="mb-5">
@@ -114,6 +130,9 @@ function ExerciseStepper({
           <ChevronLeft className="size-6" />
         </button>
         <div className="min-w-0 flex-1 text-center">
+          {groupPartners && groupPartners.length > 1 && groupType ? (
+            <p className="mb-1 text-xs font-medium text-[var(--accent)]">{groupType}</p>
+          ) : null}
           <h1 className="text-wrap break-words font-[family-name:var(--font-display)] text-2xl tracking-tight">
             {name}
           </h1>
@@ -131,6 +150,25 @@ function ExerciseStepper({
           <ChevronRight className="size-6" />
         </button>
       </div>
+      {groupPartners && groupPartners.length > 1 ? (
+        <div className="mt-3 flex flex-wrap justify-center gap-2">
+          {groupPartners.map((partner) => (
+            <button
+              key={partner.id}
+              type="button"
+              onClick={() => onSelectExercise?.(partner.id)}
+              className={cn(
+                'rounded-full px-3 py-1 text-xs transition',
+                partner.id === activeExerciseId
+                  ? 'bg-[var(--accent)] text-[var(--background)]'
+                  : 'border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]',
+              )}
+            >
+              {partner.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {total > 1 ? (
         <div className="mt-3 flex flex-wrap justify-center gap-1.5">
           {Array.from({ length: total }, (_, itemIndex) => (
@@ -191,14 +229,31 @@ export function TrainingSessionPage({ id }: Props) {
   const startRestTimer = useRestTimerStore((s) => s.start)
   const dismissRestTimer = useRestTimerStore((s) => s.dismiss)
 
-  function handleSetLogged({ isWarmup }: { isWarmup: boolean }) {
-    if (!autoStartRestTimer || !current || !activeExerciseId) return
-    if (isWarmup && restTimerSkipWarmup) return
+  function handleSetLogged({ isWarmup, isDrop }: { isWarmup: boolean; isDrop?: boolean }) {
+    if (!current || !activeExerciseId) return
 
     const exercise = current.exercises.find((item) => item.id === activeExerciseId)
     if (!exercise) return
 
-    startRestTimer(resolveRestSeconds(exercise, defaultRestSeconds))
+    const nextInGroup = getNextExerciseInGroup(exercise, current.exercises)
+    if (nextInGroup) {
+      setActiveExerciseId(nextInGroup.id)
+      return
+    }
+
+    if (isDrop) return
+
+    if (!autoStartRestTimer || (isWarmup && restTimerSkipWarmup)) return
+
+    let restSeconds = resolveRestSeconds(exercise, defaultRestSeconds)
+    if (exercise.groupId) {
+      const group = (current.groups ?? []).find((item) => item.id === exercise.groupId)
+      if (group?.restSeconds != null && group.restSeconds > 0) {
+        restSeconds = group.restSeconds
+      }
+    }
+
+    startRestTimer(restSeconds)
   }
 
   useEffect(() => {
@@ -227,6 +282,16 @@ export function TrainingSessionPage({ id }: Props) {
       if (sorted.length === 0) return null
       if (currentId && sorted.some((item) => item.id === currentId)) return currentId
       const firstIncomplete = sorted.find((item) => {
+        if (item.groupId) {
+          const members = sorted.filter((row) => row.groupId === item.groupId)
+          const leader = [...members].sort(
+            (a, b) => (a.positionInGroup ?? 0) - (b.positionInGroup ?? 0),
+          )[0]
+          if (leader?.id !== item.id) return false
+          const rounds = countCompletedGroupRounds(item.groupId, sorted)
+          const target = Math.max(...members.map((row) => row.targetSets))
+          return rounds < target
+        }
         const done = item.sets.filter((set) => !set.isWarmup && set.completed).length
         return done < item.targetSets
       })
@@ -302,6 +367,24 @@ export function TrainingSessionPage({ id }: Props) {
   const activeCatalogExercise = activeExercise
     ? exercises.find((item) => item.id === activeExercise.exerciseId) ?? null
     : null
+  const belowExercise = sortedExercises[activeIndex + 1]
+  const linkAction =
+    activeExercise && belowExercise
+      ? resolveLinkWithBelowAction(activeExercise, belowExercise, sortedExercises)
+      : null
+  const canLinkWithBelow = canEditStructure && linkAction != null
+  const activeGroup = activeExercise?.groupId
+    ? (current.groups ?? []).find((item) => item.id === activeExercise.groupId)
+    : null
+  const groupPartners = activeExercise?.groupId
+    ? sortedExercises
+        .filter((item) => item.groupId === activeExercise.groupId)
+        .sort((a, b) => (a.positionInGroup ?? 0) - (b.positionInGroup ?? 0))
+        .map((item) => ({
+          id: item.id,
+          name: exerciseName(item.exerciseId),
+        }))
+    : undefined
   const title =
     (current.templateId
       ? templates.find((item) => item.id === current.templateId)?.name
@@ -406,6 +489,9 @@ export function TrainingSessionPage({ id }: Props) {
             name={exerciseName(activeExercise.exerciseId)}
             index={activeIndex}
             total={sortedExercises.length}
+            groupPartners={groupPartners}
+            groupType={activeGroup ? groupTypeLabel(activeGroup.type) : undefined}
+            activeExerciseId={activeExercise.id}
             onPrev={() => {
               const prev = sortedExercises[activeIndex - 1]
               if (prev) setActiveExerciseId(prev.id)
@@ -418,6 +504,7 @@ export function TrainingSessionPage({ id }: Props) {
               const selected = sortedExercises[itemIndex]
               if (selected) setActiveExerciseId(selected.id)
             }}
+            onSelectExercise={(exerciseId) => setActiveExerciseId(exerciseId)}
           />
           {activeCatalogExercise ? (
             <SessionExerciseMedia exercise={activeCatalogExercise} />
@@ -435,6 +522,9 @@ export function TrainingSessionPage({ id }: Props) {
               neighborAboveOrder={sortedExercises[activeIndex - 1]?.exerciseOrder}
               neighborBelowId={sortedExercises[activeIndex + 1]?.id}
               neighborBelowOrder={sortedExercises[activeIndex + 1]?.exerciseOrder}
+              canLinkWithBelow={canLinkWithBelow}
+              linkAction={linkAction ?? undefined}
+              groupId={activeExercise.groupId}
             />
 
             <PreviousMaxHint
@@ -484,6 +574,7 @@ export function TrainingSessionPage({ id }: Props) {
                   activeExercise.previousMaxWeight ??
                   targetWeightFrom(activeExercise.metadata)
                 }
+                sets={activeExercise.sets}
                 onLogged={handleSetLogged}
               />
             ) : null}

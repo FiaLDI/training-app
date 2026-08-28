@@ -1,6 +1,7 @@
 import { trainingApi } from '@/entities/training/api/training-api'
 import type {
   TrainingExercise,
+  TrainingExerciseGroup,
   TrainingSet,
   TrainingWithDetails,
 } from '@/entities/training/model/types'
@@ -75,7 +76,7 @@ async function upsertExercise(
   trainingId: string,
   exercise: TrainingExercise & { sets: TrainingSet[] },
 ) {
-  // Explicit whitelist — never send catalog exerciseId on PATCH (older deploys rejected it).
+  // Explicit whitelist — group fields are synced via createGroup, not exercise endpoints.
   const updateBody = {
     exerciseOrder: exercise.exerciseOrder,
     targetSets: exercise.targetSets,
@@ -130,6 +131,46 @@ async function upsertSet(exerciseId: string, set: TrainingSet) {
   await trainingApi.updateSet(set.id, body, writeExtras)
 }
 
+async function upsertTrainingGroup(
+  training: TrainingWithDetails,
+  group: TrainingExerciseGroup,
+) {
+  const members = training.exercises
+    .filter((item) => item.groupId === group.id)
+    .sort((a, b) => (a.positionInGroup ?? 0) - (b.positionInGroup ?? 0))
+  if (members.length < 2) return
+
+  const exerciseIds = members.map((member) => member.id)
+  try {
+    await trainingApi.createGroup(
+      training.id,
+      {
+        id: group.id,
+        exerciseIds,
+        type: group.type,
+        restSeconds: group.restSeconds,
+      },
+      writeExtras,
+    )
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 400)) throw error
+    await trainingApi.createGroup(
+      training.id,
+      {
+        id: group.id,
+        exerciseIds: [exerciseIds[0], exerciseIds[1]],
+        type: group.type,
+        restSeconds: group.restSeconds,
+      },
+      writeExtras,
+    )
+    for (let i = 2; i < exerciseIds.length; i += 1) {
+      await trainingApi.addExerciseToGroup(group.id, { exerciseId: exerciseIds[i] }, writeExtras)
+    }
+  }
+  await trainingApi.updateGroup(group.id, { restSeconds: group.restSeconds }, writeExtras)
+}
+
 /** Push one local snapshot; does not mark synced (caller checks stability). */
 async function pushTrainingSnapshot(training: TrainingWithDetails) {
   const templateId =
@@ -141,6 +182,10 @@ async function pushTrainingSnapshot(training: TrainingWithDetails) {
 
   for (const exercise of training.exercises) {
     await upsertExercise(training.id, exercise)
+  }
+
+  for (const group of training.groups ?? []) {
+    await upsertTrainingGroup(training, group)
   }
 
   // Removals go through deleteOutbox only — never diff-delete remote from a snapshot.

@@ -74,8 +74,13 @@ export function mirrorTemplateLocally(
     localData.templates.upsertExercise(exercise)
   }
 
+  for (const group of template.groups ?? []) {
+    localData.templates.upsertGroup(group)
+  }
+
   return localData.templates.get(template.id) ?? {
     ...template,
+    groups: template.groups ?? [],
     metadata: { ...template.metadata, sync },
   }
 }

@@ -34,6 +34,14 @@ export function trainingContentHash(training: TrainingWithDetails): string {
     startedAt: training.startedAt,
     finishedAt: training.finishedAt,
     notes: training.notes,
+    groups: [...(training.groups ?? [])]
+      .map((group) => ({
+        id: group.id,
+        type: group.type,
+        groupOrder: group.groupOrder,
+        restSeconds: group.restSeconds,
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
     exercises: [...training.exercises]
       .map((exercise) => ({
         id: exercise.id,
@@ -47,6 +55,8 @@ export function trainingContentHash(training: TrainingWithDetails): string {
         previousMaxWeight: exercise.previousMaxWeight ?? null,
         restSeconds: exercise.restSeconds,
         notes: exercise.notes,
+        groupId: exercise.groupId ?? null,
+        positionInGroup: exercise.positionInGroup ?? null,
         sets: [...exercise.sets]
           .map((set) => ({
             id: set.id,
@@ -171,6 +181,8 @@ export function mirrorTrainingLocally(
       previousMaxWeight: exercise.previousMaxWeight ?? null,
       restSeconds: exercise.restSeconds,
       notes: exercise.notes,
+      groupId: exercise.groupId ?? null,
+      positionInGroup: exercise.positionInGroup ?? null,
       metadata: exercise.metadata ?? {},
     })
     for (const set of exercise.sets) {
@@ -190,7 +202,17 @@ export function mirrorTrainingLocally(
     }
   }
 
-  return localData.trainings.get(training.id) ?? { ...training, metadata: { ...training.metadata, sync } }
+  for (const group of training.groups ?? []) {
+    localData.trainings.upsertGroup(group)
+  }
+
+  return (
+    localData.trainings.get(training.id) ?? {
+      ...training,
+      groups: training.groups ?? [],
+      metadata: { ...training.metadata, sync },
+    }
+  )
 }
 
 /**
