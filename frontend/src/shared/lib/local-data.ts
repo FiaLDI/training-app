@@ -810,6 +810,17 @@ export const localData = {
       }
       return training
     },
+    hydrateFromTemplate(
+      trainingId: string,
+      template: WorkoutTemplateWithExercises,
+    ): TrainingWithDetails | null {
+      const training = this.get(trainingId)
+      if (!training || training.exercises.length > 0 || template.exercises.length === 0) {
+        return training
+      }
+      copyTemplateStructureToTrainingLocal(template, trainingId)
+      return this.get(trainingId)
+    },
     upsert(training: Training): Training {
       return trainingsDb.upsert(training)
     },

@@ -13,6 +13,10 @@
     "redis:down": "docker compose stop redis",
     "ssl:issue": "bash scripts/ssl-issue.sh",
     "ssl:renew": "bash scripts/ssl-renew.sh",
-    "seed:exercises": "npm --prefix backend run seed:exercises"
+    "seed:exercises": "npm --prefix backend run seed:exercises",
+    "test": "npm --prefix backend test && npm --prefix frontend run test:run",
+    "test:backend": "npm --prefix backend test",
+    "test:frontend": "npm --prefix frontend run test:run",
+    "test:e2e": "npm --prefix frontend run test:e2e"
   }
 }

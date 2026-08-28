@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 
+import { ensureTemplateWithExercises } from '@/entities/training/lib/hydrate-from-template'
 import { useSessionStore } from '@/entities/session/model/store'
 import { localData } from '@/shared/lib/local-data'
 
@@ -128,6 +129,13 @@ export const useProgramStore = create<ProgramStore>((set) => ({
 
   async apply(programId, weekStart) {
     if (isLocalMode()) {
+      const program = localData.programs.get(programId)
+      if (program) {
+        const templateIds = [
+          ...new Set(program.days.map((day) => day.templateId).filter(Boolean)),
+        ] as string[]
+        await Promise.all(templateIds.map((templateId) => ensureTemplateWithExercises(templateId)))
+      }
       const result = localData.programs.apply(programId, weekStart)
       return { created: result.created.length, skipped: result.skipped }
     }

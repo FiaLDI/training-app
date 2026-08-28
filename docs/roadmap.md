@@ -57,11 +57,11 @@
     - Ключи локальных данных и persist-middleware scoped по `userId` (или `local` vs `cloud:{userId}`), чтобы данные разных аккаунтов на одном устройстве не пересекались.
     - После смены пользователя — принудительный refetch актуальных списков с сервера; не гидрировать UI из «чужого» кеша.
     - Регрессионный сценарий: User A → данные → logout → User B → только данные B; refresh страницы не возвращает A.
-- [ ] Автотесты (backend + frontend):
-  - **Backend (NestJS):** Jest + `@nestjs/testing`; unit-тесты use-case и domain-логики (auth, exercise groups, sync-критичные репозитории); integration/e2e на HTTP API с тестовой БД (Docker / in-memory Postgres).
-  - **Frontend (Next.js):** Vitest + React Testing Library для pure utils и компонентов; e2e (Playwright) на ключевые сценарии: login, неделя, сессия, офлайн-sync.
-  - CI: `test` в pipeline на каждый PR; минимальный порог покрытия для новых модулей (auth, training, sync).
-  - Приоритет первых тестов: изоляция пользователей, exercise groups (superset/triset/circuit), sync payload whitelist, session flow (rest timer, drops).
+- [x] Автотесты (backend + frontend) — базовая инфраструктура и первые тесты:
+  - **Backend (NestJS):** Jest + `@nestjs/testing`; unit-тесты: `exercise-group`, `generate-auth-code`, `LoginUseCase`, `CreateTrainingExerciseGroupUseCase`, sync whitelist DTO. Дальше: integration/e2e на HTTP API с тестовой БД.
+  - **Frontend (Next.js):** Vitest + React Testing Library — utils (storage-scope, sync-meta, session-weight, groups, rest timer, drops) + `TrainingStatusBadge`. e2e (Playwright): smoke login/offline.
+  - CI: `.github/workflows/test.yml` — `test` на каждый PR (backend unit + frontend unit + e2e smoke).
+  - Приоритет покрытия: изоляция пользователей ✓, exercise groups ✓, sync payload whitelist ✓, session flow (rest timer, drops) ✓ — unit; e2e сценарии login/неделя/сессия/sync — следующий шаг.
 
 ---
 
@@ -136,6 +136,8 @@
 
 | Задача                                                        | Ценность (Impact) | Трудоемкость (Effort) | Приоритет                         |
 | ------------------------------------------------------------- | ----------------- | --------------------- | --------------------------------- |
+| Автотесты backend (Jest, use-case + API)                      | Высокая           | Средняя               | P0 (фундамент стабильности)       |
+| Автотесты frontend (Vitest)              | Высокая           | Средняя               | P0 (регрессии UX и sync)          |
 | Таймер отдыха с уведомлением                                  | Высокая           | Низкая                | P0 (Ближайший спринт)             |
 | Сброс клиентского кеша при смене пользователя                 | Высокая           | Низкая                | P0 (баг изоляции)                 |
 | Хеш login-кодов + HMAC-индекс + админ-выдача/сброс (без SMTP) | Высокая           | Средняя               | P0 (сделано)                      |
