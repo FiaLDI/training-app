@@ -128,11 +128,14 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
   error: null,
 
   async fetchList(params) {
+    const prevItems = get().items
     const localItems = localData.trainings.list({ from: params?.from, to: params?.to })
     const catalogKnown = localData.trainings.list().length > 0
+    const hasCachedItems = prevItems.length > 0 || catalogKnown
     set({
-      items: localItems,
-      loading: !catalogKnown,
+      items:
+        localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems,
+      loading: !hasCachedItems,
       error: null,
     })
     if (isLocalMode()) return

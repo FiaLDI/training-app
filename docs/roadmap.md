@@ -84,6 +84,14 @@
   - REST API, auth и офлайн-sync для локальных клиентов: [docs/native-integration.md](./native-integration.md).
 - [x] Сложные тренировочные структуры:
   - Поддержка суперсетов, трисетов, дропсетов и круговых тренировок в структуре сессии.
+- [x] Плавные переходы между вкладками:
+  - Crossfade контента при смене основных табов (Сегодня, Неделя, Статистика, Ещё) через View Transitions API.
+  - Sidebar/header остаётся неподвижным во время анимации; scroll-to-top при смене таба.
+  - Skeleton при подгрузке данных (TabPageFallback): без скачков layout и «пустых» кадров на cold cache и во время запросов.
+  - Стабильный контент-слот (`min-height: 100dvh − nav`): crossfade без схлопывания `main` при разной высоте страниц; без morph height в View Transition.
+  - Stale-while-revalidate в stores: при повторном заходе на вкладку показывать кеш, обновлять в фоне.
+  - Без анимации на /login, /~offline и fullscreen-сессии (/trainings/[id]).
+  - prefers-reduced-motion: мгновенная смена без анимации.
 
 ---
 

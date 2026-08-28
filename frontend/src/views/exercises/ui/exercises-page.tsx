@@ -9,7 +9,7 @@ import { useExerciseStore } from '@/entities/exercise/model/store'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { Input } from '@/shared/ui/input'
 import { PageHeader } from '@/shared/ui/page-header'
-import { CardGridSkeleton } from '@/shared/ui/skeleton'
+import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
 
 export function ExercisesPage() {
   const items = useExerciseStore((s) => s.items)
@@ -30,6 +30,10 @@ export function ExercisesPage() {
     return () => clearTimeout(timer)
   }, [query, fetchList])
 
+  if (loading && items.length === 0) {
+    return <TabPageFallback title="Упражнения" variant="search-grid" />
+  }
+
   return (
     <div>
       <PageHeader
@@ -49,9 +53,7 @@ export function ExercisesPage() {
       </div>
 
       {error ? <p className="mb-4 text-sm text-red-300">{error}</p> : null}
-      {loading && items.length === 0 ? (
-        <CardGridSkeleton />
-      ) : items.length === 0 ? (
+      {items.length === 0 ? (
         <EmptyState>Пока нет упражнений.</EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

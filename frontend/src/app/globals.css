@@ -24,7 +24,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-body), system-ui, sans-serif;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 h1,
@@ -38,4 +38,80 @@ h6 {
 
 * {
   box-sizing: border-box;
+}
+
+:root {
+  --tab-fade-exit: 150ms;
+  --tab-fade-enter: 180ms;
+  /* Stable slot height: prevents main area collapse during tab crossfade */
+  --tab-content-min-h: calc(100dvh - 11rem);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --tab-content-min-h: calc(100dvh - 5rem);
+  }
+}
+
+@keyframes tab-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes tab-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+::view-transition-old(.tab-fade) {
+  animation: var(--tab-fade-exit) ease-out both tab-fade-out;
+}
+
+::view-transition-new(.tab-fade) {
+  animation: var(--tab-fade-enter) ease-in var(--tab-fade-exit) both tab-fade-in;
+}
+
+/* Crossfade only — do not morph height/width between pages (causes layout jerk) */
+::view-transition-group(.tab-fade) {
+  overflow: clip;
+  animation-duration: var(--tab-fade-exit);
+}
+
+::view-transition-image-pair(.tab-fade) {
+  isolation: isolate;
+}
+
+.tab-content-slot {
+  min-height: var(--tab-content-min-h);
+  width: 100%;
+}
+
+::view-transition-group(app-sidebar) {
+  animation: none;
+  z-index: 100;
+}
+
+::view-transition-old(app-sidebar) {
+  display: none;
+}
+
+::view-transition-new(app-sidebar) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
 }

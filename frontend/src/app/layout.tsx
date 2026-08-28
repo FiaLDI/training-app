@@ -53,9 +53,9 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${manrope.variable} ${inter.variable} h-full antialiased`}
+      className={`${manrope.variable} ${inter.variable} min-h-dvh antialiased`}
     >
-      <body className="min-h-full">
+      <body className="min-h-dvh">
         <AppSerwistProvider>
           <AuthGate>{children}</AuthGate>
         </AppSerwistProvider>

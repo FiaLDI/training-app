@@ -38,3 +38,15 @@ export function isActive(pathname: string, href: string) {
   if (pathname === href) return true
   return pathname.startsWith(`${href}/`)
 }
+
+const tabRoutePrefixes = [
+  ...primaryLinks.map((link) => link.href),
+  ...moreLinks.map((link) => link.href),
+  ...adminLinks.map((link) => link.href),
+]
+
+export function isTabRoute(pathname: string) {
+  if (pathname === '/login' || pathname === '/~offline') return false
+  if (/^\/trainings\/[^/]+$/.test(pathname)) return false
+  return tabRoutePrefixes.some((href) => isActive(pathname, href))
+}

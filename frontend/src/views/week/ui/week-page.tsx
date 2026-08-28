@@ -17,6 +17,7 @@ import { Input } from '@/shared/ui/input'
 import { Modal } from '@/shared/ui/modal'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Skeleton } from '@/shared/ui/skeleton'
+import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
 
 const DAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const DAY_FULL = [
@@ -323,6 +324,7 @@ export function WeekPage() {
   const removeDay = useProgramStore((s) => s.removeDay)
   const applyProgram = useProgramStore((s) => s.apply)
   const templates = useTemplateStore((s) => s.items)
+  const templateLoading = useTemplateStore((s) => s.loading)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
 
   const [programId, setProgramId] = useState('')
@@ -633,6 +635,13 @@ export function WeekPage() {
   function pickTemplate(templateId: string) {
     setPickerOpen(false)
     void onDayPlanChange(selected.dayOfWeek, selected.date, templateId)
+  }
+
+  const initialLoading =
+    (loading || templateLoading) && trainings.length === 0 && templates.length === 0
+
+  if (initialLoading) {
+    return <TabPageFallback title="Неделя" variant="week" />
   }
 
   return (

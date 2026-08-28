@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { ChevronDown, LogOut, Shield } from 'lucide-react'
@@ -30,7 +30,10 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-fit w-full flex-col border-b border-[var(--border)] bg-[var(--surface)]/80 px-4 py-4 backdrop-blur md:sticky md:top-0 md:h-screen md:w-60 md:border-b-0 md:border-r md:px-5 md:py-8 lg:h-screen">
+    <aside
+      style={{ viewTransitionName: 'app-sidebar' } satisfies CSSProperties}
+      className="flex h-fit w-full flex-col border-b border-[var(--border)] bg-[var(--surface)]/80 px-4 py-4 backdrop-blur md:sticky md:top-0 md:h-screen md:w-60 md:border-b-0 md:border-r md:px-5 md:py-8 lg:h-screen"
+    >
       <div className="mb-4 flex items-start justify-between gap-3 md:mb-6 md:block">
         <Link href="/" className="block">
           <span className="font-[family-name:var(--font-display)] text-2xl tracking-tight text-[var(--foreground)]">

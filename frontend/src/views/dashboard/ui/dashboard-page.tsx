@@ -14,14 +14,17 @@ import { toDateKey } from '@/entities/training/lib/activity-calendar'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { Button } from '@/shared/ui/button'
 import { PageHeader } from '@/shared/ui/page-header'
+import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
 
 export function DashboardPage() {
   const router = useRouter()
   const trainings = useTrainingStore((s) => s.items)
+  const trainingLoading = useTrainingStore((s) => s.loading)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
   const start = useTrainingStore((s) => s.start)
   const create = useTrainingStore((s) => s.create)
   const templates = useTemplateStore((s) => s.items)
+  const templateLoading = useTemplateStore((s) => s.loading)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const exercises = useExerciseStore((s) => s.items)
   const fetchExercises = useExerciseStore((s) => s.fetchList)
@@ -33,6 +36,9 @@ export function DashboardPage() {
     void fetchTemplates()
     void fetchExercises('')
   }, [fetchTrainings, fetchTemplates, fetchExercises])
+
+  const initialLoading =
+    (trainingLoading || templateLoading) && trainings.length === 0 && templates.length === 0
 
   const todayKey = toDateKey(new Date())
 
@@ -96,6 +102,10 @@ export function DashboardPage() {
         : templates.length > 0
           ? 'Начать тренировку'
           : 'Создать план'
+
+  if (initialLoading) {
+    return <TabPageFallback title="Сегодня" variant="dashboard" />
+  }
 
   return (
     <div className="mx-auto max-w-lg">

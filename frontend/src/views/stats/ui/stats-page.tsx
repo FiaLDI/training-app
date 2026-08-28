@@ -20,6 +20,7 @@ import { formatDuration, formatNumber } from '@/shared/lib/format'
 import { localData } from '@/shared/lib/local-data'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
+import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
 
 type StatsTab = 'overview' | 'progress' | 'trainings' | 'weight'
 type StatusFilter = 'all' | 'finished' | 'planned' | 'cancelled'
@@ -133,6 +134,8 @@ export function StatsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [volume, setVolume] = useState<VolumeStatPoint[]>([])
   const [progress, setProgress] = useState<ExerciseProgressPoint[]>([])
+  const [overviewLoading, setOverviewLoading] = useState(true)
+  const [progressLoading, setProgressLoading] = useState(false)
   const [exerciseId, setExerciseId] = useState('')
   const [error, setError] = useState<string | null>(null)
   const range = useMemo(() => defaultRange(), [])
@@ -153,6 +156,7 @@ export function StatsPage() {
     if (tab !== 'overview') return
     let cancelled = false
     async function load() {
+      setOverviewLoading(true)
       try {
         const points =
           mode === 'local'
@@ -170,6 +174,8 @@ export function StatsPage() {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Не удалось загрузить объём')
         }
+      } finally {
+        if (!cancelled) setOverviewLoading(false)
       }
     }
     void load()
@@ -182,10 +188,12 @@ export function StatsPage() {
     if (tab !== 'progress') return
     if (!exerciseId) {
       setProgress([])
+      setProgressLoading(false)
       return
     }
     let cancelled = false
     async function load() {
+      setProgressLoading(true)
       try {
         const points =
           mode === 'local'
@@ -210,6 +218,8 @@ export function StatsPage() {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Не удалось загрузить прогресс')
         }
+      } finally {
+        if (!cancelled) setProgressLoading(false)
       }
     }
     void load()
@@ -328,6 +338,9 @@ export function StatsPage() {
       ) : null}
 
       {tab === 'overview' ? (
+        overviewLoading && volume.length === 0 ? (
+          <TabPageFallback title="Статистика" variant="stats" withHeader={false} />
+        ) : (
         <>
           <section className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard
@@ -377,9 +390,13 @@ export function StatsPage() {
             <SimpleBarChart points={volumeChart} unit="кг×повт." />
           </section>
         </>
+        )
       ) : null}
 
       {tab === 'progress' ? (
+        progressLoading && progress.length === 0 && exerciseId ? (
+          <TabPageFallback title="Статистика" variant="stats" withHeader={false} />
+        ) : (
         <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -453,6 +470,7 @@ export function StatsPage() {
             </div>
           </div>
         </section>
+        )
       ) : null}
 
       {tab === 'trainings' ? (

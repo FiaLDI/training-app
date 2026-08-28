@@ -7,7 +7,7 @@ import { TemplateCard } from '@/entities/template/ui/template-card'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
-import { CardGridSkeleton } from '@/shared/ui/skeleton'
+import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
 
 export function TemplatesPage() {
   const items = useTemplateStore((s) => s.items)
@@ -19,6 +19,10 @@ export function TemplatesPage() {
     void fetchList()
   }, [fetchList])
 
+  if (loading && items.length === 0) {
+    return <TabPageFallback title="Планы" variant="grid" />
+  }
+
   return (
     <div>
       <PageHeader
@@ -28,9 +32,7 @@ export function TemplatesPage() {
       />
 
       {error ? <p className="mb-4 text-sm text-red-300">{error}</p> : null}
-      {loading && items.length === 0 ? (
-        <CardGridSkeleton />
-      ) : items.length === 0 ? (
+      {items.length === 0 ? (
         <EmptyState>Пока нет планов. Создай один и добавь упражнения.</EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

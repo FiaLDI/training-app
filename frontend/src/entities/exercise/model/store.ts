@@ -37,13 +37,21 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
   },
 
   async fetchList(q) {
+    const prevItems = get().items
     const query = (q ?? get().query) || undefined
     const localItems = localData.exercises.list(query)
     const catalogKnown = localData.exercises.list().length > 0
+    const hasCachedItems = prevItems.length > 0 || catalogKnown
     set({
-      items: localItems,
-      total: localItems.length,
-      loading: !catalogKnown,
+      items:
+        localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems,
+      total:
+        localItems.length > 0
+          ? localItems.length
+          : hasCachedItems
+            ? prevItems.length
+            : localItems.length,
+      loading: !hasCachedItems,
       error: null,
     })
 
