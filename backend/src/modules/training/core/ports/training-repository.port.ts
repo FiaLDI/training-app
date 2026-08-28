@@ -1,5 +1,7 @@
 import {
+  ActivityStatPoint,
   ExerciseProgressPoint,
+  MuscleGroupVolumeRow,
   Training,
   TrainingExercise,
   TrainingExerciseGroup,
@@ -186,6 +188,8 @@ export interface TrainingRepositoryPort {
 
   getVolumeStats(input: VolumeStatsRepositoryInput): Promise<VolumeStatPoint[]>
   getExerciseProgress(input: ExerciseProgressRepositoryInput): Promise<ExerciseProgressPoint[]>
+  getMuscleGroupVolumeRows(input: VolumeStatsRepositoryInput): Promise<MuscleGroupVolumeRow[]>
+  getActivityStats(input: VolumeStatsRepositoryInput): Promise<ActivityStatPoint[]>
 }
 
 export const TRAINING_REPOSITORY_PORT = Symbol('TRAINING_REPOSITORY_PORT')

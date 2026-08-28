@@ -11,13 +11,20 @@ import { cn } from '@/shared/lib/cn'
 
 type Props = {
   exercise: Exercise
+  showImage?: boolean
+  showMuscleDiagram?: boolean
   className?: string
 }
 
-export function SessionExerciseMedia({ exercise, className }: Props) {
-  const imageUrl = getPrimaryImageUrl(exercise)
+export function SessionExerciseMedia({
+  exercise,
+  showImage = true,
+  showMuscleDiagram = true,
+  className,
+}: Props) {
+  const imageUrl = showImage ? getPrimaryImageUrl(exercise) : null
   const muscleGroups = parseMuscleGroups(exercise.muscleGroup)
-  const showDiagram = hasHighlightableMuscleGroups(muscleGroups)
+  const showDiagram = showMuscleDiagram && hasHighlightableMuscleGroups(muscleGroups)
 
   if (!imageUrl && !showDiagram) return null
 

@@ -6,8 +6,10 @@ import { Cloud, HardDrive, LogOut, User } from 'lucide-react'
 
 import { useSessionStore } from '@/entities/session/model/store'
 import { ClearLocalDataActions } from '@/features/clear-local-data/ui/clear-local-data-actions'
+import { DataImportExportActions } from '@/features/data-import-export/ui/data-import-export-actions'
 import { SetStepSettings } from '@/features/edit-set-steps/ui/set-step-settings'
 import { RestTimerSettings } from '@/features/rest-timer-settings/ui/rest-timer-settings'
+import { SessionDisplaySettings } from '@/features/session-display-settings/ui/session-display-settings'
 import {
   formatPendingSummary,
   getPendingSyncSummary,
@@ -113,6 +115,8 @@ export function SettingsPage() {
 
         <SetStepSettings />
 
+        <SessionDisplaySettings />
+
         <RestTimerSettings />
 
         <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
@@ -120,7 +124,12 @@ export function SettingsPage() {
             <HardDrive className="size-4 text-[var(--accent)]" />
             Локальные данные
           </div>
-          <ClearLocalDataActions />
+          <div className="space-y-6">
+            <DataImportExportActions />
+            <div className="border-t border-[var(--border)] pt-6">
+              <ClearLocalDataActions />
+            </div>
+          </div>
         </section>
 
         <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">

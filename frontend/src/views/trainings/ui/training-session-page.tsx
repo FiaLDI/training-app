@@ -12,10 +12,12 @@ import {
   Pencil,
   Play,
   Plus,
+  Settings,
   Trash2,
 } from 'lucide-react'
 
 import { AddTrainingExerciseModal } from '@/features/add-training-exercise/ui/add-training-exercise-modal'
+import { TrainingExerciseNotes } from '@/features/training-exercise-notes/ui/training-exercise-notes'
 import { EditSetRow } from '@/features/edit-set/ui/edit-set-row'
 import { EditTrainingExerciseRow } from '@/features/edit-training-exercise/ui/edit-training-exercise-row'
 import { EditTrainingForm } from '@/features/edit-training/ui/edit-training-form'
@@ -30,6 +32,7 @@ import {
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { usePreferencesStore } from '@/entities/preferences/model/store'
 import { SessionExerciseMedia } from '@/entities/exercise/ui/session-exercise-media'
+import { SessionExerciseVideo } from '@/entities/source/ui/session-exercise-video'
 import {
   countCompletedGroupRounds,
   getNextExerciseInGroup,
@@ -226,6 +229,10 @@ export function TrainingSessionPage({ id }: Props) {
   const autoStartRestTimer = usePreferencesStore((s) => s.autoStartRestTimer)
   const restTimerSkipWarmup = usePreferencesStore((s) => s.restTimerSkipWarmup)
   const defaultRestSeconds = usePreferencesStore((s) => s.defaultRestSeconds)
+  const showSessionExerciseImage = usePreferencesStore((s) => s.showSessionExerciseImage)
+  const showSessionMuscleDiagram = usePreferencesStore((s) => s.showSessionMuscleDiagram)
+  const showSessionVideo = usePreferencesStore((s) => s.showSessionVideo)
+  const showSessionNotes = usePreferencesStore((s) => s.showSessionNotes)
   const startRestTimer = useRestTimerStore((s) => s.start)
   const dismissRestTimer = useRestTimerStore((s) => s.dismiss)
 
@@ -442,6 +449,15 @@ export function TrainingSessionPage({ id }: Props) {
                 </DropdownItem>
               ) : null}
               <DropdownItem
+                icon={<Settings className="size-4" />}
+                onClick={() => {
+                  close()
+                  router.push('/settings')
+                }}
+              >
+                Настройки
+              </DropdownItem>
+              <DropdownItem
                 icon={<Trash2 className="size-4" />}
                 danger
                 onClick={() => {
@@ -506,8 +522,24 @@ export function TrainingSessionPage({ id }: Props) {
             }}
             onSelectExercise={(exerciseId) => setActiveExerciseId(exerciseId)}
           />
-          {activeCatalogExercise ? (
-            <SessionExerciseMedia exercise={activeCatalogExercise} />
+          {activeCatalogExercise &&
+          (showSessionExerciseImage || showSessionMuscleDiagram) ? (
+            <SessionExerciseMedia
+              exercise={activeCatalogExercise}
+              showImage={showSessionExerciseImage}
+              showMuscleDiagram={showSessionMuscleDiagram}
+            />
+          ) : null}
+          {activeExercise && showSessionVideo ? (
+            <SessionExerciseVideo exerciseId={activeExercise.exerciseId} />
+          ) : null}
+          {showSessionNotes ? (
+            <TrainingExerciseNotes
+              trainingId={id}
+              exerciseRowId={activeExercise.id}
+              notes={activeExercise.notes}
+              canEdit={canEditStructure}
+            />
           ) : null}
           <section>
             <EditTrainingExerciseRow

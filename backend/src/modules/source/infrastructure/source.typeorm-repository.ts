@@ -14,6 +14,7 @@ import {
 import { ExerciseSource, ExerciseTimecode } from '../core/types'
 import { ExerciseSourceEntity } from '../core/entity/exercise-source.entity'
 import { ExerciseTimecodeEntity } from '../core/entity/exercise-timecode.entity'
+import { ExerciseEntity } from '../../exercise/core/entity/exercise.entity'
 
 @Injectable()
 export class SourceTypeormRepository implements SourceRepositoryPort {
@@ -47,19 +48,31 @@ export class SourceTypeormRepository implements SourceRepositoryPort {
   }
 
   async list(input: ListSourcesRepositoryInput): Promise<ListSourcesRepositoryOutput> {
+    if (input.exerciseId) {
+      const [items, total] = await this.sources.findAndCount({
+        where: { exerciseId: input.exerciseId },
+        order: { createdAt: 'DESC' },
+        skip: (input.page - 1) * input.limit,
+        take: input.limit,
+      })
+
+      return {
+        items: items.map((item) => this.mapSource(item)),
+        total,
+        page: input.page,
+        limit: input.limit,
+      }
+    }
+
     const qb = this.sources
       .createQueryBuilder('s')
-      .innerJoin('exercises', 'e', 'e.id = s.exercise_id')
-      .where('(e.user_id IS NULL OR e.user_id = :viewerUserId)', {
+      .innerJoin(ExerciseEntity, 'e', 'e.id = s.exerciseId')
+      .where('(e.userId IS NULL OR e.userId = :viewerUserId)', {
         viewerUserId: input.viewerUserId,
       })
-      .orderBy('s.created_at', 'DESC')
+      .orderBy('s.createdAt', 'DESC')
       .skip((input.page - 1) * input.limit)
       .take(input.limit)
-
-    if (input.exerciseId) {
-      qb.andWhere('s.exercise_id = :exerciseId', { exerciseId: input.exerciseId })
-    }
 
     const [items, total] = await qb.getManyAndCount()
 

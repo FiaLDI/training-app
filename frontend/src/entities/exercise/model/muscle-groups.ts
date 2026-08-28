@@ -68,3 +68,30 @@ export function parseMuscleGroups(value: string | null | undefined): MuscleGroup
 
   return result
 }
+
+export function aggregateMuscleGroupRows(
+  rows: Array<{ muscleGroupRaw: string; volume: number; sets: number }>,
+): Array<{ muscleGroup: string; volume: number; sets: number }> {
+  const byGroup = new Map<string, { volume: number; sets: number }>()
+
+  for (const row of rows) {
+    const groups = parseMuscleGroups(row.muscleGroupRaw)
+    const targets = groups.length > 0 ? groups : (['другое'] as MuscleGroup[])
+    const share = 1 / targets.length
+
+    for (const group of targets) {
+      const current = byGroup.get(group) ?? { volume: 0, sets: 0 }
+      current.volume += row.volume * share
+      current.sets += row.sets * share
+      byGroup.set(group, current)
+    }
+  }
+
+  return [...byGroup.entries()]
+    .map(([muscleGroup, stats]) => ({
+      muscleGroup,
+      volume: Math.round(stats.volume),
+      sets: Math.round(stats.sets * 10) / 10,
+    }))
+    .sort((a, b) => b.volume - a.volume)
+}

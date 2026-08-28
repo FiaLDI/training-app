@@ -21,3 +21,21 @@ export type ListSourcesResult = {
   page: number
   limit: number
 }
+
+export type ExerciseTimecode = {
+  id: string
+  sourceId: string
+  seconds: number
+  title: string | null
+  metadata: Record<string, unknown>
+}
+
+export type CreateTimecodeInput = {
+  seconds: number
+  title?: string | null
+}
+
+export type UpdateTimecodeInput = {
+  seconds?: number
+  title?: string | null
+}

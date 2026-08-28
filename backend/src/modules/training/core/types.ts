@@ -75,3 +75,28 @@ export interface ExerciseProgressPoint {
   maxWeight: number | null
   bestVolume: number
 }
+
+export interface MuscleGroupStatPoint {
+  muscleGroup: string
+  volume: number
+  sets: number
+}
+
+export interface MuscleGroupVolumeRow {
+  muscleGroupRaw: string
+  volume: number
+  sets: number
+}
+
+export interface ActivityStatPoint {
+  date: string
+  sessionCount: number
+  volume: number
+}
+
+export interface StrengthCorrelationPoint {
+  date: string
+  bodyWeight: number | null
+  maxWeight: number | null
+  volume: number
+}

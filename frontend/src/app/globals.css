@@ -115,3 +115,8 @@ h6 {
     animation-delay: 0s !important;
   }
 }
+
+.muscle-diagram-panel .muscle-diagram-svg polygon {
+  stroke: rgba(163, 230, 53, 0.14);
+  stroke-width: 0.4px;
+}

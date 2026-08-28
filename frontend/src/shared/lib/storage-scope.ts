@@ -9,6 +9,7 @@ const SCOPE_PREFIX = 'ironlog:scope:'
 export const SCOPED_DATA_SUFFIXES = [
   'exercises',
   'sources',
+  'timecodes',
   'templates',
   'template-exercises',
   'template-groups',

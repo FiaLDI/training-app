@@ -20,7 +20,9 @@ import {
   VolumeStatsRepositoryInput,
 } from '../core/ports/training-repository.port'
 import {
+  ActivityStatPoint,
   ExerciseProgressPoint,
+  MuscleGroupVolumeRow,
   Training,
   TrainingExercise,
   TrainingExerciseGroup,
@@ -711,6 +713,93 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
         date: row.date,
         maxWeight: row.max_weight == null ? null : Number(row.max_weight),
         bestVolume: Number(row.best_volume) || 0,
+      }),
+    )
+  }
+
+  private static readonly WORKING_SET_CONDITION = `
+    COALESCE(ts.is_warmup, false) = false
+    AND COALESCE(te.is_warmup, false) = false
+    AND ts.completed = true
+    AND ts.weight IS NOT NULL
+    AND ts.reps IS NOT NULL
+  `
+
+  async getMuscleGroupVolumeRows(
+    input: VolumeStatsRepositoryInput,
+  ): Promise<MuscleGroupVolumeRow[]> {
+    const rows = await this.trainings.manager.query(
+      `
+      SELECT
+        COALESCE(e.muscle_group, '') AS muscle_group_raw,
+        COALESCE(SUM(
+          CASE WHEN ${TrainingTypeormRepository.WORKING_SET_CONDITION}
+            THEN ts.weight::numeric * ts.reps
+            ELSE 0
+          END
+        ), 0)::float AS volume,
+        COUNT(
+          CASE WHEN ${TrainingTypeormRepository.WORKING_SET_CONDITION} THEN 1 END
+        )::int AS sets
+      FROM trainings t
+      INNER JOIN training_exercises te ON te.training_id = t.id
+      INNER JOIN exercises e ON e.id = te.exercise_id
+      LEFT JOIN training_sets ts ON ts.training_exercise_id = te.id
+      WHERE t.user_id = $1
+        AND t.status IN ('finished', 'in_progress')
+        AND COALESCE(t.started_at, t.scheduled_at, t.created_at) >= $2::timestamptz
+        AND COALESCE(t.started_at, t.scheduled_at, t.created_at) <= $3::timestamptz
+      GROUP BY te.id, e.muscle_group
+      HAVING COALESCE(SUM(
+          CASE WHEN ${TrainingTypeormRepository.WORKING_SET_CONDITION}
+            THEN ts.weight::numeric * ts.reps
+            ELSE 0
+          END
+        ), 0) > 0
+        OR COUNT(CASE WHEN ${TrainingTypeormRepository.WORKING_SET_CONDITION} THEN 1 END) > 0
+      `,
+      [input.userId, input.from, input.to],
+    )
+
+    return rows.map(
+      (row: { muscle_group_raw: string; volume: number | string; sets: number | string }) => ({
+        muscleGroupRaw: row.muscle_group_raw,
+        volume: Number(row.volume) || 0,
+        sets: Number(row.sets) || 0,
+      }),
+    )
+  }
+
+  async getActivityStats(input: VolumeStatsRepositoryInput): Promise<ActivityStatPoint[]> {
+    const rows = await this.trainings.manager.query(
+      `
+      SELECT
+        to_char(DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at)), 'YYYY-MM-DD') AS date,
+        COUNT(DISTINCT t.id)::int AS session_count,
+        COALESCE(SUM(
+          CASE WHEN ${TrainingTypeormRepository.WORKING_SET_CONDITION}
+            THEN ts.weight::numeric * ts.reps
+            ELSE 0
+          END
+        ), 0)::float AS volume
+      FROM trainings t
+      LEFT JOIN training_exercises te ON te.training_id = t.id
+      LEFT JOIN training_sets ts ON ts.training_exercise_id = te.id
+      WHERE t.user_id = $1
+        AND t.status IN ('finished', 'in_progress')
+        AND COALESCE(t.started_at, t.scheduled_at, t.created_at) >= $2::timestamptz
+        AND COALESCE(t.started_at, t.scheduled_at, t.created_at) <= $3::timestamptz
+      GROUP BY DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at))
+      ORDER BY DATE(COALESCE(t.started_at, t.scheduled_at, t.created_at)) ASC
+      `,
+      [input.userId, input.from, input.to],
+    )
+
+    return rows.map(
+      (row: { date: string; session_count: number | string; volume: number | string }) => ({
+        date: row.date,
+        sessionCount: Number(row.session_count) || 0,
+        volume: Number(row.volume) || 0,
       }),
     )
   }

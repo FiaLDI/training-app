@@ -27,7 +27,9 @@ import type {
 } from '@/entities/exercise/model/types'
 import type {
   CreateSourceInput,
+  CreateTimecodeInput,
   ExerciseSource,
+  ExerciseTimecode,
 } from '@/entities/source/model/types'
 import type {
   CreateProgramDayInput,
@@ -63,9 +65,13 @@ import type {
   UpdateTrainingExerciseInput,
 } from '@/entities/training/model/types'
 import type {
+  ActivityStatPoint,
   ExerciseProgressPoint,
+  MuscleGroupStatPoint,
+  StrengthCorrelationPoint,
   VolumeStatPoint,
 } from '@/entities/stats/model/types'
+import { aggregateMuscleGroupRows } from '@/entities/exercise/model/muscle-groups'
 import {
   trainingOccurredAt,
   workingSetMaxWeight,
@@ -73,6 +79,7 @@ import {
 
 const exercisesDb = createLocalCollection<Exercise>('exercises')
 const sourcesDb = createLocalCollection<ExerciseSource>('sources')
+const timecodesDb = createLocalCollection<ExerciseTimecode>('timecodes')
 const templatesDb = createLocalCollection<WorkoutTemplate>('templates')
 const templateExercisesDb = createLocalCollection<TemplateExercise>('template-exercises')
 const templateGroupsDb = createLocalCollection<TemplateExerciseGroup>('template-groups')
@@ -232,7 +239,12 @@ export const localData = {
       })
     },
     remove(id: string) {
+      const sourceIds = sourcesDb
+        .list()
+        .filter((item) => item.exerciseId === id)
+        .map((item) => item.id)
       sourcesDb.save(sourcesDb.list().filter((item) => item.exerciseId !== id))
+      timecodesDb.save(timecodesDb.list().filter((item) => !sourceIds.includes(item.sourceId)))
       return exercisesDb.remove(id)
     },
   },
@@ -256,7 +268,29 @@ export const localData = {
       })
     },
     remove(id: string) {
+      timecodesDb.save(timecodesDb.list().filter((item) => item.sourceId !== id))
       return sourcesDb.remove(id)
+    },
+  },
+
+  timecodes: {
+    listBySource(sourceId: string) {
+      return timecodesDb
+        .list()
+        .filter((item) => item.sourceId === sourceId)
+        .sort((a, b) => a.seconds - b.seconds)
+    },
+    create(input: CreateTimecodeInput & { sourceId: string }): ExerciseTimecode {
+      return timecodesDb.upsert({
+        id: createLocalId(),
+        sourceId: input.sourceId,
+        seconds: input.seconds,
+        title: input.title ?? null,
+        metadata: {},
+      })
+    },
+    remove(id: string) {
+      return timecodesDb.remove(id)
     },
   },
 
@@ -727,6 +761,117 @@ export const localData = {
         }
       }
       return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+    },
+    muscleGroups(from: string, to: string): MuscleGroupStatPoint[] {
+      const fromMs = new Date(from).getTime()
+      const toMs = new Date(to).getTime()
+      const rows: Array<{ muscleGroupRaw: string; volume: number; sets: number }> = []
+
+      for (const training of trainingsDb.list()) {
+        if (training.status !== 'finished' && training.status !== 'in_progress') continue
+        const when = training.startedAt ?? training.scheduledAt ?? training.createdAt
+        const ms = new Date(when).getTime()
+        if (ms < fromMs || ms > toMs) continue
+
+        const exercises = trainingExercisesDb.list().filter((e) => e.trainingId === training.id)
+        for (const exercise of exercises) {
+          const meta = exercisesDb.get(exercise.exerciseId)
+          let volume = 0
+          let sets = 0
+          for (const set of trainingSetsDb.list().filter(
+            (s) =>
+              s.trainingExerciseId === exercise.id &&
+              s.completed &&
+              !(s.isWarmup ?? false) &&
+              !(exercise.isWarmup ?? false),
+          )) {
+            if (set.weight != null && set.reps != null) {
+              volume += set.weight * set.reps
+              sets += 1
+            }
+          }
+          if (volume > 0 || sets > 0) {
+            rows.push({
+              muscleGroupRaw: meta?.muscleGroup ?? '',
+              volume,
+              sets,
+            })
+          }
+        }
+      }
+
+      return aggregateMuscleGroupRows(rows)
+    },
+    activity(from: string, to: string): ActivityStatPoint[] {
+      const fromMs = new Date(from).getTime()
+      const toMs = new Date(to).getTime()
+      const byDate = new Map<string, ActivityStatPoint>()
+
+      for (const training of trainingsDb.list()) {
+        if (training.status !== 'finished' && training.status !== 'in_progress') continue
+        const when = training.startedAt ?? training.scheduledAt ?? training.createdAt
+        const ms = new Date(when).getTime()
+        if (ms < fromMs || ms > toMs) continue
+        const key = when.slice(0, 10)
+        const point = byDate.get(key) ?? { date: key, sessionCount: 0, volume: 0 }
+        point.sessionCount += 1
+
+        const exercises = trainingExercisesDb.list().filter((e) => e.trainingId === training.id)
+        for (const exercise of exercises) {
+          for (const set of trainingSetsDb.list().filter(
+            (s) =>
+              s.trainingExerciseId === exercise.id &&
+              s.completed &&
+              !(s.isWarmup ?? false) &&
+              !(exercise.isWarmup ?? false),
+          )) {
+            if (set.weight != null && set.reps != null) {
+              point.volume += set.weight * set.reps
+            }
+          }
+        }
+        byDate.set(key, point)
+      }
+
+      return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+    },
+    strengthCorrelation(
+      exerciseId: string,
+      from: string,
+      to: string,
+    ): StrengthCorrelationPoint[] {
+      const progress = localData.stats.exerciseProgress(exerciseId, from, to)
+      const measurements = localData.bodyMeasurements.list(from, to)
+      const byDate = new Map<string, { measuredAt: string; weight: number }>()
+      for (const item of measurements) {
+        const date = item.measuredAt.slice(0, 10)
+        const current = byDate.get(date)
+        if (!current || item.measuredAt.localeCompare(current.measuredAt) > 0) {
+          byDate.set(date, { measuredAt: item.measuredAt, weight: item.weight })
+        }
+      }
+      const weightByDay = new Map([...byDate.entries()].map(([date, item]) => [date, item.weight]))
+
+      const dates = new Set<string>([
+        ...progress.map((p) => p.date),
+        ...weightByDay.keys(),
+      ])
+      const progressByDate = new Map(progress.map((p) => [p.date, p]))
+      let lastWeight: number | null = null
+
+      return [...dates]
+        .sort()
+        .map((date) => {
+          const dayWeight = weightByDay.get(date)
+          if (dayWeight != null) lastWeight = dayWeight
+          const exercise = progressByDate.get(date)
+          return {
+            date,
+            bodyWeight: lastWeight,
+            maxWeight: exercise?.maxWeight ?? null,
+            volume: exercise?.bestVolume ?? 0,
+          }
+        })
     },
   },
 

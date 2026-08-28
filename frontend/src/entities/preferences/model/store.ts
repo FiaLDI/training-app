@@ -27,6 +27,10 @@ type PreferencesState = {
   restTimerSound: boolean
   restTimerVibration: boolean
   restTimerNotifications: boolean
+  showSessionExerciseImage: boolean
+  showSessionMuscleDiagram: boolean
+  showSessionVideo: boolean
+  showSessionNotes: boolean
   setWeightStep: (value: number) => void
   setRepsStep: (value: number) => void
   setDefaultRestSeconds: (value: number) => void
@@ -35,6 +39,10 @@ type PreferencesState = {
   setRestTimerSound: (value: boolean) => void
   setRestTimerVibration: (value: boolean) => void
   setRestTimerNotifications: (value: boolean) => void
+  setShowSessionExerciseImage: (value: boolean) => void
+  setShowSessionMuscleDiagram: (value: boolean) => void
+  setShowSessionVideo: (value: boolean) => void
+  setShowSessionNotes: (value: boolean) => void
 }
 
 export const usePreferencesStore = create<PreferencesState>()(
@@ -48,6 +56,10 @@ export const usePreferencesStore = create<PreferencesState>()(
       restTimerSound: true,
       restTimerVibration: true,
       restTimerNotifications: false,
+      showSessionExerciseImage: true,
+      showSessionMuscleDiagram: true,
+      showSessionVideo: true,
+      showSessionNotes: true,
       setWeightStep(value) {
         set({ weightStep: sanitizeStep(value) })
       },
@@ -72,6 +84,18 @@ export const usePreferencesStore = create<PreferencesState>()(
       setRestTimerNotifications(value) {
         set({ restTimerNotifications: value })
       },
+      setShowSessionExerciseImage(value) {
+        set({ showSessionExerciseImage: value })
+      },
+      setShowSessionMuscleDiagram(value) {
+        set({ showSessionMuscleDiagram: value })
+      },
+      setShowSessionVideo(value) {
+        set({ showSessionVideo: value })
+      },
+      setShowSessionNotes(value) {
+        set({ showSessionNotes: value })
+      },
     }),
     {
       name: 'ironlog:preferences',
@@ -84,6 +108,10 @@ export const usePreferencesStore = create<PreferencesState>()(
         restTimerSound: state.restTimerSound,
         restTimerVibration: state.restTimerVibration,
         restTimerNotifications: state.restTimerNotifications,
+        showSessionExerciseImage: state.showSessionExerciseImage,
+        showSessionMuscleDiagram: state.showSessionMuscleDiagram,
+        showSessionVideo: state.showSessionVideo,
+        showSessionNotes: state.showSessionNotes,
       }),
       merge: (persisted, current) => {
         const stored =
@@ -101,6 +129,12 @@ export const usePreferencesStore = create<PreferencesState>()(
           restTimerVibration: stored.restTimerVibration ?? current.restTimerVibration,
           restTimerNotifications:
             stored.restTimerNotifications ?? current.restTimerNotifications,
+          showSessionExerciseImage:
+            stored.showSessionExerciseImage ?? current.showSessionExerciseImage,
+          showSessionMuscleDiagram:
+            stored.showSessionMuscleDiagram ?? current.showSessionMuscleDiagram,
+          showSessionVideo: stored.showSessionVideo ?? current.showSessionVideo,
+          showSessionNotes: stored.showSessionNotes ?? current.showSessionNotes,
         }
       },
     },

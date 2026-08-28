@@ -8,13 +8,28 @@ import { useExerciseStore } from '@/entities/exercise/model/store'
 import { ExerciseCombobox } from '@/entities/exercise/ui/exercise-combobox'
 import { useSessionStore } from '@/entities/session/model/store'
 import { statsApi } from '@/entities/stats/api/stats-api'
-import type { ExerciseProgressPoint, VolumeStatPoint } from '@/entities/stats/model/types'
+import { muscleStatsToDiagram } from '@/entities/stats/lib/muscle-diagram-stats'
+import { STATS_PERIOD_LABELS, statsPeriodRange, type StatsPeriod } from '@/entities/stats/lib/period-range'
+import type {
+  ActivityStatPoint,
+  ExerciseProgressPoint,
+  MuscleGroupStatPoint,
+  StrengthCorrelationPoint,
+  VolumeStatPoint,
+} from '@/entities/stats/model/types'
+import { DualSeriesChart } from '@/entities/stats/ui/dual-series-chart'
+import { MuscleGroupChart } from '@/entities/stats/ui/muscle-group-chart'
 import { SimpleBarChart } from '@/entities/stats/ui/simple-bar-chart'
 import type { Training } from '@/entities/training/model/types'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
+import { ActivityHeatmap } from '@/entities/training/ui/activity-heatmap'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
+import {
+  hasHighlightableMuscleGroups,
+  MuscleDiagram,
+} from '@/entities/exercise/ui/muscle-diagram'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration, formatNumber } from '@/shared/lib/format'
 import { localData } from '@/shared/lib/local-data'
@@ -39,23 +54,17 @@ const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: 'cancelled', label: 'Отменены' },
 ]
 
+const PERIOD_OPTIONS: Array<{ id: StatsPeriod; label: string }> = [
+  { id: 'week', label: STATS_PERIOD_LABELS.week },
+  { id: 'month', label: STATS_PERIOD_LABELS.month },
+  { id: 'year', label: STATS_PERIOD_LABELS.year },
+]
+
 const TAB_DESCRIPTIONS: Record<StatsTab, string> = {
-  overview: 'Сводка за последние 28 дней. Разминочные подходы не учитываются.',
-  progress: 'Максимальный вес и лучший подход за последние 28 дней.',
+  overview: 'Сводка, распределение по мышечным группам и карта активности.',
+  progress: 'Прогресс по упражнению и корреляция веса тела с силой.',
   trainings: 'Список сессий с фильтром по статусу.',
   weight: 'Запись веса и динамика.',
-}
-
-function defaultRange() {
-  const to = new Date()
-  to.setHours(23, 59, 59, 999)
-  const from = new Date()
-  from.setHours(0, 0, 0, 0)
-  from.setDate(from.getDate() - 28)
-  return {
-    from: from.toISOString(),
-    to: to.toISOString(),
-  }
 }
 
 type MetricCardProps = {
@@ -131,14 +140,20 @@ export function StatsPage() {
   const trainings = useTrainingStore((s) => s.items)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
   const [tab, setTab] = useState<StatsTab>('overview')
+  const [period, setPeriod] = useState<StatsPeriod>('month')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [volume, setVolume] = useState<VolumeStatPoint[]>([])
+  const [muscleGroups, setMuscleGroups] = useState<MuscleGroupStatPoint[]>([])
+  const [activity, setActivity] = useState<ActivityStatPoint[]>([])
   const [progress, setProgress] = useState<ExerciseProgressPoint[]>([])
+  const [correlation, setCorrelation] = useState<StrengthCorrelationPoint[]>([])
   const [overviewLoading, setOverviewLoading] = useState(true)
   const [progressLoading, setProgressLoading] = useState(false)
   const [exerciseId, setExerciseId] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const range = useMemo(() => defaultRange(), [])
+
+  const range = useMemo(() => statsPeriodRange(period), [period])
+  const yearRange = useMemo(() => statsPeriodRange('year'), [])
 
   useEffect(() => {
     void fetchExercises('')
@@ -158,21 +173,34 @@ export function StatsPage() {
     async function load() {
       setOverviewLoading(true)
       try {
-        const points =
-          mode === 'local'
-            ? localData.stats.volume(range.from, range.to)
-            : (await statsApi.volume(range)).points
-        if (cancelled) return
-        setVolume(
-          points.map((p) => ({
-            date: p.date,
-            volume: Number(p.volume) || 0,
-          })),
-        )
+        if (mode === 'local') {
+          const points = localData.stats.volume(range.from, range.to)
+          const groups = localData.stats.muscleGroups(range.from, range.to)
+          const activityPoints = localData.stats.activity(yearRange.from, yearRange.to)
+          if (cancelled) return
+          setVolume(points.map((p) => ({ date: p.date, volume: Number(p.volume) || 0 })))
+          setMuscleGroups(groups)
+          setActivity(activityPoints)
+        } else {
+          const [volumeRes, groupsRes, activityRes] = await Promise.all([
+            statsApi.volume(range),
+            statsApi.muscleGroups(range),
+            statsApi.activity(yearRange),
+          ])
+          if (cancelled) return
+          setVolume(
+            volumeRes.points.map((p) => ({
+              date: p.date,
+              volume: Number(p.volume) || 0,
+            })),
+          )
+          setMuscleGroups(groupsRes.groups)
+          setActivity(activityRes.points)
+        }
         setError(null)
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Не удалось загрузить объём')
+          setError(err instanceof Error ? err.message : 'Не удалось загрузить статистику')
         }
       } finally {
         if (!cancelled) setOverviewLoading(false)
@@ -182,12 +210,13 @@ export function StatsPage() {
     return () => {
       cancelled = true
     }
-  }, [mode, range, tab])
+  }, [mode, range, yearRange, tab])
 
   useEffect(() => {
     if (tab !== 'progress') return
     if (!exerciseId) {
       setProgress([])
+      setCorrelation([])
       setProgressLoading(false)
       return
     }
@@ -195,24 +224,33 @@ export function StatsPage() {
     async function load() {
       setProgressLoading(true)
       try {
-        const points =
-          mode === 'local'
-            ? localData.stats.exerciseProgress(exerciseId, range.from, range.to)
-            : (
-                await statsApi.exerciseProgress({
-                  exerciseId,
-                  from: range.from,
-                  to: range.to,
-                })
-              ).points
-        if (cancelled) return
-        setProgress(
-          points.map((p) => ({
-            date: p.date,
-            maxWeight: p.maxWeight == null ? null : Number(p.maxWeight),
-            bestVolume: Number(p.bestVolume) || 0,
-          })),
-        )
+        if (mode === 'local') {
+          const points = localData.stats.exerciseProgress(exerciseId, range.from, range.to)
+          const corr = localData.stats.strengthCorrelation(exerciseId, range.from, range.to)
+          if (cancelled) return
+          setProgress(
+            points.map((p) => ({
+              date: p.date,
+              maxWeight: p.maxWeight == null ? null : Number(p.maxWeight),
+              bestVolume: Number(p.bestVolume) || 0,
+            })),
+          )
+          setCorrelation(corr)
+        } else {
+          const [progressRes, corrRes] = await Promise.all([
+            statsApi.exerciseProgress({ exerciseId, ...range }),
+            statsApi.strengthCorrelation({ exerciseId, ...range }),
+          ])
+          if (cancelled) return
+          setProgress(
+            progressRes.points.map((p) => ({
+              date: p.date,
+              maxWeight: p.maxWeight == null ? null : Number(p.maxWeight),
+              bestVolume: Number(p.bestVolume) || 0,
+            })),
+          )
+          setCorrelation(corrRes.points)
+        }
         setError(null)
       } catch (err) {
         if (!cancelled) {
@@ -324,13 +362,33 @@ export function StatsPage() {
     date: p.date,
     value: p.bestVolume,
   }))
+  const correlationChart = correlation.map((p) => ({
+    date: p.date,
+    primary: p.maxWeight,
+    secondary: p.bodyWeight,
+  }))
+
+  const muscleDiagram = useMemo(() => muscleStatsToDiagram(muscleGroups), [muscleGroups])
+  const showMuscleDiagram = hasHighlightableMuscleGroups(muscleDiagram.groups)
+
+  const periodHint =
+    period === 'week'
+      ? '7 дней'
+      : period === 'month'
+        ? '28 дней'
+        : '365 дней'
 
   return (
     <div>
       <PageHeader title="Статистика" description={TAB_DESCRIPTIONS[tab]} />
 
-      <div className="mb-6">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <SegmentedControl value={tab} options={TABS} onChange={setTab} />
+        {(tab === 'overview' || tab === 'progress') && (
+          <div className="sm:w-56">
+            <SegmentedControl value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
+          </div>
+        )}
       </div>
 
       {error && (tab === 'overview' || tab === 'progress') ? (
@@ -342,6 +400,10 @@ export function StatsPage() {
           <TabPageFallback title="Статистика" variant="stats" withHeader={false} />
         ) : (
         <>
+          <p className="mb-4 text-xs text-[var(--muted)]">
+            Период: {periodHint}. Разминочные подходы не учитываются.
+          </p>
+
           <section className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="Общий объём"
@@ -373,7 +435,11 @@ export function StatsPage() {
             />
           </section>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <section className="mb-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <ActivityHeatmap points={activity} />
+          </section>
+
+          <section className="mb-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h2 className="font-[family-name:var(--font-display)] text-xl">Объём по дням</h2>
@@ -389,6 +455,39 @@ export function StatsPage() {
             </div>
             <SimpleBarChart points={volumeChart} unit="кг×повт." />
           </section>
+
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4">
+              <h2 className="font-[family-name:var(--font-display)] text-xl">Нагрузка по группам</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Распределение объёма и подходов по мышечным группам за {periodHint.toLowerCase()}
+              </p>
+            </div>
+
+            <div
+              className={cn(
+                'gap-6',
+                showMuscleDiagram ? 'grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]' : '',
+              )}
+            >
+              {showMuscleDiagram ? (
+                <div className="flex items-center justify-center rounded-xl bg-[var(--surface-2)]/40 px-2 py-4">
+                  <MuscleDiagram
+                    groups={muscleDiagram.groups}
+                    intensityByGroup={muscleDiagram.intensityByGroup}
+                  />
+                </div>
+              ) : null}
+
+              <MuscleGroupChart
+                groups={muscleGroups.map((g) => ({
+                  label: g.muscleGroup,
+                  volume: g.volume,
+                  sets: g.sets,
+                }))}
+              />
+            </div>
+          </section>
         </>
         )
       ) : null}
@@ -397,79 +496,99 @@ export function StatsPage() {
         progressLoading && progress.length === 0 && exerciseId ? (
           <TabPageFallback title="Статистика" variant="stats" withHeader={false} />
         ) : (
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="font-[family-name:var(--font-display)] text-xl">Прогресс по упражнению</h2>
+        <div className="space-y-8">
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="font-[family-name:var(--font-display)] text-xl">Прогресс по упражнению</h2>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  Максимальный вес и лучший подход · {periodHint.toLowerCase()}
+                </p>
+              </div>
+              <div className="min-w-56 space-y-1 text-xs text-[var(--muted)]">
+                Упражнение
+                <ExerciseCombobox
+                  exercises={exercises}
+                  value={exerciseId}
+                  onChange={setExerciseId}
+                  placeholder={exercises.length === 0 ? 'Нет упражнений' : 'Найти упражнение…'}
+                  disabled={exercises.length === 0}
+                />
+              </div>
+            </div>
+
+            {selectedExercise ? (
+              <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <MetricCard
+                  label="Макс. вес"
+                  value={
+                    exerciseMetrics.maxWeight != null
+                      ? `${formatNumber(exerciseMetrics.maxWeight, 1)} кг`
+                      : '—'
+                  }
+                />
+                <MetricCard
+                  label="Лучший подход"
+                  value={formatNumber(Math.round(exerciseMetrics.bestVolume))}
+                  hint="кг × повторения"
+                />
+                <MetricCard
+                  label="Сессий"
+                  value={String(exerciseMetrics.sessions)}
+                  hint="дней с этим упражнением"
+                />
+                <MetricCard
+                  label="Динамика веса"
+                  value={
+                    exerciseMetrics.weightDelta == null
+                      ? '—'
+                      : `${exerciseMetrics.weightDelta > 0 ? '+' : ''}${formatNumber(exerciseMetrics.weightDelta, 1)} кг`
+                  }
+                  hint="от первой к последней записи"
+                />
+              </div>
+            ) : null}
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="mb-3 text-sm font-medium text-[var(--foreground)]">Максимальный вес</h3>
+                <SimpleBarChart
+                  points={weightChart}
+                  unit="кг"
+                  emptyText="Выбери упражнение или запиши подходы."
+                />
+              </div>
+              <div>
+                <h3 className="mb-3 text-sm font-medium text-[var(--foreground)]">
+                  Лучший подход (кг×повт.)
+                </h3>
+                <SimpleBarChart
+                  points={bestSetChart}
+                  unit="кг×повт."
+                  emptyText="Выбери упражнение или запиши подходы."
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4">
+              <h2 className="font-[family-name:var(--font-display)] text-xl">Вес тела и сила</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Максимальный вес и лучший подход
+                Корреляция массы тела с максимальным рабочим весом
+                {selectedExercise ? ` (${selectedExercise.name})` : ''}
               </p>
             </div>
-            <div className="min-w-56 space-y-1 text-xs text-[var(--muted)]">
-              Упражнение
-              <ExerciseCombobox
-                exercises={exercises}
-                value={exerciseId}
-                onChange={setExerciseId}
-                placeholder={exercises.length === 0 ? 'Нет упражнений' : 'Найти упражнение…'}
-                disabled={exercises.length === 0}
-              />
-            </div>
-          </div>
-
-          {selectedExercise ? (
-            <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard
-                label="Макс. вес"
-                value={
-                  exerciseMetrics.maxWeight != null
-                    ? `${formatNumber(exerciseMetrics.maxWeight, 1)} кг`
-                    : '—'
-                }
-              />
-              <MetricCard
-                label="Лучший подход"
-                value={formatNumber(Math.round(exerciseMetrics.bestVolume))}
-                hint="кг × повторения"
-              />
-              <MetricCard
-                label="Сессий"
-                value={String(exerciseMetrics.sessions)}
-                hint="дней с этим упражнением"
-              />
-              <MetricCard
-                label="Динамика веса"
-                value={
-                  exerciseMetrics.weightDelta == null
-                    ? '—'
-                    : `${exerciseMetrics.weightDelta > 0 ? '+' : ''}${formatNumber(exerciseMetrics.weightDelta, 1)} кг`
-                }
-                hint="от первой к последней записи"
-              />
-            </div>
-          ) : null}
-
-          <div className="space-y-8">
-            <div>
-              <h3 className="mb-3 text-sm font-medium text-[var(--foreground)]">Максимальный вес</h3>
-              <SimpleBarChart
-                points={weightChart}
-                unit="кг"
-                emptyText="Выбери упражнение или запиши подходы."
-              />
-            </div>
-            <div>
-              <h3 className="mb-3 text-sm font-medium text-[var(--foreground)]">
-                Лучший подход (кг×повт.)
-              </h3>
-              <SimpleBarChart
-                points={bestSetChart}
-                unit="кг×повт."
-                emptyText="Выбери упражнение или запиши подходы."
-              />
-            </div>
-          </div>
-        </section>
+            <DualSeriesChart
+              points={correlationChart}
+              primaryLabel="Макс. вес"
+              secondaryLabel="Вес тела"
+              primaryUnit="кг"
+              secondaryUnit="кг"
+              emptyText="Нужны записи веса тела и рабочие подходы по упражнению."
+            />
+          </section>
+        </div>
         )
       ) : null}
 

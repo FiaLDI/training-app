@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 
 import { AuthModule } from '../auth/auth.module'
+import { StatsCacheService } from '../../shared/stats/stats-cache.service'
 import { ExerciseModule } from '../exercise/exercise.module'
 import { EXERCISE_REPOSITORY_PORT, ExerciseRepositoryPort } from '../exercise/core/ports/exercise-repository.port'
 import { TemplateModule } from '../template/template.module'
@@ -43,6 +44,7 @@ import { TrainingTypeormRepository } from './infrastructure/training.typeorm-rep
   ],
   controllers: [TrainingHttpController],
   providers: [
+    StatsCacheService,
     TrainingTypeormRepository,
     {
       provide: TRAINING_REPOSITORY_PORT,
@@ -66,8 +68,9 @@ import { TrainingTypeormRepository } from './infrastructure/training.typeorm-rep
     },
     {
       provide: UpdateTrainingUseCase,
-      useFactory: (repo: TrainingTypeormRepository) => new UpdateTrainingUseCase(repo),
-      inject: [TrainingTypeormRepository],
+      useFactory: (repo: TrainingTypeormRepository, statsCache: StatsCacheService) =>
+        new UpdateTrainingUseCase(repo, statsCache),
+      inject: [TrainingTypeormRepository, StatsCacheService],
     },
     {
       provide: DeleteTrainingUseCase,
@@ -134,6 +137,7 @@ import { TrainingTypeormRepository } from './infrastructure/training.typeorm-rep
     DeleteTrainingUseCase,
     TrainingTypeormRepository,
     TRAINING_REPOSITORY_PORT,
+    StatsCacheService,
   ],
 })
 export class TrainingModule {}

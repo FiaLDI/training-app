@@ -7,7 +7,9 @@ import { ArrowLeft, ExternalLink, Pencil, Star, Trash2, Upload } from 'lucide-re
 import { DeleteExerciseButton } from '@/features/delete-exercise/ui/delete-exercise-button'
 import { EditExerciseForm } from '@/features/edit-exercise/ui/edit-exercise-form'
 import { sourceApi } from '@/entities/source/api/source-api'
+import { isVideoSource } from '@/entities/source/lib/is-video-source'
 import type { ExerciseSource } from '@/entities/source/model/types'
+import { SourceTimecodes } from '@/entities/source/ui/source-timecodes'
 import {
   clearPrimaryImage,
   getPrimaryImageSourceId,
@@ -337,28 +339,33 @@ export function ExerciseDetailPage({ id }: Props) {
         {otherSources.map((source) => (
           <li
             key={source.id}
-            className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
           >
-            <div>
-              <p className="text-sm text-[var(--foreground)]">{source.title || source.type}</p>
-              <a
-                href={source.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-[var(--accent)]"
-              >
-                {source.url}
-                <ExternalLink className="size-3" />
-              </a>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm text-[var(--foreground)]">{source.title || source.type}</p>
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-[var(--accent)]"
+                >
+                  {source.url}
+                  <ExternalLink className="size-3" />
+                </a>
+              </div>
+              {canEdit ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => void onRemoveSource(source.id)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              ) : null}
             </div>
-            {canEdit ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => void onRemoveSource(source.id)}
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            {isVideoSource(source) ? (
+              <SourceTimecodes sourceId={source.id} canEdit={canEdit} />
             ) : null}
           </li>
         ))}
