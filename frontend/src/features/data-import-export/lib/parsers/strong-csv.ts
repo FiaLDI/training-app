@@ -1,6 +1,6 @@
 import { parseCsv, parseInteger, parseNumber, rowValue } from '../csv-utils'
 import { parseWorkoutDate } from '../date-utils'
-import type { ParsedWorkout } from './types'
+import type { ParsedWorkout } from '../types'
 
 export function parseStrongCsv(text: string): ParsedWorkout[] {
   const { rows } = parseCsv(text)
