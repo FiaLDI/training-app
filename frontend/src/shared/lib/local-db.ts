@@ -1,3 +1,5 @@
+import { scopedStorageKey } from '@/shared/lib/storage-scope'
+
 function readRaw<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback
   try {
@@ -14,13 +16,17 @@ function writeRaw<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value))
 }
 
-export function createLocalCollection<T extends { id: string }>(storageKey: string) {
+export function createLocalCollection<T extends { id: string }>(suffix: string) {
+  function key() {
+    return scopedStorageKey(suffix)
+  }
+
   return {
     list(): T[] {
-      return readRaw<T[]>(storageKey, [])
+      return readRaw<T[]>(key(), [])
     },
     save(items: T[]): void {
-      writeRaw(storageKey, items)
+      writeRaw(key(), items)
     },
     get(id: string): T | null {
       return this.list().find((item) => item.id === id) ?? null

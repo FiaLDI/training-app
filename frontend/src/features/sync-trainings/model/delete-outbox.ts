@@ -1,4 +1,6 @@
-const OUTBOX_KEY = 'ironlog:local:entity-delete-outbox'
+import { scopedStorageKey } from '@/shared/lib/storage-scope'
+
+const OUTBOX_SUFFIX = 'entity-delete-outbox'
 
 export type DeleteOutboxEntity =
   | 'training'
@@ -20,10 +22,14 @@ const ENTITIES = new Set<DeleteOutboxEntity>([
   'template-exercise',
 ])
 
+function outboxKey() {
+  return scopedStorageKey(OUTBOX_SUFFIX)
+}
+
 function readOutbox(): DeleteOutboxEntry[] {
   if (typeof window === 'undefined') return []
   try {
-    const raw = localStorage.getItem(OUTBOX_KEY)
+    const raw = localStorage.getItem(outboxKey())
     if (!raw) return []
     const parsed = JSON.parse(raw) as DeleteOutboxEntry[]
     return parsed.filter(
@@ -36,7 +42,7 @@ function readOutbox(): DeleteOutboxEntry[] {
 
 function writeOutbox(entries: DeleteOutboxEntry[]) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(OUTBOX_KEY, JSON.stringify(entries))
+  localStorage.setItem(outboxKey(), JSON.stringify(entries))
 }
 
 export const deleteOutbox = {

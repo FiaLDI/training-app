@@ -1,3 +1,4 @@
+import { useBodyMeasurementStore } from '@/entities/body-measurement/model/store'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useProgramStore } from '@/entities/program/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
@@ -32,6 +33,11 @@ export function resetEntityStores() {
   useProgramStore.setState({
     items: [],
     current: null,
+    loading: false,
+    error: null,
+  })
+  useBodyMeasurementStore.setState({
+    items: [],
     loading: false,
     error: null,
   })

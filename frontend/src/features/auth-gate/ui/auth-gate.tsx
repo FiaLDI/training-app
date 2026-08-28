@@ -4,6 +4,7 @@ import { ReactNode, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
 import { useSessionStore } from '@/entities/session/model/store'
+import { syncStorageScopeFromSession } from '@/entities/session/lib/session-boundary'
 import { AppShell } from '@/widgets/app-shell/ui/app-shell'
 
 type Props = {
@@ -25,6 +26,8 @@ export function AuthGate({ children }: Props) {
   useEffect(() => {
     // persist may already be rehydrated before mount
     if (useSessionStore.persist.hasHydrated()) {
+      const { mode, user } = useSessionStore.getState()
+      syncStorageScopeFromSession(mode, user?.id ?? null)
       setHydrated(true)
     }
   }, [setHydrated])

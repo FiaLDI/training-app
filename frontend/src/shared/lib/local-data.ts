@@ -1,5 +1,11 @@
 import { createLocalCollection } from '@/shared/lib/local-db'
 import { createLocalId } from '@/shared/lib/local-id'
+import {
+  clearCurrentScopeData,
+  LEGACY_LOCAL_STORAGE_KEYS,
+  scopedStorageKey,
+  SCOPED_DATA_SUFFIXES,
+} from '@/shared/lib/storage-scope'
 
 import type {
   BodyMeasurement,
@@ -55,21 +61,17 @@ import {
   workingSetMaxWeight,
 } from '@/entities/training/lib/session-weight'
 
-const exercisesDb = createLocalCollection<Exercise>('ironlog:local:exercises')
-const sourcesDb = createLocalCollection<ExerciseSource>('ironlog:local:sources')
-const templatesDb = createLocalCollection<WorkoutTemplate>('ironlog:local:templates')
-const templateExercisesDb = createLocalCollection<TemplateExercise>(
-  'ironlog:local:template-exercises',
-)
-const programsDb = createLocalCollection<Program>('ironlog:local:programs')
-const programDaysDb = createLocalCollection<ProgramDay>('ironlog:local:program-days')
-const trainingsDb = createLocalCollection<Training>('ironlog:local:trainings')
-const trainingExercisesDb = createLocalCollection<TrainingExercise>(
-  'ironlog:local:training-exercises',
-)
-const trainingSetsDb = createLocalCollection<TrainingSet>('ironlog:local:training-sets')
-const bodyMeasurementsDb = createLocalCollection<BodyMeasurement>('ironlog:local:body-measurements')
-const feedbacksDb = createLocalCollection<LocalFeedback>('ironlog:local:feedbacks')
+const exercisesDb = createLocalCollection<Exercise>('exercises')
+const sourcesDb = createLocalCollection<ExerciseSource>('sources')
+const templatesDb = createLocalCollection<WorkoutTemplate>('templates')
+const templateExercisesDb = createLocalCollection<TemplateExercise>('template-exercises')
+const programsDb = createLocalCollection<Program>('programs')
+const programDaysDb = createLocalCollection<ProgramDay>('program-days')
+const trainingsDb = createLocalCollection<Training>('trainings')
+const trainingExercisesDb = createLocalCollection<TrainingExercise>('training-exercises')
+const trainingSetsDb = createLocalCollection<TrainingSet>('training-sets')
+const bodyMeasurementsDb = createLocalCollection<BodyMeasurement>('body-measurements')
+const feedbacksDb = createLocalCollection<LocalFeedback>('feedbacks')
 
 function nowIso() {
   return new Date().toISOString()
@@ -807,25 +809,19 @@ export const localData = {
   },
 }
 
-export const LOCAL_STORAGE_KEYS = [
-  'ironlog:local:exercises',
-  'ironlog:local:sources',
-  'ironlog:local:templates',
-  'ironlog:local:template-exercises',
-  'ironlog:local:programs',
-  'ironlog:local:program-days',
-  'ironlog:local:trainings',
-  'ironlog:local:training-exercises',
-  'ironlog:local:training-sets',
-  'ironlog:local:body-measurements',
-  'ironlog:local:feedbacks',
-  'ironlog:local:catalog-outbox',
-  'ironlog:local:entity-delete-outbox',
-] as const
+/** @deprecated Prefer scoped keys via scopedStorageKey(); kept for settings UI labels. */
+export const LOCAL_STORAGE_KEYS = SCOPED_DATA_SUFFIXES.map((suffix) =>
+  scopedStorageKey(suffix),
+)
 
 export function clearAllLocalData() {
+  clearCurrentScopeData()
   if (typeof window === 'undefined') return
-  for (const key of LOCAL_STORAGE_KEYS) {
-    localStorage.removeItem(key)
+  for (const key of LEGACY_LOCAL_STORAGE_KEYS) {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      // ignore
+    }
   }
 }

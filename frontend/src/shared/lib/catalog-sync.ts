@@ -2,8 +2,9 @@ import { exerciseApi } from '@/entities/exercise/api/exercise-api'
 import type { Exercise } from '@/entities/exercise/model/types'
 import { ApiError } from '@/shared/api/client'
 import { localData } from '@/shared/lib/local-data'
+import { scopedStorageKey } from '@/shared/lib/storage-scope'
 
-const OUTBOX_KEY = 'ironlog:local:catalog-outbox'
+const OUTBOX_SUFFIX = 'catalog-outbox'
 
 type OutboxOp = 'upsert' | 'delete'
 type OutboxEntity = 'exercise'
@@ -14,10 +15,14 @@ type OutboxEntry = {
   id: string
 }
 
+function outboxKey() {
+  return scopedStorageKey(OUTBOX_SUFFIX)
+}
+
 function readOutbox(): OutboxEntry[] {
   if (typeof window === 'undefined') return []
   try {
-    const raw = localStorage.getItem(OUTBOX_KEY)
+    const raw = localStorage.getItem(outboxKey())
     if (!raw) return []
     return (JSON.parse(raw) as OutboxEntry[]).filter((item) => item.entity === 'exercise')
   } catch {
@@ -27,7 +32,7 @@ function readOutbox(): OutboxEntry[] {
 
 function writeOutbox(entries: OutboxEntry[]) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(OUTBOX_KEY, JSON.stringify(entries))
+  localStorage.setItem(outboxKey(), JSON.stringify(entries))
 }
 
 function clearOutboxStorage() {

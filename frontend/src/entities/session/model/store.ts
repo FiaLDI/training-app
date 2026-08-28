@@ -8,6 +8,11 @@ import { requestBackgroundSync } from '@/features/sync-trainings/model/backgroun
 import { useSyncNoticeStore } from '@/features/sync-trainings/model/sync-notice-store'
 
 import { authApi, type AuthUser } from '../api/auth-api'
+import {
+  enterSessionScope,
+  leaveSession,
+  syncStorageScopeFromSession,
+} from '../lib/session-boundary'
 
 function afterEnterCloud() {
   if (typeof window === 'undefined') return
@@ -56,10 +61,12 @@ export const useSessionStore = create<SessionState>()(
       },
 
       continueLocal() {
+        enterSessionScope('local')
         set({ mode: 'local', user: null, accessToken: null })
       },
 
       setCloudSession(user, accessToken) {
+        enterSessionScope('cloud', user.id)
         set({ mode: 'cloud', user, accessToken })
         afterEnterCloud()
       },
@@ -70,6 +77,7 @@ export const useSessionStore = create<SessionState>()(
 
       async login(code) {
         const result = await authApi.login(code)
+        enterSessionScope('cloud', result.user.id)
         set({ mode: 'cloud', user: result.user, accessToken: result.accessToken })
         afterEnterCloud()
       },
@@ -83,6 +91,7 @@ export const useSessionStore = create<SessionState>()(
             // ignore logout errors
           }
         }
+        leaveSession()
         set({ mode: null, user: null, accessToken: null })
       },
 
@@ -109,6 +118,9 @@ export const useSessionStore = create<SessionState>()(
         accessToken: state.accessToken,
       }),
       onRehydrateStorage: () => (state) => {
+        if (state) {
+          syncStorageScopeFromSession(state.mode, state.user?.id ?? null)
+        }
         state?.setHydrated(true)
         if (state?.mode === 'cloud') {
           // Already in cloud from a previous session — still surface unsynced local data.

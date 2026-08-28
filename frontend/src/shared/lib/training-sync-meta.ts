@@ -4,8 +4,13 @@ import type {
   TrainingWithDetails,
 } from '@/entities/training/model/types'
 import { localData } from '@/shared/lib/local-data'
+import { scopedStorageKey } from '@/shared/lib/storage-scope'
 
-const HEAL_CONTENT_HASH_KEY = 'ironlog:sync-heal-content-hash-v1'
+const HEAL_CONTENT_HASH_SUFFIX = 'sync-heal-content-hash-v1'
+
+function healContentHashKey() {
+  return scopedStorageKey(HEAL_CONTENT_HASH_SUFFIX)
+}
 
 export function getTrainingSyncMeta(
   metadata: Record<string, unknown> | undefined,
@@ -195,7 +200,7 @@ export function mirrorTrainingLocally(
 export function healSyncedTrainingsMissingContentHash(): number {
   if (typeof window === 'undefined') return 0
   try {
-    if (localStorage.getItem(HEAL_CONTENT_HASH_KEY)) return 0
+    if (localStorage.getItem(healContentHashKey())) return 0
   } catch {
     // ignore storage errors
   }
@@ -222,7 +227,7 @@ export function healSyncedTrainingsMissingContentHash(): number {
   }
 
   try {
-    localStorage.setItem(HEAL_CONTENT_HASH_KEY, '1')
+    localStorage.setItem(healContentHashKey(), '1')
   } catch {
     // ignore
   }
