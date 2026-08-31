@@ -160,7 +160,8 @@ export function AddTrainingExerciseModal({
                   </span>
                   {groups.length > 0 ? (
                     <span className="mt-0.5 text-xs text-[var(--muted)]">
-                      {groups.join(' · ')}
+                      <span className="text-[var(--foreground)]">{groups[0]}</span>
+                      {groups.length > 1 ? ` · ${groups.slice(1).join(' · ')}` : ''}
                     </span>
                   ) : null}
                 </button>

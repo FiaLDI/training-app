@@ -150,21 +150,24 @@ export function importJsonBundle(
     }
 
     const metadata = stripSyncMetadata(item.metadata ?? {})
-    localData.trainings.create({
-      id: item.id,
-      templateId: item.templateId ?? null,
-      programId: item.programId ?? null,
-      programDayId: item.programDayId ?? null,
-      status: item.status ?? 'finished',
-      scheduledAt: item.scheduledAt ?? null,
-      startedAt: item.startedAt ?? null,
-      finishedAt: item.finishedAt ?? null,
-      notes: item.notes ?? null,
-      metadata: {
-        ...metadata,
-        sync: pendingSyncMeta(options.cloudMode),
+    localData.trainings.create(
+      {
+        id: item.id,
+        templateId: item.templateId ?? null,
+        programId: item.programId ?? null,
+        programDayId: item.programDayId ?? null,
+        status: item.status ?? 'finished',
+        scheduledAt: item.scheduledAt ?? null,
+        startedAt: item.startedAt ?? null,
+        finishedAt: item.finishedAt ?? null,
+        notes: item.notes ?? null,
+        metadata: {
+          ...metadata,
+          sync: pendingSyncMeta(options.cloudMode),
+        },
       },
-    })
+      { skipTemplateCopy: true },
+    )
 
     for (const exercise of item.exercises ?? []) {
       const exerciseId = exercise.exerciseId

@@ -29,7 +29,7 @@ export class GetMuscleGroupStatsUseCase
     if (cacheable) {
       const cached = await this.statsCache.get<MuscleGroupStatPoint[]>(
         input.userId,
-        'muscle-groups',
+        'muscle-groups-v2',
         periodKey,
       )
       if (cached) return { groups: cached }
@@ -39,7 +39,7 @@ export class GetMuscleGroupStatsUseCase
     const groups = aggregateMuscleGroupRows(rows)
 
     if (cacheable) {
-      await this.statsCache.set(input.userId, 'muscle-groups', periodKey, groups)
+      await this.statsCache.set(input.userId, 'muscle-groups-v2', periodKey, groups)
     }
 
     return { groups }

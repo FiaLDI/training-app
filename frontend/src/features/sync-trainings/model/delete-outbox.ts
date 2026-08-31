@@ -7,7 +7,9 @@ export type DeleteOutboxEntity =
   | 'template'
   | 'training-exercise'
   | 'training-set'
+  | 'training-group'
   | 'template-exercise'
+  | 'template-group'
 
 export type DeleteOutboxEntry = {
   entity: DeleteOutboxEntity
@@ -19,7 +21,9 @@ const ENTITIES = new Set<DeleteOutboxEntity>([
   'template',
   'training-exercise',
   'training-set',
+  'training-group',
   'template-exercise',
+  'template-group',
 ])
 
 function outboxKey() {

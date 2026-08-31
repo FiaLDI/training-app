@@ -21,6 +21,11 @@ export const MUSCLE_GROUPS = [
 
 export type MuscleGroup = (typeof MUSCLE_GROUPS)[number]
 
+/** Primary muscle group contribution; first listed group in `muscleGroup`. */
+export const PRIMARY_MUSCLE_WEIGHT = 1
+/** Each additional (secondary) muscle group contribution. */
+export const SECONDARY_MUSCLE_WEIGHT = 0.6
+
 /** Старые грубые ярлыки → детальные группы (данные в БД могли сохраниться так). */
 const LEGACY_MUSCLE_GROUP_EXPAND: Record<string, readonly MuscleGroup[]> = {
   руки: ['бицепс', 'трицепс', 'предплечья'],
@@ -69,6 +74,40 @@ export function parseMuscleGroups(value: string | null | undefined): MuscleGroup
   return result
 }
 
+export function muscleGroupWeight(index: number): number {
+  return index === 0 ? PRIMARY_MUSCLE_WEIGHT : SECONDARY_MUSCLE_WEIGHT
+}
+
+export function muscleGroupIntensities(
+  groups: MuscleGroup[],
+): Partial<Record<MuscleGroup, number>> {
+  const intensity: Partial<Record<MuscleGroup, number>> = {}
+  groups.forEach((group, index) => {
+    intensity[group] = muscleGroupWeight(index)
+  })
+  return intensity
+}
+
+/** First click / listed group is primary (weight 1). Clicking it again removes it. */
+export function togglePrimaryMuscleGroup(
+  current: MuscleGroup[],
+  group: MuscleGroup,
+): MuscleGroup[] {
+  if (current[0] === group) return current.slice(1)
+  return [group, ...current.filter((item) => item !== group)]
+}
+
+/** Additional groups (weight 0.6). If none selected yet, the first pick becomes primary. */
+export function toggleSecondaryMuscleGroup(
+  current: MuscleGroup[],
+  group: MuscleGroup,
+): MuscleGroup[] {
+  if (current[0] === group) return current
+  if (current.includes(group)) return current.filter((item) => item !== group)
+  if (current.length === 0) return [group]
+  return [...current, group]
+}
+
 export function aggregateMuscleGroupRows(
   rows: Array<{ muscleGroupRaw: string; volume: number; sets: number }>,
 ): Array<{ muscleGroup: string; volume: number; sets: number }> {
@@ -77,12 +116,13 @@ export function aggregateMuscleGroupRows(
   for (const row of rows) {
     const groups = parseMuscleGroups(row.muscleGroupRaw)
     const targets = groups.length > 0 ? groups : (['другое'] as MuscleGroup[])
-    const share = 1 / targets.length
 
-    for (const group of targets) {
+    for (let index = 0; index < targets.length; index += 1) {
+      const group = targets[index]
+      const weight = muscleGroupWeight(index)
       const current = byGroup.get(group) ?? { volume: 0, sets: 0 }
-      current.volume += row.volume * share
-      current.sets += row.sets * share
+      current.volume += row.volume * weight
+      current.sets += row.sets * weight
       byGroup.set(group, current)
     }
   }

@@ -13,7 +13,11 @@ import {
   X,
 } from 'lucide-react'
 
-import type { LinkWithBelowAction } from '@/entities/session/lib/exercise-group-utils'
+import {
+  groupRestLabel,
+  type LinkWithBelowAction,
+} from '@/entities/session/lib/exercise-group-utils'
+import type { ExerciseGroupType } from '@/entities/template/model/types'
 import type { TrainingExercise, TrainingSet } from '@/entities/training/model/types'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { DropdownItem, DropdownMenu } from '@/shared/ui/dropdown-menu'
@@ -35,6 +39,8 @@ type Props = {
   neighborBelowOrder?: number
   canLinkWithBelow?: boolean
   groupId?: string | null
+  groupType?: ExerciseGroupType
+  groupRestSeconds?: number | null
   linkAction?: LinkWithBelowAction
 }
 
@@ -43,14 +49,26 @@ function targetWeightFrom(item: TrainingExercise) {
   return typeof value === 'number' ? value : null
 }
 
-function ExerciseMeta({ item }: { item: TrainingExercise }) {
+function ExerciseMeta({
+  item,
+  groupType,
+  groupRestSeconds,
+}: {
+  item: TrainingExercise
+  groupType?: ExerciseGroupType
+  groupRestSeconds?: number | null
+}) {
   const targetWeight = targetWeightFrom(item)
   const parts = [`${item.targetSets} подх.`]
   if (item.minReps != null || item.maxReps != null) {
     parts.push(`${item.minReps ?? '?'}–${item.maxReps ?? '?'} повт.`)
   }
   if (targetWeight != null) parts.push(`${targetWeight} кг`)
-  if (item.restSeconds != null) parts.push(`отдых ${item.restSeconds}с`)
+  if (groupType && groupRestSeconds != null) {
+    parts.push(`${groupRestLabel(groupType).replace(' (с)', '')} ${groupRestSeconds}с`)
+  } else if (item.restSeconds != null) {
+    parts.push(`отдых ${item.restSeconds}с`)
+  }
 
   return <p className="text-sm text-[var(--muted)]">{parts.join(' · ')}</p>
 }
@@ -69,6 +87,8 @@ export function EditTrainingExerciseRow({
   neighborBelowOrder,
   canLinkWithBelow = false,
   groupId = null,
+  groupType,
+  groupRestSeconds,
   linkAction,
 }: Props) {
   const updateExercise = useTrainingStore((s) => s.updateExercise)
@@ -250,17 +270,19 @@ export function EditTrainingExerciseRow({
               className="h-11"
             />
           </label>
-          <label className="space-y-1 text-xs text-[var(--muted)]">
-            Отдых (с)
-            <Input
-              type="number"
-              min="0"
-              inputMode="numeric"
-              value={restSeconds}
-              onChange={(e) => setRestSeconds(e.target.value)}
-              className="h-11"
-            />
-          </label>
+          {groupId ? null : (
+            <label className="space-y-1 text-xs text-[var(--muted)]">
+              Отдых (с)
+              <Input
+                type="number"
+                min="0"
+                inputMode="numeric"
+                value={restSeconds}
+                onChange={(e) => setRestSeconds(e.target.value)}
+                className="h-11"
+              />
+            </label>
+          )}
         </div>
         <div className="flex gap-2">
           <Button type="submit" disabled={saving} className="h-11 flex-1">
@@ -279,7 +301,11 @@ export function EditTrainingExerciseRow({
   return (
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0 pt-1.5">
-        <ExerciseMeta item={item} />
+        <ExerciseMeta
+          item={item}
+          groupType={groupType}
+          groupRestSeconds={groupRestSeconds}
+        />
         {error ? <p className="mt-1 text-xs text-red-300">{error}</p> : null}
       </div>
       {hasMenu ? (

@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, beforeEach } from 'vitest'
+
+import { localData } from '@/shared/lib/local-data'
+import { setStorageScope } from '@/shared/lib/storage-scope'
 
 import { detectCsvFormat } from './detect-csv-format'
 import { parseCsv, parseNumber } from './csv-utils'
 import { parseWorkoutDate } from './date-utils'
+import { importJsonBundle } from './import-workouts'
 import { parseFitNotesCsv } from './parsers/fitnotes-csv'
 import { parseHevyCsv } from './parsers/hevy-csv'
 import { parseStrongCsv } from './parsers/strong-csv'
@@ -76,5 +80,85 @@ describe('fitnotes csv parser', () => {
     expect(workouts).toHaveLength(1)
     expect(workouts[0]?.exercises[0]?.sets).toHaveLength(2)
     expect(workouts[0]?.exercises[0]?.muscleGroup).toBe('Legs')
+  })
+})
+
+describe('importJsonBundle', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setStorageScope('local')
+  })
+
+  it('does not copy cached plan exercises on top of imported rows', () => {
+    localData.templates.create({ id: 'tpl-1', name: 'PPL' })
+    localData.templates.addExercise('tpl-1', {
+      id: 'tex-a',
+      exerciseId: 'ex-a',
+      exerciseOrder: 0,
+      targetSets: 3,
+    })
+    localData.templates.addExercise('tpl-1', {
+      id: 'tex-b',
+      exerciseId: 'ex-b',
+      exerciseOrder: 1,
+      targetSets: 3,
+    })
+    localData.exercises.upsert({
+      id: 'ex-a',
+      userId: null,
+      name: 'Bench',
+      description: null,
+      muscleGroup: null,
+      difficulty: null,
+      metadata: {},
+      createdAt: '2026-08-31T00:00:00.000Z',
+      updatedAt: '2026-08-31T00:00:00.000Z',
+    })
+
+    importJsonBundle(
+      {
+        trainings: [
+          {
+            id: 'tr-imported',
+            templateId: 'tpl-1',
+            programId: null,
+            programDayId: null,
+            status: 'finished',
+            scheduledAt: null,
+            startedAt: '2026-08-31T12:00:00.000Z',
+            finishedAt: '2026-08-31T13:00:00.000Z',
+            notes: null,
+            metadata: {},
+            createdAt: '2026-08-31T12:00:00.000Z',
+            groups: [],
+            exercises: [
+              {
+                id: 'imported-row',
+                trainingId: 'tr-imported',
+                exerciseId: 'ex-a',
+                exerciseOrder: 0,
+                targetSets: 3,
+                isWarmup: false,
+                minReps: null,
+                maxReps: null,
+                maxWeight: null,
+                previousMaxWeight: null,
+                restSeconds: null,
+                notes: null,
+                groupId: null,
+                positionInGroup: null,
+                metadata: {},
+                sets: [],
+              },
+            ],
+          },
+        ],
+      },
+      { cloudMode: false },
+    )
+
+    const training = localData.trainings.get('tr-imported')
+    expect(training?.templateId).toBe('tpl-1')
+    expect(training?.exercises.map((item) => item.id)).toEqual(['imported-row'])
   })
 })

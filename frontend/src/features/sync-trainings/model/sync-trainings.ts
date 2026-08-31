@@ -17,6 +17,9 @@ import {
   trainingContentHash,
 } from '@/shared/lib/training-sync-meta'
 
+import { healDuplicateTrainingExercises } from './heal-duplicate-exercises'
+import { flushDeletes } from './flush-deletes'
+
 export type SyncTrainingProgress = {
   trainingId: string
   status: 'pending' | 'uploading' | 'done' | 'error'
@@ -222,6 +225,8 @@ export async function syncTrainings(
   options?: { skipCatalogFlush?: boolean },
 ): Promise<SyncTrainingProgress[]> {
   healSyncedTrainingsMissingContentHash()
+  healDuplicateTrainingExercises()
+  await flushDeletes()
 
   const progress: SyncTrainingProgress[] = trainingIds.map((trainingId) => ({
     trainingId,

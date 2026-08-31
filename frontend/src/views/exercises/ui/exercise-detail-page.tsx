@@ -20,6 +20,7 @@ import {
 import { canEditExercise } from '@/entities/exercise/model/can-edit-exercise'
 import { parseMuscleGroups } from '@/entities/exercise/model/muscle-groups'
 import { useExerciseStore } from '@/entities/exercise/model/store'
+import { MuscleGroupBadges } from '@/entities/exercise/ui/muscle-group-badges'
 import { isAdmin } from '@/entities/session/model/is-admin'
 import { useSessionStore } from '@/entities/session/model/store'
 import { uploadFile } from '@/shared/api/upload-api'
@@ -259,16 +260,7 @@ export function ExerciseDetailPage({ id }: Props) {
         </div>
       ) : null}
 
-      <div className="mb-8 flex flex-wrap gap-3 text-sm text-[var(--muted)]">
-        {parseMuscleGroups(current.muscleGroup).map((group) => (
-          <span
-            key={group}
-            className="rounded-md bg-[var(--surface-2)] px-2 py-1 text-[var(--foreground)]"
-          >
-            {group}
-          </span>
-        ))}
-      </div>
+      <MuscleGroupBadges groups={parseMuscleGroups(current.muscleGroup)} className="mb-8" />
 
       {imageSources.length > 0 ? (
         <section className="mb-8">

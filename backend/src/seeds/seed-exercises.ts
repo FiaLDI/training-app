@@ -19,14 +19,17 @@ type SeedFile = {
   items: SeedExercise[]
 }
 
-/** Compare muscle groups ignoring order / whitespace. */
+/** Compare muscle groups by order (first = primary) and whitespace. */
 function normalizeMuscleGroup(value: string | null | undefined): string | null {
   if (value == null || value.trim() === '') return null
-  const parts = value
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b, 'ru'))
+  const seen = new Set<string>()
+  const parts: string[] = []
+  for (const part of value.split(',')) {
+    const item = part.trim()
+    if (!item || seen.has(item)) continue
+    seen.add(item)
+    parts.push(item)
+  }
   return parts.length > 0 ? parts.join(',') : null
 }
 

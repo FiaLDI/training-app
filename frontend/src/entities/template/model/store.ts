@@ -243,11 +243,15 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
 
   async removeExercise(templateId, exerciseRowId) {
     ensureLocalTemplateShell(templateId, get().current)
+    const dissolvedGroupId = localData.templates
+      .get(templateId)
+      ?.exercises.find((item) => item.id === exerciseRowId)?.groupId
     localData.templates.removeExercise(exerciseRowId)
     markTemplatePending(templateId, pendingReason())
     set({ current: localData.templates.get(templateId) })
     if (!isCloudMode()) return
     deleteOutbox.enqueue('template-exercise', exerciseRowId)
+    if (dissolvedGroupId) deleteOutbox.enqueue('template-group', dissolvedGroupId)
     scheduleCloudSync()
   },
 
@@ -281,6 +285,7 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
     markTemplatePending(templateId, pendingReason())
     set({ current: localData.templates.get(templateId) })
     if (!isCloudMode()) return
+    deleteOutbox.enqueue('template-group', groupId)
     scheduleCloudSync()
   },
 }))

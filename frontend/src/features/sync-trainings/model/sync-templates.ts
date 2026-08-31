@@ -12,6 +12,8 @@ import {
   markTemplateSynced,
 } from '@/shared/lib/template-sync-meta'
 
+import { flushDeletes } from './flush-deletes'
+
 export type SyncTemplateProgress = {
   templateId: string
   status: 'pending' | 'uploading' | 'done' | 'error'
@@ -112,6 +114,7 @@ export async function syncTemplates(
   templateIds: string[],
   onProgress?: (items: SyncTemplateProgress[]) => void,
 ): Promise<SyncTemplateProgress[]> {
+  await flushDeletes()
   const progress: SyncTemplateProgress[] = templateIds.map((templateId) => ({
     templateId,
     status: 'pending',

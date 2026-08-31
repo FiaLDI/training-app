@@ -1,9 +1,6 @@
 'use client'
 
 import { useSessionStore } from '@/entities/session/model/store'
-import { trainingApi } from '@/entities/training/api/training-api'
-import { templateApi } from '@/entities/template/api/template-api'
-import { ApiError } from '@/shared/api/client'
 import { catalogSync } from '@/shared/lib/catalog-sync'
 import { localData } from '@/shared/lib/local-data'
 import { listPendingTemplates } from '@/shared/lib/template-sync-meta'
@@ -13,6 +10,8 @@ import {
 } from '@/shared/lib/training-sync-meta'
 
 import { deleteOutbox } from './delete-outbox'
+import { flushDeletes } from './flush-deletes'
+import { healDuplicateTrainingExercises } from './heal-duplicate-exercises'
 import { getPendingSyncSummary } from './pending-summary'
 import { syncTemplates } from './sync-templates'
 import { syncTrainings } from './sync-trainings'
@@ -26,7 +25,6 @@ let listenersStarted = false
 let pauseDepth = 0
 
 const DEBOUNCE_MS = 400
-const SYNC_WRITE_TIMEOUT_MS = 12000
 
 function isCloudMode() {
   return useSessionStore.getState().mode === 'cloud'
@@ -77,32 +75,6 @@ async function refreshStoresFromLocal() {
   })
 }
 
-async function flushDeletes() {
-  for (const entry of deleteOutbox.list()) {
-    try {
-      const extras = { timeoutMs: SYNC_WRITE_TIMEOUT_MS }
-      if (entry.entity === 'training') {
-        await trainingApi.remove(entry.id, extras)
-      } else if (entry.entity === 'template') {
-        await templateApi.remove(entry.id, extras)
-      } else if (entry.entity === 'training-exercise') {
-        await trainingApi.removeExercise(entry.id, extras)
-      } else if (entry.entity === 'training-set') {
-        await trainingApi.removeSet(entry.id, extras)
-      } else if (entry.entity === 'template-exercise') {
-        await templateApi.removeExercise(entry.id, extras)
-      }
-      deleteOutbox.dequeue(entry.entity, entry.id)
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 404) {
-        deleteOutbox.dequeue(entry.entity, entry.id)
-        continue
-      }
-      // keep in outbox for later
-    }
-  }
-}
-
 async function runFlush() {
   if (!isCloudMode()) return
   if (isBackgroundSyncPaused()) {
@@ -118,6 +90,7 @@ async function runFlush() {
   queued = false
   try {
     healSyncedTrainingsMissingContentHash()
+    healDuplicateTrainingExercises()
     await catalogSync.flush()
     await flushDeletes()
 

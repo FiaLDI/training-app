@@ -6,6 +6,7 @@ import { DeleteExerciseButton } from '@/features/delete-exercise/ui/delete-exerc
 import { getPrimaryImageUrl } from '@/entities/exercise/lib/primary-image'
 import { parseMuscleGroups } from '@/entities/exercise/model/muscle-groups'
 import type { Exercise } from '@/entities/exercise/model/types'
+import { MuscleGroupBadges } from '@/entities/exercise/ui/muscle-group-badges'
 
 type Props = {
   exercise: Exercise
@@ -49,16 +50,7 @@ export function ExerciseCard({ exercise, onDeleted }: Props) {
           {exercise.description || 'Без описания'}
         </p>
         {muscleGroups.length > 0 ? (
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-            {muscleGroups.map((group) => (
-              <span
-                key={group}
-                className="rounded-md bg-[var(--surface-2)] px-2 py-1 text-[var(--foreground)]"
-              >
-                {group}
-              </span>
-            ))}
-          </div>
+          <MuscleGroupBadges groups={muscleGroups} className="mt-4" />
         ) : null}
       </div>
       </Link>

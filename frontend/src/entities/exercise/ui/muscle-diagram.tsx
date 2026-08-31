@@ -145,14 +145,18 @@ export function MuscleDiagram({ groups, className, intensityByGroup }: Props) {
 
       {highlighted.length > 0 ? (
         <div className="flex flex-wrap justify-center gap-1.5 px-1">
-          {highlighted.map((group) => (
-            <span
-              key={group}
-              className="rounded-md border border-[var(--accent)]/35 bg-[var(--accent)]/12 px-2 py-1 text-[11px] leading-none text-[#d9f99d]"
-            >
-              {group}
-            </span>
-          ))}
+          {highlighted.map((group) => {
+            const intensity = intensityByGroup?.[group] ?? 1
+            return (
+              <span
+                key={group}
+                className="rounded-md border border-[var(--accent)]/35 bg-[var(--accent)]/12 px-2 py-1 text-[11px] leading-none text-[#d9f99d]"
+                style={{ opacity: 0.5 + intensity * 0.5 }}
+              >
+                {group}
+              </span>
+            )
+          })}
         </div>
       ) : null}
     </div>

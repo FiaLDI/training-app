@@ -4,6 +4,7 @@ import { create } from 'zustand'
 
 import { afterLocalCloudWrite } from '@/features/sync-trainings/model/background-sync'
 import { deleteOutbox } from '@/features/sync-trainings/model/delete-outbox'
+import { healDuplicateTrainingExercises } from '@/features/sync-trainings/model/heal-duplicate-exercises'
 import { useSessionStore } from '@/entities/session/model/store'
 import { ApiError } from '@/shared/api/client'
 import { createLocalId } from '@/shared/lib/local-id'
@@ -80,6 +81,13 @@ async function applyTemplateHydration(trainingId: string): Promise<TrainingWithD
     scheduleCloudSync()
   }
   return hydrated
+}
+
+function finalizeFetchedTraining(trainingId: string): TrainingWithDetails | null {
+  if (healDuplicateTrainingExercises(trainingId) > 0 && isCloudMode()) {
+    scheduleCloudSync()
+  }
+  return localData.trainings.get(trainingId)
 }
 
 type TrainingStore = {
@@ -187,11 +195,12 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
   async fetchOne(id) {
     const local = localData.trainings.get(id)
     if (isLocalMode()) {
-      const hydrated = local ? await applyTemplateHydration(id) : null
+      if (local) await applyTemplateHydration(id)
+      const current = finalizeFetchedTraining(id)
       set({
-        current: hydrated ?? local,
+        current,
         loading: false,
-        error: local ? null : 'Не удалось загрузить тренировку',
+        error: current ? null : 'Не удалось загрузить тренировку',
       })
       return
     }
@@ -203,8 +212,8 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     }
 
     if (local && isTrainingPendingSync(local)) {
-      const hydrated = await applyTemplateHydration(id)
-      if (hydrated) set({ current: hydrated })
+      await applyTemplateHydration(id)
+      set({ current: finalizeFetchedTraining(id) })
       return
     }
 
@@ -214,18 +223,18 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       })
       const latestLocal = localData.trainings.get(id)
       if (latestLocal && isTrainingPendingSync(latestLocal)) {
-        const hydrated = await applyTemplateHydration(id)
-        set({ current: hydrated ?? latestLocal, loading: false })
+        await applyTemplateHydration(id)
+        set({ current: finalizeFetchedTraining(id), loading: false })
         return
       }
-      const mirrored = mirrorTrainingLocally(remote, 'synced')
-      const hydrated = await applyTemplateHydration(id)
-      set({ current: hydrated ?? mirrored, loading: false, error: null })
+      mirrorTrainingLocally(remote, 'synced')
+      await applyTemplateHydration(id)
+      set({ current: finalizeFetchedTraining(id), loading: false, error: null })
     } catch (error) {
       if (local) {
-        const hydrated = await applyTemplateHydration(id)
+        await applyTemplateHydration(id)
         set({
-          current: hydrated ?? localData.trainings.get(id) ?? local,
+          current: finalizeFetchedTraining(id) ?? local,
           loading: false,
           error: null,
         })
@@ -361,11 +370,15 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
 
   async removeExercise(trainingId, exerciseRowId) {
     ensureLocalTrainingShell(trainingId, get().current)
+    const dissolvedGroupId = localData.trainings
+      .get(trainingId)
+      ?.exercises.find((item) => item.id === exerciseRowId)?.groupId
     localData.trainings.removeExercise(exerciseRowId)
     markTrainingPending(trainingId, pendingReason())
     set({ current: localData.trainings.get(trainingId) })
     if (!isCloudMode()) return
     deleteOutbox.enqueue('training-exercise', exerciseRowId)
+    if (dissolvedGroupId) deleteOutbox.enqueue('training-group', dissolvedGroupId)
     scheduleCloudSync()
   },
 
@@ -425,6 +438,8 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     localData.trainings.deleteGroup(groupId)
     markTrainingPending(trainingId, pendingReason())
     set({ current: localData.trainings.get(trainingId) })
-    if (isCloudMode()) scheduleCloudSync()
+    if (!isCloudMode()) return
+    deleteOutbox.enqueue('training-group', groupId)
+    scheduleCloudSync()
   },
 }))

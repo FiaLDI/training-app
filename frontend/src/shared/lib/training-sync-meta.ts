@@ -167,6 +167,8 @@ export function mirrorTrainingLocally(
     createdAt: training.createdAt,
   })
 
+  localData.trainings.replaceDetails(training)
+
   for (const exercise of training.exercises) {
     localData.trainings.upsertExercise({
       id: exercise.id,

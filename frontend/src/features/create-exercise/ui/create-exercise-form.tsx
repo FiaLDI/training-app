@@ -4,13 +4,12 @@ import { FormEvent, useState } from 'react'
 import { Plus } from 'lucide-react'
 
 import {
-  MUSCLE_GROUPS,
   type MuscleGroup,
   serializeMuscleGroups,
 } from '@/entities/exercise/model/muscle-groups'
+import { MuscleGroupPicker } from '@/entities/exercise/ui/muscle-group-picker'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useSessionStore } from '@/entities/session/model/store'
-import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Textarea } from '@/shared/ui/textarea'
@@ -30,14 +29,6 @@ export function CreateExerciseForm({ onCreated }: Props) {
   const [muscleGroups, setMuscleGroups] = useState<MuscleGroup[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  function toggleMuscleGroup(group: MuscleGroup) {
-    setMuscleGroups((current) =>
-      current.includes(group)
-        ? current.filter((item) => item !== group)
-        : [...current, group],
-    )
-  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -90,29 +81,7 @@ export function CreateExerciseForm({ onCreated }: Props) {
         onChange={(e) => setDescription(e.target.value)}
       />
 
-      <div className="space-y-2">
-        <p className="text-xs text-[var(--muted)]">Группы мышц</p>
-        <div className="flex flex-wrap gap-2">
-          {MUSCLE_GROUPS.map((group) => {
-            const selected = muscleGroups.includes(group)
-            return (
-              <button
-                key={group}
-                type="button"
-                onClick={() => toggleMuscleGroup(group)}
-                className={cn(
-                  'rounded-lg border px-3 py-1.5 text-sm transition',
-                  selected
-                    ? 'border-[var(--accent)]/50 bg-[var(--accent)]/15 text-[var(--accent)]'
-                    : 'border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--foreground)]',
-                )}
-              >
-                {group}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+      <MuscleGroupPicker value={muscleGroups} onChange={setMuscleGroups} />
 
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <div className="flex gap-2">

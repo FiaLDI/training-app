@@ -5,7 +5,10 @@ import {
   hasHighlightableMuscleGroups,
   MuscleDiagram,
 } from '@/entities/exercise/ui/muscle-diagram'
-import { parseMuscleGroups } from '@/entities/exercise/model/muscle-groups'
+import {
+  muscleGroupIntensities,
+  parseMuscleGroups,
+} from '@/entities/exercise/model/muscle-groups'
 import type { Exercise } from '@/entities/exercise/model/types'
 import { cn } from '@/shared/lib/cn'
 
@@ -51,7 +54,10 @@ export function SessionExerciseMedia({
 
       {showDiagram ? (
         <div className="flex min-h-[12rem] items-center justify-center rounded-xl bg-[var(--surface)] px-2 py-4 sm:min-h-0">
-          <MuscleDiagram groups={muscleGroups} />
+          <MuscleDiagram
+            groups={muscleGroups}
+            intensityByGroup={muscleGroupIntensities(muscleGroups)}
+          />
         </div>
       ) : null}
     </div>

@@ -1,6 +1,9 @@
 import type { TrainingWithDetails } from '@/entities/training/model/types'
+import { localData } from './local-data'
+import { setStorageScope } from './storage-scope'
 import {
   getTrainingSyncMeta,
+  mirrorTrainingLocally,
   syncReasonLabel,
   trainingContentHash,
 } from './training-sync-meta'
@@ -113,6 +116,42 @@ describe('training-sync-meta', () => {
       expect(syncReasonLabel('network')).toBe('нет сети')
       expect(syncReasonLabel('queued')).toBe('ожидает отправки')
       expect(syncReasonLabel(undefined)).toBe('не на сервере')
+    })
+  })
+
+  describe('mirrorTrainingLocally', () => {
+    beforeEach(() => {
+      localStorage.clear()
+      setStorageScope('local')
+    })
+
+    it('replaces local exercises instead of merging with remote', () => {
+      localData.trainings.create({
+        id: 'training-1',
+        status: 'planned',
+        scheduledAt: '2026-08-28T10:00:00.000Z',
+      })
+      localData.trainings.addExercise('training-1', {
+        id: 'local-only',
+        exerciseId: 'ex-old',
+        exerciseOrder: 0,
+        targetSets: 3,
+      })
+
+      const remote = makeTraining({
+        exercises: [
+          {
+            ...makeTraining().exercises[0],
+            id: 'remote-row',
+            exerciseId: 'ex-1',
+          },
+        ],
+      })
+      mirrorTrainingLocally(remote, 'synced')
+
+      expect(localData.trainings.get('training-1')?.exercises.map((item) => item.id)).toEqual([
+        'remote-row',
+      ])
     })
   })
 })

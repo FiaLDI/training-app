@@ -22,6 +22,7 @@ import { EditSetRow } from '@/features/edit-set/ui/edit-set-row'
 import { EditTrainingExerciseRow } from '@/features/edit-training-exercise/ui/edit-training-exercise-row'
 import { EditTrainingForm } from '@/features/edit-training/ui/edit-training-form'
 import { LogSetForm } from '@/features/log-set/ui/log-set-form'
+import { GroupRestField } from '@/features/manage-exercise-group/ui/group-rest-field'
 import { resolveRestSeconds } from '@/features/rest-timer/lib/resolve-rest-seconds'
 import { useRestTimerStore } from '@/features/rest-timer/model/store'
 import { RestTimerBar } from '@/features/rest-timer/ui/rest-timer-bar'
@@ -212,6 +213,7 @@ export function TrainingSessionPage({ id }: Props) {
   const start = useTrainingStore((s) => s.start)
   const finish = useTrainingStore((s) => s.finish)
   const remove = useTrainingStore((s) => s.remove)
+  const updateGroup = useTrainingStore((s) => s.updateGroup)
   const exercises = useExerciseStore((s) => s.items)
   const fetchExercises = useExerciseStore((s) => s.fetchList)
   const templates = useTemplateStore((s) => s.items)
@@ -252,15 +254,10 @@ export function TrainingSessionPage({ id }: Props) {
 
     if (!autoStartRestTimer || (isWarmup && restTimerSkipWarmup)) return
 
-    let restSeconds = resolveRestSeconds(exercise, defaultRestSeconds)
-    if (exercise.groupId) {
-      const group = (current.groups ?? []).find((item) => item.id === exercise.groupId)
-      if (group?.restSeconds != null && group.restSeconds > 0) {
-        restSeconds = group.restSeconds
-      }
-    }
-
-    startRestTimer(restSeconds)
+    const group = exercise.groupId
+      ? (current.groups ?? []).find((item) => item.id === exercise.groupId)
+      : undefined
+    startRestTimer(resolveRestSeconds(exercise, defaultRestSeconds, group?.restSeconds))
   }
 
   useEffect(() => {
@@ -557,7 +554,17 @@ export function TrainingSessionPage({ id }: Props) {
               canLinkWithBelow={canLinkWithBelow}
               linkAction={linkAction ?? undefined}
               groupId={activeExercise.groupId}
+              groupType={activeGroup?.type}
+              groupRestSeconds={activeGroup?.restSeconds}
             />
+
+            {activeGroup && canEditStructure ? (
+              <GroupRestField
+                type={activeGroup.type}
+                restSeconds={activeGroup.restSeconds}
+                onSave={(restSeconds) => updateGroup(id, activeGroup.id, { restSeconds })}
+              />
+            ) : null}
 
             <PreviousMaxHint
               previousMaxWeight={activeExercise.previousMaxWeight}

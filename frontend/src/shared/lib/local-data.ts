@@ -109,6 +109,11 @@ function normalizeTrainingExercise(exercise: TrainingExercise): TrainingExercise
 }
 
 function copyTemplateStructureToTrainingLocal(template: WorkoutTemplateWithExercises, trainingId: string) {
+  const alreadyHasExercises = trainingExercisesDb
+    .list()
+    .some((item) => item.trainingId === trainingId)
+  if (alreadyHasExercises) return
+
   const exerciseIdMap = new Map<string, string>()
 
   for (const item of [...template.exercises].sort((a, b) => a.exerciseOrder - b.exerciseOrder)) {
@@ -928,7 +933,78 @@ export const localData = {
         .sort((a, b) => a.groupOrder - b.groupOrder)
       return { ...training, exercises, groups }
     },
-    create(input: CreateTrainingInput): Training {
+    replaceDetails(training: TrainingWithDetails) {
+      const keepExerciseIds = new Set(training.exercises.map((item) => item.id))
+      const keepSetIds = new Set(
+        training.exercises.flatMap((item) => item.sets.map((set) => set.id)),
+      )
+      const keepGroupIds = new Set((training.groups ?? []).map((item) => item.id))
+
+      for (const exercise of trainingExercisesDb
+        .list()
+        .filter((item) => item.trainingId === training.id)) {
+        if (!keepExerciseIds.has(exercise.id)) {
+          trainingExercisesDb.remove(exercise.id)
+        }
+      }
+
+      trainingSetsDb.save(
+        trainingSetsDb.list().filter((set) => {
+          if (keepSetIds.has(set.id)) return true
+          if (keepExerciseIds.has(set.trainingExerciseId)) return false
+          const owner = trainingExercisesDb.get(set.trainingExerciseId)
+          return owner != null && owner.trainingId !== training.id
+        }),
+      )
+
+      for (const group of trainingGroupsDb
+        .list()
+        .filter((item) => item.trainingId === training.id)) {
+        if (!keepGroupIds.has(group.id)) {
+          trainingGroupsDb.remove(group.id)
+        }
+      }
+    },
+    dedupeExercises(trainingId: string): string[] {
+      const exercises = trainingExercisesDb
+        .list()
+        .filter((item) => item.trainingId === trainingId)
+      const byKey = new Map<string, TrainingExercise[]>()
+      for (const exercise of exercises) {
+        const key = `${exercise.exerciseId}:${exercise.exerciseOrder}`
+        const bucket = byKey.get(key) ?? []
+        bucket.push(exercise)
+        byKey.set(key, bucket)
+      }
+
+      const removed: string[] = []
+      for (const bucket of byKey.values()) {
+        if (bucket.length < 2) continue
+        const ranked = [...bucket].sort((a, b) => {
+          const setsA = trainingSetsDb
+            .list()
+            .filter((set) => set.trainingExerciseId === a.id).length
+          const setsB = trainingSetsDb
+            .list()
+            .filter((set) => set.trainingExerciseId === b.id).length
+          if (setsB !== setsA) return setsB - setsA
+          if (Boolean(a.groupId) !== Boolean(b.groupId)) return a.groupId ? -1 : 1
+          return a.id.localeCompare(b.id)
+        })
+        for (const extra of ranked.slice(1)) {
+          trainingSetsDb.save(
+            trainingSetsDb.list().filter((set) => set.trainingExerciseId !== extra.id),
+          )
+          trainingExercisesDb.remove(extra.id)
+          removed.push(extra.id)
+        }
+      }
+      return removed
+    },
+    create(
+      input: CreateTrainingInput,
+      options?: { skipTemplateCopy?: boolean },
+    ): Training {
       const existingSync = input.metadata?.sync as TrainingSyncMeta | undefined
       const sync: TrainingSyncMeta = existingSync ?? {
         status: 'pending',
@@ -947,7 +1023,7 @@ export const localData = {
         metadata: { ...(input.metadata ?? {}), sync },
         createdAt: nowIso(),
       })
-      if (input.templateId) {
+      if (input.templateId && !options?.skipTemplateCopy) {
         const template = localData.templates.get(input.templateId)
         if (template) {
           copyTemplateStructureToTrainingLocal(template, training.id)
