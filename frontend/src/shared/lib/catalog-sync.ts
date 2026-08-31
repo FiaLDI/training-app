@@ -2,9 +2,11 @@ import { exerciseApi } from '@/entities/exercise/api/exercise-api'
 import type { Exercise } from '@/entities/exercise/model/types'
 import { ApiError } from '@/shared/api/client'
 import { localData } from '@/shared/lib/local-data'
-import { scopedStorageKey } from '@/shared/lib/storage-scope'
-
-const OUTBOX_SUFFIX = 'catalog-outbox'
+import {
+  createOfflineKv,
+  hasPendingLocalRevision,
+  markRecordSynced,
+} from '@/shared/lib/offline-db'
 
 type OutboxOp = 'upsert' | 'delete'
 type OutboxEntity = 'exercise'
@@ -15,24 +17,16 @@ type OutboxEntry = {
   id: string
 }
 
-function outboxKey() {
-  return scopedStorageKey(OUTBOX_SUFFIX)
-}
+const outboxKv = createOfflineKv<OutboxEntry[]>('catalog-outbox')
 
 function readOutbox(): OutboxEntry[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = localStorage.getItem(outboxKey())
-    if (!raw) return []
-    return (JSON.parse(raw) as OutboxEntry[]).filter((item) => item.entity === 'exercise')
-  } catch {
-    return []
-  }
+  const stored = outboxKv.get()
+  if (!Array.isArray(stored)) return []
+  return stored.filter((item) => item.entity === 'exercise')
 }
 
 function writeOutbox(entries: OutboxEntry[]) {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(outboxKey(), JSON.stringify(entries))
+  outboxKv.set(entries)
 }
 
 function clearOutboxStorage() {
@@ -96,6 +90,7 @@ async function pushExercise(id: string, op: OutboxOp) {
         catalogSyncedAt: new Date().toISOString(),
       },
     })
+    markRecordSynced('exercises', id)
     dequeue('exercise', id)
     return
   }
@@ -108,6 +103,7 @@ async function pushExercise(id: string, op: OutboxOp) {
         catalogSyncedAt: new Date().toISOString(),
       },
     })
+    markRecordSynced('exercises', id)
   }
   dequeue('exercise', id)
 }
@@ -193,17 +189,23 @@ export const catalogSync = {
       for (const item of exercises.items) {
         if (pendingDeletes.has(item.id)) continue
         const local = localData.exercises.get(item.id)
+        if (pendingUpserts.has(item.id) || hasPendingLocalRevision('exercises', item.id)) {
+          continue
+        }
         if (!local || local.updatedAt <= item.updatedAt) {
-          localData.exercises.upsert({
-            ...item,
-            userId: item.userId ?? null,
-            metadata: {
-              ...item.metadata,
-              catalogSyncedAt:
-                (item.metadata?.catalogSyncedAt as string | undefined) ??
-                new Date().toISOString(),
+          localData.exercises.upsert(
+            {
+              ...item,
+              userId: item.userId ?? null,
+              metadata: {
+                ...item.metadata,
+                catalogSyncedAt:
+                  (item.metadata?.catalogSyncedAt as string | undefined) ??
+                  new Date().toISOString(),
+              },
             },
-          })
+            'server',
+          )
         }
       }
       for (const local of localData.exercises.list()) {
@@ -213,7 +215,8 @@ export const catalogSync = {
           !serverIds.has(local.id) &&
           local.metadata?.catalogSyncedAt &&
           !pendingUpserts.has(local.id) &&
-          !pendingDeletes.has(local.id)
+          !pendingDeletes.has(local.id) &&
+          !hasPendingLocalRevision('exercises', local.id)
         ) {
           localData.exercises.remove(local.id)
         }
@@ -250,6 +253,7 @@ export const catalogSync = {
           },
         })
         dequeue('exercise', id)
+        markRecordSynced('exercises', id)
         return localData.exercises.get(id) ?? updated
       } catch (error) {
         // Fall back to local promote if offline

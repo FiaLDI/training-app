@@ -4,13 +4,9 @@ import type {
   TrainingWithDetails,
 } from '@/entities/training/model/types'
 import { localData } from '@/shared/lib/local-data'
-import { scopedStorageKey } from '@/shared/lib/storage-scope'
+import { createOfflineKv } from '@/shared/lib/offline-db'
 
-const HEAL_CONTENT_HASH_SUFFIX = 'sync-heal-content-hash-v1'
-
-function healContentHashKey() {
-  return scopedStorageKey(HEAL_CONTENT_HASH_SUFFIX)
-}
+const healFlagKv = createOfflineKv<string>('sync-heal-content-hash-v1')
 
 export function getTrainingSyncMeta(
   metadata: Record<string, unknown> | undefined,
@@ -223,11 +219,7 @@ export function mirrorTrainingLocally(
  */
 export function healSyncedTrainingsMissingContentHash(): number {
   if (typeof window === 'undefined') return 0
-  try {
-    if (localStorage.getItem(healContentHashKey())) return 0
-  } catch {
-    // ignore storage errors
-  }
+  if (healFlagKv.get()) return 0
 
   let count = 0
   for (const training of localData.trainings.list()) {
@@ -250,11 +242,7 @@ export function healSyncedTrainingsMissingContentHash(): number {
     }
   }
 
-  try {
-    localStorage.setItem(healContentHashKey(), '1')
-  } catch {
-    // ignore
-  }
+  healFlagKv.set('1')
   return count
 }
 

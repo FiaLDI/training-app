@@ -26,6 +26,10 @@ function afterEnterCloud() {
   requestBackgroundSync()
 }
 
+export function onCloudSessionReady() {
+  afterEnterCloud()
+}
+
 export type AppMode = 'local' | 'cloud'
 
 type SessionState = {
@@ -34,8 +38,8 @@ type SessionState = {
   accessToken: string | null
   hydrated: boolean
   setHydrated: (value: boolean) => void
-  continueLocal: () => void
-  setCloudSession: (user: AuthUser, accessToken: string) => void
+  continueLocal: () => Promise<void>
+  setCloudSession: (user: AuthUser, accessToken: string) => Promise<void>
   register: (email: string) => Promise<{
     email: string
     created: boolean
@@ -60,13 +64,13 @@ export const useSessionStore = create<SessionState>()(
         set({ hydrated: value })
       },
 
-      continueLocal() {
-        enterSessionScope('local')
+      async continueLocal() {
+        await enterSessionScope('local')
         set({ mode: 'local', user: null, accessToken: null })
       },
 
-      setCloudSession(user, accessToken) {
-        enterSessionScope('cloud', user.id)
+      async setCloudSession(user, accessToken) {
+        await enterSessionScope('cloud', user.id)
         set({ mode: 'cloud', user, accessToken })
         afterEnterCloud()
       },
@@ -77,7 +81,7 @@ export const useSessionStore = create<SessionState>()(
 
       async login(code) {
         const result = await authApi.login(code)
-        enterSessionScope('cloud', result.user.id)
+        await enterSessionScope('cloud', result.user.id)
         set({ mode: 'cloud', user: result.user, accessToken: result.accessToken })
         afterEnterCloud()
       },
@@ -121,13 +125,6 @@ export const useSessionStore = create<SessionState>()(
         if (state) {
           syncStorageScopeFromSession(state.mode, state.user?.id ?? null)
         }
-        // Defer: persist can finish during `create()`, before the const is assigned.
-        queueMicrotask(() => {
-          useSessionStore.setState({ hydrated: true })
-          if (useSessionStore.getState().mode === 'cloud') {
-            afterEnterCloud()
-          }
-        })
       },
     },
   ),

@@ -1,4 +1,9 @@
+import 'fake-indexeddb/auto'
 import '@testing-library/jest-dom/vitest'
+import { beforeEach } from 'vitest'
+
+import { resetOfflineDb } from '@/shared/lib/offline-db'
+import { setStorageScope } from '@/shared/lib/storage-scope'
 
 class LocalStorageMock {
   private store = new Map<string, string>()
@@ -31,4 +36,10 @@ class LocalStorageMock {
 Object.defineProperty(globalThis, 'localStorage', {
   value: new LocalStorageMock(),
   writable: true,
+})
+
+beforeEach(async () => {
+  await resetOfflineDb()
+  localStorage.clear()
+  setStorageScope('local')
 })

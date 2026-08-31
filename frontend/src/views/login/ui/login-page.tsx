@@ -24,8 +24,8 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  function goLocal() {
-    continueLocal()
+  async function goLocal() {
+    await continueLocal()
     router.replace('/')
   }
 

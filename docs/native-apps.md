@@ -13,7 +13,7 @@ IronLog уже работает как **PWA** (Service Worker, манифест
 
 | Подход | Тип | Платформы | Сложность | UI | Офлайн | Store |
 |--------|-----|-----------|-----------|-----|--------|-------|
-| PWA (уже есть) | Обёртка / web | Android, iOS | — | Веб | SW + localStorage | Нет* |
+| PWA (уже есть) | Обёртка / web | Android, iOS | — | Веб | SW + IndexedDB | Нет* |
 | TWA | Обёртка | Android | Низкая | Веб | Как PWA | Google Play |
 | Capacitor / WebView | Обёртка | Android + iOS | Низкая | Веб | Как PWA | Оба Store |
 | Flutter WebView | Обёртка | Android + iOS | Средняя | Веб | Как PWA | Оба Store |
@@ -855,7 +855,7 @@ class TrainingRepository {
 | Задача roadmap | Нативный слой |
 |----------------|---------------|
 | PWA и автономность (Фаза 2) | База для TWA / WebView — **сделано** |
-| IndexedDB sync engine (Фаза 3) | Room / SwiftData / Drift в локальном клиенте |
+| IndexedDB sync engine (Фаза 3) | **сделано в PWA** (Dexie); натив — Room / SwiftData / Drift |
 | HealthKit / Health Connect (Фаза 4) | Только локальный нативный клиент |
 | Push rest timer в фоне | AlarmManager / UNUserNotificationCenter |
 | Голосовой ввод (Фаза 4) | Native STT (SpeechRecognizer / SFSpeech) |

@@ -1,6 +1,4 @@
-import { scopedStorageKey } from '@/shared/lib/storage-scope'
-
-const OUTBOX_SUFFIX = 'entity-delete-outbox'
+import { createOfflineKv } from '@/shared/lib/offline-db'
 
 export type DeleteOutboxEntity =
   | 'training'
@@ -26,27 +24,16 @@ const ENTITIES = new Set<DeleteOutboxEntity>([
   'template-group',
 ])
 
-function outboxKey() {
-  return scopedStorageKey(OUTBOX_SUFFIX)
-}
+const outboxKv = createOfflineKv<DeleteOutboxEntry[]>('entity-delete-outbox')
 
 function readOutbox(): DeleteOutboxEntry[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = localStorage.getItem(outboxKey())
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as DeleteOutboxEntry[]
-    return parsed.filter(
-      (item) => ENTITIES.has(item.entity) && typeof item.id === 'string',
-    )
-  } catch {
-    return []
-  }
+  const stored = outboxKv.get()
+  if (!Array.isArray(stored)) return []
+  return stored.filter((item) => ENTITIES.has(item.entity) && typeof item.id === 'string')
 }
 
 function writeOutbox(entries: DeleteOutboxEntry[]) {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(outboxKey(), JSON.stringify(entries))
+  outboxKv.set(entries)
 }
 
 export const deleteOutbox = {

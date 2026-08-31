@@ -113,7 +113,7 @@
 
 * `shared/ui`: Базовые UI компоненты (Button, Input, Select, Modal, ConfirmModal, Skeleton, NumberStepper, PageHeader, EmptyState).
 * `shared/api`: Настроенный HTTP клиент Axios / Fetch с перехватчиками токенов.
-* `shared/lib`: Утилиты дат, форматирования чисел/весов (format.ts), объединения CSS-классов (cn.ts), метаданных синхронизации и локального хранилища (local-data.ts).
+* `shared/lib`: утилиты дат, форматирования чисел/весов (format.ts), объединения CSS-классов (cn.ts), метаданных синхронизации и офлайн-хранилища (`offline-db.ts` / Dexie IndexedDB, `local-data.ts`).
 
 ---
 
@@ -126,7 +126,7 @@
    ┌───┴──────────────────────────────┐
    │                                  │ (Локальный режим / Оффлайн)
    ▼                                  ▼
-[Zustand Stores] ─────────────► [LocalStorage / IndexedDB]
+[Zustand Stores] ─────────────► [IndexedDB (Dexie) + WAL]
    │                                  │
    │ (Облачный режим / Online)        │ (Отложенная синхронизация)
    ▼                                  │

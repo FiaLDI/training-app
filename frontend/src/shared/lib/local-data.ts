@@ -4,6 +4,7 @@ import {
 } from '@/entities/session/lib/exercise-group-utils'
 import { createLocalCollection } from '@/shared/lib/local-db'
 import { createLocalId } from '@/shared/lib/local-id'
+import { clearOfflineScope } from '@/shared/lib/offline-db'
 import {
   clearCurrentScopeData,
   LEGACY_LOCAL_STORAGE_KEYS,
@@ -225,8 +226,8 @@ export const localData = {
         updatedAt: stamp,
       })
     },
-    upsert(exercise: Exercise): Exercise {
-      return exercisesDb.upsert(exercise)
+    upsert(exercise: Exercise, origin: 'local' | 'server' = 'local'): Exercise {
+      return exercisesDb.upsert(exercise, origin)
     },
     update(id: string, input: UpdateExerciseInput): Exercise | null {
       const current = exercisesDb.get(id)
@@ -1325,6 +1326,7 @@ export const LOCAL_STORAGE_KEYS = SCOPED_DATA_SUFFIXES.map((suffix) =>
 )
 
 export function clearAllLocalData() {
+  clearOfflineScope()
   clearCurrentScopeData()
   if (typeof window === 'undefined') return
   for (const key of LEGACY_LOCAL_STORAGE_KEYS) {

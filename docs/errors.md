@@ -104,7 +104,7 @@ export function isTrainingPendingSync(training: Training): boolean {
 }
 ```
 
-**Workaround:** одноразовый `healSyncedTrainingsMissingContentHash()` — но он срабатывает не на каждом read и помечается флагом в localStorage.
+**Workaround:** одноразовый `healSyncedTrainingsMissingContentHash()` — но он срабатывает не на каждом read и помечается флагом в IndexedDB (`sync-heal-content-hash-v1`).
 
 **Риск:** orphan sets / правки после старых клиентов не попадают в очередь sync до heal.
 

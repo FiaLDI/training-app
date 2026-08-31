@@ -3,8 +3,9 @@
 import { ReactNode, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
-import { useSessionStore } from '@/entities/session/model/store'
+import { onCloudSessionReady, useSessionStore } from '@/entities/session/model/store'
 import { syncStorageScopeFromSession } from '@/entities/session/lib/session-boundary'
+import { hydrateLocalDb } from '@/shared/lib/offline-db'
 import { AppShell } from '@/widgets/app-shell/ui/app-shell'
 
 type Props = {
@@ -28,10 +29,19 @@ export function AuthGate({ children }: Props) {
   const refreshUser = useSessionStore((s) => s.refreshUser)
 
   useEffect(() => {
+    let finished = false
     const finishHydration = () => {
+      if (finished) return
+      finished = true
       const { mode, user } = useSessionStore.getState()
       syncStorageScopeFromSession(mode, user?.id ?? null)
-      setHydrated(true)
+      void hydrateLocalDb()
+        .then(() => {
+          if (useSessionStore.getState().mode === 'cloud') {
+            onCloudSessionReady()
+          }
+        })
+        .finally(() => setHydrated(true))
     }
 
     // Subscribe first, then check — otherwise a sync rehydrate between the two

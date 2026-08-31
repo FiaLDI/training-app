@@ -483,7 +483,7 @@ Fingerprint тренировки для определения «нужен ли
 |------|---------|-----------------|
 | CORS | Нужен allowlist origin | **Не применяется** — прямой вызов API |
 | Cookie | httpOnly `access_token` | Только Bearer header |
-| Offline storage | localStorage | SQLite / Room / SwiftData |
+| Offline storage | IndexedDB (Dexie) | SQLite / Room / SwiftData |
 | Background sync | Background Sync API (ограничено) | WorkManager / BGTaskScheduler |
 | Rate limit | По IP устройства | То же — учитывайте retry |
 

@@ -5,8 +5,8 @@ type SessionMode = 'local' | 'cloud'
 const LEGACY_PREFIX = 'ironlog:local:'
 const SCOPE_PREFIX = 'ironlog:scope:'
 
-/** Suffixes for all user-scoped localStorage collections and sync aux keys. */
-export const SCOPED_DATA_SUFFIXES = [
+/** Entity collections persisted as IndexedDB records (formerly localStorage arrays). */
+export const COLLECTION_SUFFIXES = [
   'exercises',
   'sources',
   'timecodes',
@@ -21,10 +21,20 @@ export const SCOPED_DATA_SUFFIXES = [
   'training-sets',
   'body-measurements',
   'feedbacks',
+] as const
+
+/** Aux key-value blobs (outboxes, one-shot flags). */
+export const KV_SUFFIXES = [
   'catalog-outbox',
   'entity-delete-outbox',
   'sync-heal-content-hash-v1',
 ] as const
+
+/** Suffixes for all user-scoped collections and sync aux keys. */
+export const SCOPED_DATA_SUFFIXES = [...COLLECTION_SUFFIXES, ...KV_SUFFIXES] as const
+
+export type CollectionSuffix = (typeof COLLECTION_SUFFIXES)[number]
+export type KvSuffix = (typeof KV_SUFFIXES)[number]
 
 let currentScope: StorageScope = 'local'
 
