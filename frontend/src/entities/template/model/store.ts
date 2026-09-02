@@ -102,13 +102,17 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
     const localItems = mergeCloudWithPending(localData.templates.list(q))
     const catalogKnown = localData.templates.list().length > 0
     const hasCachedItems = prevItems.length > 0 || catalogKnown
+    const items =
+      localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems
+    if (isLocalMode()) {
+      set({ items, loading: false, error: null })
+      return
+    }
     set({
-      items:
-        localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems,
+      items,
       loading: !hasCachedItems,
       error: null,
     })
-    if (isLocalMode()) return
 
     try {
       const result = await templateApi.list({

@@ -105,7 +105,12 @@ export async function apiRequest<T>(
         message = fallback[response.status] ?? `Ошибка ${response.status}`
       }
 
-      if (response.status === 401 && typeof window !== 'undefined' && !skipAuth) {
+      if (
+        response.status === 401 &&
+        typeof window !== 'undefined' &&
+        !skipAuth &&
+        useSessionStore.getState().mode !== 'local'
+      ) {
         try {
           localStorage.removeItem('ironlog:session')
         } catch {

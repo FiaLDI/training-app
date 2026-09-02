@@ -659,6 +659,7 @@ export const localData = {
         message: input.message,
         rating: input.rating ?? null,
         status: 'new',
+        priority: 'normal',
         clientMeta: input.clientMeta ?? {},
         createdAt: stamp,
         sync: { status: input.syncStatus ?? 'pending' },
@@ -966,41 +967,41 @@ export const localData = {
         }
       }
     },
-    dedupeExercises(trainingId: string): string[] {
-      const exercises = trainingExercisesDb
-        .list()
-        .filter((item) => item.trainingId === trainingId)
-      const byKey = new Map<string, TrainingExercise[]>()
-      for (const exercise of exercises) {
-        const key = `${exercise.exerciseId}:${exercise.exerciseOrder}`
-        const bucket = byKey.get(key) ?? []
-        bucket.push(exercise)
-        byKey.set(key, bucket)
+    rebindExerciseId(fromId: string, toId: string) {
+      if (fromId === toId) return
+      const from = trainingExercisesDb.get(fromId)
+      if (!from) return
+
+      const existing = trainingExercisesDb.get(toId)
+      if (!existing) {
+        trainingExercisesDb.upsert({ ...from, id: toId })
       }
 
-      const removed: string[] = []
-      for (const bucket of byKey.values()) {
-        if (bucket.length < 2) continue
-        const ranked = [...bucket].sort((a, b) => {
-          const setsA = trainingSetsDb
-            .list()
-            .filter((set) => set.trainingExerciseId === a.id).length
-          const setsB = trainingSetsDb
-            .list()
-            .filter((set) => set.trainingExerciseId === b.id).length
-          if (setsB !== setsA) return setsB - setsA
-          if (Boolean(a.groupId) !== Boolean(b.groupId)) return a.groupId ? -1 : 1
-          return a.id.localeCompare(b.id)
-        })
-        for (const extra of ranked.slice(1)) {
-          trainingSetsDb.save(
-            trainingSetsDb.list().filter((set) => set.trainingExerciseId !== extra.id),
-          )
-          trainingExercisesDb.remove(extra.id)
-          removed.push(extra.id)
-        }
+      for (const set of trainingSetsDb
+        .list()
+        .filter((item) => item.trainingExerciseId === fromId)) {
+        trainingSetsDb.upsert({ ...set, trainingExerciseId: toId })
       }
-      return removed
+
+      trainingExercisesDb.remove(fromId)
+    },
+    rebindGroupId(fromId: string, toId: string) {
+      if (fromId === toId) return
+      const from = trainingGroupsDb.get(fromId)
+      if (!from) return
+
+      const existing = trainingGroupsDb.get(toId)
+      if (!existing) {
+        trainingGroupsDb.upsert({ ...from, id: toId })
+      }
+
+      for (const exercise of trainingExercisesDb
+        .list()
+        .filter((item) => item.groupId === fromId)) {
+        trainingExercisesDb.upsert({ ...exercise, groupId: toId })
+      }
+
+      trainingGroupsDb.remove(fromId)
     },
     create(
       input: CreateTrainingInput,

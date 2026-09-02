@@ -1,5 +1,13 @@
-export type FeedbackCategory = 'bug' | 'idea' | 'other'
+export type FeedbackCategory =
+  | 'bug'
+  | 'idea'
+  | 'question'
+  | 'feature'
+  | 'ui'
+  | 'complaint'
+  | 'other'
 export type FeedbackStatus = 'new' | 'read' | 'resolved'
+export type FeedbackPriority = 'low' | 'normal' | 'high'
 export type FeedbackSyncStatus = 'pending' | 'synced' | 'error'
 
 export type FeedbackSyncMeta = {
@@ -14,8 +22,10 @@ export type Feedback = {
   message: string
   rating: number | null
   status: FeedbackStatus
+  priority: FeedbackPriority
   clientMeta: Record<string, unknown>
   createdAt: string
+  authorEmail?: string | null
   sync?: FeedbackSyncMeta
 }
 
@@ -27,8 +37,34 @@ export type CreateFeedbackInput = {
   clientMeta?: Record<string, unknown>
 }
 
+export type UpdateFeedbackInput = {
+  status?: FeedbackStatus
+  priority?: FeedbackPriority
+}
+
+export type FeedbackInboxSort = 'default' | 'createdAt' | 'priority' | 'status'
+export type FeedbackInboxOrder = 'asc' | 'desc'
+
+export type ListFeedbackInboxQuery = {
+  page?: number
+  limit?: number
+  q?: string
+  status?: FeedbackStatus
+  priority?: FeedbackPriority
+  category?: FeedbackCategory
+  sort?: FeedbackInboxSort
+  order?: FeedbackInboxOrder
+}
+
 export type ListFeedbackResult = {
   items: Feedback[]
+}
+
+export type ListFeedbackInboxResult = {
+  items: Feedback[]
+  total: number
+  page: number
+  limit: number
 }
 
 export type LocalFeedback = Feedback & {

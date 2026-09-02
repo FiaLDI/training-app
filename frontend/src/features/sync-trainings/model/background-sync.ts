@@ -9,13 +9,9 @@ import {
   listPendingTrainings,
 } from '@/shared/lib/training-sync-meta'
 
-import { deleteOutbox } from './delete-outbox'
 import { flushDeletes } from './flush-deletes'
-import { healDuplicateTrainingExercises } from './heal-duplicate-exercises'
-import { getPendingSyncSummary } from './pending-summary'
 import { syncTemplates } from './sync-templates'
 import { syncTrainings } from './sync-trainings'
-import { useSyncNoticeStore } from './sync-notice-store'
 
 let flushing = false
 let queued = false
@@ -90,7 +86,6 @@ async function runFlush() {
   queued = false
   try {
     healSyncedTrainingsMissingContentHash()
-    healDuplicateTrainingExercises()
     await catalogSync.flush()
     await flushDeletes()
 
@@ -115,20 +110,8 @@ async function runFlush() {
     }
 
     await refreshStoresFromLocal()
-
-    const remaining = getPendingSyncSummary().total + deleteOutbox.list().length
-    if (remaining === 0) {
-      useSyncNoticeStore.getState().dismissBanner()
-    } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      useSyncNoticeStore.getState().notifySavedLocally()
-    } else {
-      useSyncNoticeStore.getState().setShowBanner(true)
-      useSyncNoticeStore.getState().setMessage(
-        'Не всё удалось отправить. Можно повторить позже.',
-      )
-    }
   } catch {
-    useSyncNoticeStore.getState().notifySavedLocally()
+    // next flush retries
   } finally {
     flushing = false
     if (queued && !isBackgroundSyncPaused()) scheduleFlush()
@@ -171,11 +154,7 @@ export function startBackgroundSyncListeners() {
   if (isCloudMode()) requestBackgroundSync()
 }
 
-export function afterLocalCloudWrite(options?: { silent?: boolean }) {
+export function afterLocalCloudWrite() {
   if (!isCloudMode()) return
-  const offline = typeof navigator !== 'undefined' && !navigator.onLine
-  if (offline && !options?.silent) {
-    useSyncNoticeStore.getState().notifySavedLocally()
-  }
   requestBackgroundSync()
 }

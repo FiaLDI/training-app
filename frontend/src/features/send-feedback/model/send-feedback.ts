@@ -48,6 +48,7 @@ export async function submitFeedback(input: {
       userId: created.userId,
       createdAt: created.createdAt,
       status: created.status,
+      priority: created.priority,
       clientMeta: created.clientMeta,
     })
     return { status: 'sent', item: created }
@@ -88,6 +89,7 @@ export async function flushPendingFeedback(mode: 'local' | 'cloud'): Promise<num
         userId: created.userId,
         createdAt: created.createdAt,
         status: created.status,
+        priority: created.priority,
         clientMeta: created.clientMeta,
       })
       sent += 1

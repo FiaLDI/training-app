@@ -4,7 +4,6 @@ import { ReactNode, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
 import { startBackgroundSyncListeners } from '@/features/sync-trainings/model/background-sync'
-import { SyncPendingBanner } from '@/features/sync-trainings/ui/sync-pending-banner'
 
 import { isTabRoute } from '../model/nav-links'
 import { PageTransition } from './page-transition'
@@ -38,7 +37,6 @@ export function AppShell({ children, hideNav = false }: Props) {
       />
       {hideNav ? null : <Sidebar />}
       <main className="relative flex min-w-0 flex-1 flex-col px-4 py-6 md:px-8 md:py-10">
-        {hideNav ? null : <SyncPendingBanner />}
         <PageTransition pathname={pathname} enabled={animateTabs}>
           {children}
         </PageTransition>

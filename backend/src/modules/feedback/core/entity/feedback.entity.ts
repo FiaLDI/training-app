@@ -20,6 +20,9 @@ export class FeedbackEntity {
   @Column({ type: 'varchar', length: 16, default: 'new' })
   status!: string
 
+  @Column({ type: 'varchar', length: 16, default: 'normal' })
+  priority!: string
+
   @Column({ name: 'client_meta', type: 'jsonb', default: {} })
   clientMeta!: Record<string, unknown>
 

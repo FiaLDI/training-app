@@ -4,7 +4,6 @@ import { create } from 'zustand'
 
 import { afterLocalCloudWrite } from '@/features/sync-trainings/model/background-sync'
 import { deleteOutbox } from '@/features/sync-trainings/model/delete-outbox'
-import { healDuplicateTrainingExercises } from '@/features/sync-trainings/model/heal-duplicate-exercises'
 import { useSessionStore } from '@/entities/session/model/store'
 import { ApiError } from '@/shared/api/client'
 import { createLocalId } from '@/shared/lib/local-id'
@@ -21,6 +20,7 @@ import {
   ensureTemplateWithExercises,
   trainingNeedsTemplateHydration,
 } from '../lib/hydrate-from-template'
+import { shouldKeepLocalOverRemote } from '../lib/keep-local-over-remote'
 import { trainingApi } from '../api/training-api'
 import type {
   CreateTrainingExerciseInput,
@@ -83,11 +83,19 @@ async function applyTemplateHydration(trainingId: string): Promise<TrainingWithD
   return hydrated
 }
 
-function finalizeFetchedTraining(trainingId: string): TrainingWithDetails | null {
-  if (healDuplicateTrainingExercises(trainingId) > 0 && isCloudMode()) {
-    scheduleCloudSync()
+async function pullCloudDetails(id: string, timeoutMs: number): Promise<boolean> {
+  if (!isCloudMode()) return false
+  try {
+    const remote = await trainingApi.getById(id, { timeoutMs })
+    const latestLocal = localData.trainings.get(id)
+    if (!shouldKeepLocalOverRemote(latestLocal, remote)) {
+      const keepPending = Boolean(latestLocal && isTrainingPendingSync(latestLocal))
+      mirrorTrainingLocally(remote, keepPending ? 'pending' : 'synced')
+    }
+    return true
+  } catch {
+    return false
   }
-  return localData.trainings.get(trainingId)
 }
 
 type TrainingStore = {
@@ -140,13 +148,17 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     const localItems = localData.trainings.list({ from: params?.from, to: params?.to })
     const catalogKnown = localData.trainings.list().length > 0
     const hasCachedItems = prevItems.length > 0 || catalogKnown
+    const items =
+      localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems
+    if (isLocalMode()) {
+      set({ items, loading: false, error: null })
+      return
+    }
     set({
-      items:
-        localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems,
+      items,
       loading: !hasCachedItems,
       error: null,
     })
-    if (isLocalMode()) return
 
     try {
       const result = await trainingApi.list({
@@ -196,7 +208,7 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     const local = localData.trainings.get(id)
     if (isLocalMode()) {
       if (local) await applyTemplateHydration(id)
-      const current = finalizeFetchedTraining(id)
+      const current = localData.trainings.get(id)
       set({
         current,
         loading: false,
@@ -211,40 +223,25 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       set({ loading: true, error: null, current: null })
     }
 
-    if (local && isTrainingPendingSync(local)) {
-      await applyTemplateHydration(id)
-      set({ current: finalizeFetchedTraining(id) })
+    const pulled = await pullCloudDetails(
+      id,
+      local ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
+    )
+    if (!pulled && !localData.trainings.get(id) && !local) {
+      set({
+        loading: false,
+        error: 'Не удалось загрузить тренировку',
+      })
       return
     }
 
-    try {
-      const remote = await trainingApi.getById(id, {
-        timeoutMs: local ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
-      })
-      const latestLocal = localData.trainings.get(id)
-      if (latestLocal && isTrainingPendingSync(latestLocal)) {
-        await applyTemplateHydration(id)
-        set({ current: finalizeFetchedTraining(id), loading: false })
-        return
-      }
-      mirrorTrainingLocally(remote, 'synced')
-      await applyTemplateHydration(id)
-      set({ current: finalizeFetchedTraining(id), loading: false, error: null })
-    } catch (error) {
-      if (local) {
-        await applyTemplateHydration(id)
-        set({
-          current: finalizeFetchedTraining(id) ?? local,
-          loading: false,
-          error: null,
-        })
-        return
-      }
-      set({
-        loading: false,
-        error: error instanceof Error ? error.message : 'Не удалось загрузить тренировку',
-      })
-    }
+    await applyTemplateHydration(id)
+    const current = localData.trainings.get(id) ?? local ?? null
+    set({
+      current,
+      loading: false,
+      error: current ? null : 'Не удалось загрузить тренировку',
+    })
   },
 
   async create(input) {
@@ -302,6 +299,9 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       return training
     }
 
+    if (isCloudMode() && trainingNeedsTemplateHydration(existing)) {
+      await pullCloudDetails(id, READ_TIMEOUT_MS)
+    }
     await applyTemplateHydration(id)
 
     localData.trainings.update(id, {

@@ -1,5 +1,6 @@
 import { exerciseApi } from '@/entities/exercise/api/exercise-api'
 import type { Exercise } from '@/entities/exercise/model/types'
+import { useSessionStore } from '@/entities/session/model/store'
 import { ApiError } from '@/shared/api/client'
 import { localData } from '@/shared/lib/local-data'
 import {
@@ -15,6 +16,10 @@ type OutboxEntry = {
   entity: OutboxEntity
   op: OutboxOp
   id: string
+}
+
+function isLocalMode() {
+  return useSessionStore.getState().mode === 'local'
 }
 
 const outboxKv = createOfflineKv<OutboxEntry[]>('catalog-outbox')
@@ -46,6 +51,7 @@ function dequeue(entity: OutboxEntity, id: string) {
 }
 
 async function pushExercise(id: string, op: OutboxOp) {
+  if (isLocalMode()) return
   const writeExtras = { timeoutMs: 12000 }
   if (op === 'delete') {
     await exerciseApi.remove(id, writeExtras)
@@ -148,6 +154,7 @@ export const catalogSync = {
     onItem?: (item: PendingCatalogItem, ok: boolean, error?: string) => void,
     only?: Array<{ entity: OutboxEntity; id: string }>,
   ) {
+    if (isLocalMode()) return
     const allow = only
       ? new Set(only.map((item) => `${item.entity}:${item.id}`))
       : null
@@ -174,6 +181,7 @@ export const catalogSync = {
   },
 
   async mergeFromServer(options?: { timeoutMs?: number }) {
+    if (isLocalMode()) return
     const pendingDeletes = new Set(
       readOutbox().filter((entry) => entry.op === 'delete').map((entry) => entry.id),
     )
@@ -229,6 +237,9 @@ export const catalogSync = {
 
   async createExercise(input: Parameters<typeof localData.exercises.create>[0]): Promise<Exercise> {
     const exercise = localData.exercises.create(input)
+    if (isLocalMode()) {
+      return localData.exercises.get(exercise.id) ?? exercise
+    }
     catalogSync.enqueueUpsert('exercise', exercise.id)
     try {
       await pushExercise(exercise.id, 'upsert')
@@ -243,6 +254,11 @@ export const catalogSync = {
     input: Parameters<typeof localData.exercises.update>[1],
   ): Promise<Exercise> {
     if (input.isSystem === true) {
+      if (isLocalMode()) {
+        const local = localData.exercises.update(id, input)
+        if (!local) throw new Error('Упражнение не найдено')
+        return local
+      }
       try {
         const updated = await exerciseApi.update(id, input, { timeoutMs: 12000 })
         localData.exercises.upsert({
@@ -266,6 +282,9 @@ export const catalogSync = {
 
     const exercise = localData.exercises.update(id, input)
     if (!exercise) throw new Error('Упражнение не найдено')
+    if (isLocalMode()) {
+      return localData.exercises.get(id) ?? exercise
+    }
     catalogSync.enqueueUpsert('exercise', id)
     try {
       await pushExercise(id, 'upsert')
@@ -277,6 +296,7 @@ export const catalogSync = {
 
   async removeExercise(id: string) {
     localData.exercises.remove(id)
+    if (isLocalMode()) return
     catalogSync.enqueueDelete('exercise', id)
     try {
       await pushExercise(id, 'delete')

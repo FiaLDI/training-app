@@ -18,6 +18,10 @@ import {
 const CATEGORY_LABELS: Record<FeedbackCategory, string> = {
   bug: 'Ошибка',
   idea: 'Идея',
+  question: 'Вопрос',
+  feature: 'Фича',
+  ui: 'Интерфейс',
+  complaint: 'Жалоба',
   other: 'Другое',
 }
 
@@ -127,6 +131,10 @@ export function SendFeedbackSection({ showHistory = true }: { showHistory?: bool
         >
           <option value="bug">Ошибка</option>
           <option value="idea">Идея</option>
+          <option value="question">Вопрос</option>
+          <option value="feature">Фича</option>
+          <option value="ui">Интерфейс</option>
+          <option value="complaint">Жалоба</option>
           <option value="other">Другое</option>
         </Select>
 
@@ -167,7 +175,7 @@ export function SendFeedbackSection({ showHistory = true }: { showHistory?: bool
               <li key={item.id} className="text-sm">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-medium text-[var(--foreground)]">
-                    {CATEGORY_LABELS[item.category]}
+                    {CATEGORY_LABELS[item.category] ?? item.category}
                     {item.rating != null ? ` · ${item.rating}/5` : ''}
                   </span>
                   <span className="text-xs text-[var(--muted)]">

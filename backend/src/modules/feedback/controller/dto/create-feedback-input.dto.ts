@@ -12,15 +12,17 @@ import {
   MinLength,
 } from 'class-validator'
 
+import { FEEDBACK_CATEGORIES, FeedbackCategory } from '../../core/types'
+
 export class CreateFeedbackInputDto {
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()
   id?: string
 
-  @ApiProperty({ enum: ['bug', 'idea', 'other'] })
-  @IsIn(['bug', 'idea', 'other'])
-  category!: 'bug' | 'idea' | 'other'
+  @ApiProperty({ enum: FEEDBACK_CATEGORIES })
+  @IsIn([...FEEDBACK_CATEGORIES])
+  category!: FeedbackCategory
 
   @ApiProperty({ minLength: 1, maxLength: 2000 })
   @IsString()

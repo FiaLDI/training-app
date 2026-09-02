@@ -1,4 +1,13 @@
-import { ApiProperty } from '@nestjs/swagger'
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
+
+import {
+  FEEDBACK_CATEGORIES,
+  FEEDBACK_PRIORITIES,
+  FEEDBACK_STATUSES,
+  FeedbackCategory,
+  FeedbackPriority,
+  FeedbackStatus,
+} from '../../core/types'
 
 export class FeedbackResponseDto {
   @ApiProperty({ format: 'uuid' })
@@ -7,8 +16,8 @@ export class FeedbackResponseDto {
   @ApiProperty({ format: 'uuid', nullable: true })
   userId!: string | null
 
-  @ApiProperty({ enum: ['bug', 'idea', 'other'] })
-  category!: 'bug' | 'idea' | 'other'
+  @ApiProperty({ enum: FEEDBACK_CATEGORIES })
+  category!: FeedbackCategory
 
   @ApiProperty()
   message!: string
@@ -16,12 +25,18 @@ export class FeedbackResponseDto {
   @ApiProperty({ nullable: true, example: 5 })
   rating!: number | null
 
-  @ApiProperty({ enum: ['new', 'read', 'resolved'] })
-  status!: 'new' | 'read' | 'resolved'
+  @ApiProperty({ enum: FEEDBACK_STATUSES })
+  status!: FeedbackStatus
+
+  @ApiProperty({ enum: FEEDBACK_PRIORITIES })
+  priority!: FeedbackPriority
 
   @ApiProperty({ type: 'object', additionalProperties: true })
   clientMeta!: Record<string, unknown>
 
   @ApiProperty()
   createdAt!: string
+
+  @ApiPropertyOptional({ nullable: true, description: 'Present on admin inbox only' })
+  authorEmail?: string | null
 }

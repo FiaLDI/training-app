@@ -244,13 +244,17 @@ Authorization: Bearer …
 
 ### Feedback — `/api/feedback`
 
+Категории: `bug`, `idea`, `question`, `feature`, `ui`, `complaint`, `other`.
+Статусы: `new`, `read`, `resolved`. Приоритет: `low`, `normal`, `high` (по умолчанию `normal`).
+
 | Метод | Путь | Описание |
 |-------|------|----------|
 | POST | `/feedback` | Отправить |
 | GET | `/feedback` | Свои сообщения |
-| GET | `/feedback/inbox` | Admin inbox |
-| PATCH | `/feedback/:id/resolve` | Admin |
-| DELETE | `/feedback/:id` | Admin |
+| GET | `/feedback/inbox?page&limit&q&status&priority&category&sort&order` | Admin inbox. Ответ `{ items, total, page, limit }`. `authorEmail` или `null`. Поиск `q` по тексту и почте. Фильтры: `status`, `priority`, `category`. `sort`: `default` (нерешённые, приоритет, дата) \| `createdAt` \| `priority` \| `status`. `order`: `asc` \| `desc` (для `default` игнорируется). Локальный режим — автор анонимный |
+| PATCH | `/feedback/:id/resolve` | Admin: статус → `resolved` |
+| PATCH | `/feedback/:id` | Admin: `{ status?, priority? }`. `status: "read"` снимает «решено»; `status: "new"` — непрочитано |
+| DELETE | `/feedback/:id` | Admin, только `resolved` |
 
 ### Uploads — `/api/uploads`
 

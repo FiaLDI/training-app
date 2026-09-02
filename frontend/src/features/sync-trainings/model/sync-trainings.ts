@@ -17,7 +17,7 @@ import {
   trainingContentHash,
 } from '@/shared/lib/training-sync-meta'
 
-import { healDuplicateTrainingExercises } from './heal-duplicate-exercises'
+import { adoptRemoteEntityIds } from './adopt-remote-ids'
 import { flushDeletes } from './flush-deletes'
 
 export type SyncTrainingProgress = {
@@ -35,14 +35,24 @@ function stripSyncMeta(metadata: Record<string, unknown>) {
 
 const writeExtras = { timeoutMs: SYNC_WRITE_TIMEOUT_MS }
 
-async function ensureTrainingShell(training: TrainingWithDetails, templateId: string | null) {
-  let remote: TrainingWithDetails | null = null
-  try {
-    remote = await trainingApi.getById(training.id, writeExtras)
-  } catch (error) {
-    if (!(error instanceof ApiError && error.status === 404)) throw error
-  }
+function isIncompleteTemplateSnapshot(training: TrainingWithDetails) {
+  return Boolean(training.templateId) && training.exercises.length === 0
+}
 
+async function fetchRemoteTraining(trainingId: string): Promise<TrainingWithDetails | null> {
+  try {
+    return await trainingApi.getById(trainingId, writeExtras)
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null
+    throw error
+  }
+}
+
+async function ensureTrainingShell(
+  training: TrainingWithDetails,
+  templateId: string | null,
+  remote: TrainingWithDetails | null,
+) {
   const payload = {
     status: training.status,
     scheduledAt: training.scheduledAt,
@@ -175,13 +185,16 @@ async function upsertTrainingGroup(
 }
 
 /** Push one local snapshot; does not mark synced (caller checks stability). */
-async function pushTrainingSnapshot(training: TrainingWithDetails) {
+async function pushTrainingSnapshot(
+  training: TrainingWithDetails,
+  remote: TrainingWithDetails | null,
+) {
   const templateId =
     training.templateId && localData.templates.get(training.templateId)
       ? training.templateId
       : null
 
-  await ensureTrainingShell(training, templateId)
+  await ensureTrainingShell(training, templateId, remote)
 
   for (const exercise of training.exercises) {
     await upsertExercise(training.id, exercise)
@@ -198,25 +211,47 @@ async function pushTrainingSnapshot(training: TrainingWithDetails) {
  * Upload until local content stops changing mid-flight.
  * Prevents orphan sets logged during sync from being marked synced without POST.
  */
-async function uploadTrainingUntilStable(trainingId: string) {
+async function uploadTrainingUntilStable(trainingId: string): Promise<'synced' | 'deferred'> {
   for (let attempt = 0; attempt < MAX_STABLE_UPLOAD_ATTEMPTS; attempt += 1) {
-    const snapshot = localData.trainings.get(trainingId)
+    let snapshot = localData.trainings.get(trainingId)
     if (!snapshot) throw new Error('Тренировка не найдена локально')
 
+    if (isIncompleteTemplateSnapshot(snapshot)) {
+      markTrainingPending(trainingId, 'queued')
+      return 'deferred'
+    }
+
+    const remote = await fetchRemoteTraining(snapshot.id)
+    if (remote) adoptRemoteEntityIds(snapshot.id, remote)
+
+    snapshot = localData.trainings.get(trainingId)
+    if (!snapshot) throw new Error('Тренировка не найдена локально')
+
+    if (isIncompleteTemplateSnapshot(snapshot)) {
+      markTrainingPending(trainingId, 'queued')
+      return 'deferred'
+    }
+
     const beforeHash = trainingContentHash(snapshot)
-    await pushTrainingSnapshot(snapshot)
+    await pushTrainingSnapshot(snapshot, remote)
 
     const after = localData.trainings.get(trainingId)
     if (!after) throw new Error('Тренировка не найдена локально')
 
+    if (isIncompleteTemplateSnapshot(after)) {
+      markTrainingPending(trainingId, 'queued')
+      return 'deferred'
+    }
+
     const afterHash = trainingContentHash(after)
     if (afterHash === beforeHash) {
       markTrainingSynced(trainingId, beforeHash)
-      return
+      return 'synced'
     }
   }
 
   markTrainingPending(trainingId, 'queued')
+  return 'deferred'
 }
 
 export async function syncTrainings(
@@ -225,7 +260,6 @@ export async function syncTrainings(
   options?: { skipCatalogFlush?: boolean },
 ): Promise<SyncTrainingProgress[]> {
   healSyncedTrainingsMissingContentHash()
-  healDuplicateTrainingExercises()
   await flushDeletes()
 
   const progress: SyncTrainingProgress[] = trainingIds.map((trainingId) => ({
@@ -252,8 +286,8 @@ export async function syncTrainings(
     }
 
     try {
-      await uploadTrainingUntilStable(item.trainingId)
-      item.status = 'done'
+      const outcome = await uploadTrainingUntilStable(item.trainingId)
+      item.status = outcome === 'synced' ? 'done' : 'pending'
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Не удалось отправить'
       markTrainingSyncError(item.trainingId, message)

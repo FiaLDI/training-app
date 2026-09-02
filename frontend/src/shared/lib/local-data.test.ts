@@ -77,29 +77,25 @@ describe('localData trainings groups and copies', () => {
     expect(after?.exercises.every((item) => item.groupId == null)).toBe(true)
   })
 
-  it('drops duplicated catalog+order rows and keeps the one with sets', () => {
+  it('rebinds an exercise id and moves its sets', () => {
     const training = localData.trainings.create({
       id: 'tr-3',
       status: 'planned',
       scheduledAt: '2026-08-31T12:00:00.000Z',
     })
     localData.trainings.addExercise(training.id, {
-      id: 'keep',
+      id: 'local-row',
       exerciseId: 'ex-a',
       exerciseOrder: 0,
       targetSets: 3,
     })
-    localData.trainings.addExercise(training.id, {
-      id: 'dup',
-      exerciseId: 'ex-a',
-      exerciseOrder: 0,
-      targetSets: 3,
-    })
-    localData.trainings.addSet('keep', { id: 'set-1', setNumber: 1, reps: 8 })
+    localData.trainings.addSet('local-row', { id: 'set-1', setNumber: 1, reps: 8 })
 
-    const removed = localData.trainings.dedupeExercises(training.id)
-    expect(removed).toEqual(['dup'])
-    expect(localData.trainings.get(training.id)?.exercises.map((item) => item.id)).toEqual(['keep'])
+    localData.trainings.rebindExerciseId('local-row', 'remote-row')
+
+    const after = localData.trainings.get(training.id)
+    expect(after?.exercises.map((item) => item.id)).toEqual(['remote-row'])
+    expect(after?.exercises[0].sets.map((item) => item.trainingExerciseId)).toEqual(['remote-row'])
   })
 
   it('replaceDetails drops local exercises that are not in the snapshot', () => {
