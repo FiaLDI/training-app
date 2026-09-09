@@ -26,6 +26,7 @@ export class UpdateExerciseUseCase implements UseCase<UpdateExerciseInput, Updat
     const exercise = await this.exerciseRepository.update({
       id: input.id,
       userId: input.isSystem === true ? null : undefined,
+      isSystem: input.isSystem === true ? true : undefined,
       name: input.name,
       description: input.description,
       muscleGroup: input.muscleGroup,

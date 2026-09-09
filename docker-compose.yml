@@ -69,6 +69,9 @@ services:
       # Optional. If unset, LoginCodeService falls back to JWT_SECRET — same as the
       # HashLoginCodes migration. Do not invent a different default here.
       LOGIN_CODE_PEPPER: ${LOGIN_CODE_PEPPER:-}
+      UPLOAD_DIR: /data/upload
+    volumes:
+      - ./upload:/data/upload
     expose:
       - "3000"
 

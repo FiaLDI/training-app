@@ -32,7 +32,7 @@ export class CreateExerciseInputDto {
   @IsObject()
   metadata?: Record<string, unknown>
 
-  /** Admin only: create a shared system exercise (user_id NULL). Ignored for non-admins. */
+  /** Admin only: create a shared system exercise. Ignored for non-admins. */
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()

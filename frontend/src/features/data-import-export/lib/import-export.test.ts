@@ -6,6 +6,7 @@ import { setStorageScope } from '@/shared/lib/storage-scope'
 import { detectCsvFormat } from './detect-csv-format'
 import { parseCsv, parseNumber } from './csv-utils'
 import { parseWorkoutDate } from './date-utils'
+import { buildExportBundle } from './export-data'
 import { importJsonBundle } from './import-workouts'
 import { parseFitNotesCsv } from './parsers/fitnotes-csv'
 import { parseHevyCsv } from './parsers/hevy-csv'
@@ -106,6 +107,7 @@ describe('importJsonBundle', () => {
     localData.exercises.upsert({
       id: 'ex-a',
       userId: null,
+      isSystem: false,
       name: 'Bench',
       description: null,
       muscleGroup: null,
@@ -160,5 +162,129 @@ describe('importJsonBundle', () => {
     const training = localData.trainings.get('tr-imported')
     expect(training?.templateId).toBe('tpl-1')
     expect(training?.exercises.map((item) => item.id)).toEqual(['imported-row'])
+  })
+
+  it('does not import system catalog snapshots', () => {
+    importJsonBundle(
+      {
+        exercises: [
+          {
+            id: 'sys-1',
+            userId: null,
+            isSystem: true,
+            name: 'Жим лёжа',
+            description: null,
+            muscleGroup: null,
+            difficulty: null,
+            metadata: { catalogSyncedAt: '2026-01-01T00:00:00.000Z' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      },
+      { cloudMode: false },
+    )
+    expect(localData.exercises.get('sys-1')).toBeNull()
+  })
+
+  it('skips a custom duplicate by name and remaps training exerciseId', () => {
+    localData.exercises.upsert({
+      id: 'local-bench',
+      userId: null,
+      isSystem: false,
+      name: 'Жим лёжа',
+      description: null,
+      muscleGroup: null,
+      difficulty: null,
+      metadata: {},
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+
+    const result = importJsonBundle(
+      {
+        exercises: [
+          {
+            id: 'imported-bench',
+            userId: 'other-user',
+            isSystem: false,
+            name: 'жим лёжа',
+            description: null,
+            muscleGroup: null,
+            difficulty: null,
+            metadata: {},
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        trainings: [
+          {
+            id: 'tr-name-dup',
+            templateId: null,
+            programId: null,
+            programDayId: null,
+            status: 'finished',
+            scheduledAt: null,
+            startedAt: '2026-01-02T12:00:00.000Z',
+            finishedAt: '2026-01-02T13:00:00.000Z',
+            notes: null,
+            metadata: {},
+            createdAt: '2026-01-02T12:00:00.000Z',
+            groups: [],
+            exercises: [
+              {
+                id: 'row-1',
+                trainingId: 'tr-name-dup',
+                exerciseId: 'imported-bench',
+                exerciseOrder: 0,
+                targetSets: 1,
+                isWarmup: false,
+                minReps: null,
+                maxReps: null,
+                maxWeight: null,
+                previousMaxWeight: null,
+                restSeconds: null,
+                notes: null,
+                groupId: null,
+                positionInGroup: null,
+                metadata: {},
+                sets: [],
+              },
+            ],
+          },
+        ],
+      },
+      { cloudMode: false },
+    )
+
+    expect(result.exercisesCreated).toBe(0)
+    expect(localData.exercises.get('imported-bench')).toBeNull()
+    expect(localData.trainings.get('tr-name-dup')?.exercises[0]?.exerciseId).toBe('local-bench')
+  })
+})
+
+describe('buildExportBundle', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setStorageScope('local')
+  })
+
+  it('omits system exercises from the user backup', () => {
+    localData.exercises.upsert({
+      id: 'sys-1',
+      userId: null,
+      isSystem: true,
+      name: 'Присед',
+      description: null,
+      muscleGroup: null,
+      difficulty: null,
+      metadata: {},
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    localData.exercises.create({ id: 'custom-1', name: 'Мой жим' })
+
+    const bundle = buildExportBundle()
+    expect(bundle.exercises.map((item) => item.id)).toEqual(['custom-1'])
   })
 })

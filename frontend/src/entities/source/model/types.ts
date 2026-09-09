@@ -13,6 +13,7 @@ export type CreateSourceInput = {
   type: string
   title?: string | null
   url: string
+  metadata?: Record<string, unknown>
 }
 
 export type ListSourcesResult = {

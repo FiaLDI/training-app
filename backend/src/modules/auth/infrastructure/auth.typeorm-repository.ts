@@ -90,6 +90,21 @@ export class AuthTypeormRepository implements AuthRepositoryPort {
     )
   }
 
+  async updateUserProfile(
+    userId: string,
+    input: { email: string; username: string },
+  ): Promise<User | null> {
+    const entity = await this.users.findOne({ where: { id: userId } })
+    if (!entity) return null
+    entity.email = input.email.toLowerCase()
+    entity.username = input.username
+    return this.mapUser(await this.users.save(entity))
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    await this.users.delete({ id: userId })
+  }
+
   async touchLastLogin(userId: string): Promise<void> {
     await this.users.update({ id: userId }, { lastLoginAt: new Date() })
   }

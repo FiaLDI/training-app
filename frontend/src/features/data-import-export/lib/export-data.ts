@@ -1,5 +1,6 @@
 import type { BodyMeasurement } from '@/entities/body-measurement/model/types'
 import type { Exercise } from '@/entities/exercise/model/types'
+import { hydrateExercise } from '@/entities/exercise/model/hydrate-exercise'
 import type { ProgramWithDays } from '@/entities/program/model/types'
 import type { WorkoutTemplateWithExercises } from '@/entities/template/model/types'
 import type { TrainingWithDetails } from '@/entities/training/model/types'
@@ -59,7 +60,7 @@ export function buildExportBundle(): DataExportBundle {
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     app: 'ironlog',
-    exercises: localData.exercises.list(),
+    exercises: localData.exercises.list().filter((exercise) => !hydrateExercise(exercise).isSystem),
     templates,
     programs,
     trainings,

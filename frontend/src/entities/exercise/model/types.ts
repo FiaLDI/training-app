@@ -1,7 +1,8 @@
 export type Exercise = {
   id: string
-  /** null/undefined = system exercise; uuid = custom owned by that user */
+  /** null/undefined until synced; uuid = custom owner */
   userId?: string | null
+  isSystem: boolean
   name: string
   description: string | null
   muscleGroup: string | null

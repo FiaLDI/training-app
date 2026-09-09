@@ -12,7 +12,6 @@ import {
   isTrainingPendingSync,
   markTrainingPending,
   mirrorTrainingLocally,
-  trainingContentHash,
 } from '@/shared/lib/training-sync-meta'
 
 import {
@@ -20,7 +19,13 @@ import {
   ensureTemplateWithExercises,
   trainingNeedsTemplateHydration,
 } from '../lib/hydrate-from-template'
-import { shouldKeepLocalOverRemote } from '../lib/keep-local-over-remote'
+import {
+  ingestCloudTrainingHeaders,
+  pullCloudTrainingDetails,
+  pullCloudTrainingDetailsForList,
+  unionTrainingLists,
+  type PullCloudResult,
+} from '../lib/pull-cloud-training'
 import { trainingApi } from '../api/training-api'
 import type {
   CreateTrainingExerciseInput,
@@ -71,9 +76,18 @@ function scheduleCloudSync() {
   afterLocalCloudWrite()
 }
 
-async function applyTemplateHydration(trainingId: string): Promise<TrainingWithDetails | null> {
+function canHydrateFromTemplate(cloudPull?: PullCloudResult) {
+  if (!isCloudMode()) return true
+  return cloudPull === 'ok' || cloudPull === 'missing'
+}
+
+async function applyTemplateHydration(
+  trainingId: string,
+  cloudPull?: PullCloudResult,
+): Promise<TrainingWithDetails | null> {
   const before = localData.trainings.get(trainingId)
   if (!before || !trainingNeedsTemplateHydration(before)) return before
+  if (!canHydrateFromTemplate(cloudPull)) return before
 
   const hydrated = await hydrateTrainingFromTemplate(trainingId)
   if (hydrated && hydrated.exercises.length > 0 && isCloudMode()) {
@@ -83,19 +97,14 @@ async function applyTemplateHydration(trainingId: string): Promise<TrainingWithD
   return hydrated
 }
 
-async function pullCloudDetails(id: string, timeoutMs: number): Promise<boolean> {
-  if (!isCloudMode()) return false
-  try {
-    const remote = await trainingApi.getById(id, { timeoutMs })
-    const latestLocal = localData.trainings.get(id)
-    if (!shouldKeepLocalOverRemote(latestLocal, remote)) {
-      const keepPending = Boolean(latestLocal && isTrainingPendingSync(latestLocal))
-      mirrorTrainingLocally(remote, keepPending ? 'pending' : 'synced')
-    }
-    return true
-  } catch {
-    return false
-  }
+function mergeFetchedCloudList(
+  items: Training[],
+  prev: Training[],
+  mode: 'replace' | 'union',
+) {
+  ingestCloudTrainingHeaders(items)
+  const merged = mergeCloudWithPending(items)
+  return mode === 'union' ? unionTrainingLists(prev, merged) : merged
 }
 
 type TrainingStore = {
@@ -104,6 +113,7 @@ type TrainingStore = {
   loading: boolean
   error: string | null
   fetchList: (params?: { limit?: number; from?: string; to?: string }) => Promise<void>
+  pullLatestFromCloud: () => Promise<void>
   fetchOne: (id: string) => Promise<void>
   create: (input: CreateTrainingInput) => Promise<Training>
   update: (id: string, input: Partial<CreateTrainingInput>) => Promise<void>
@@ -165,30 +175,14 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
         limit: params?.limit ?? 100,
         from: params?.from,
         to: params?.to,
-        timeoutMs: catalogKnown ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
+        timeoutMs: READ_TIMEOUT_MS,
       })
-      for (const item of result.items) {
-        const local = localData.trainings.get(item.id)
-        if (local && isTrainingPendingSync(local)) continue
-        if (!local) {
-          const shell = {
-            ...item,
-            groups: [] as TrainingWithDetails['groups'],
-            exercises: [] as TrainingWithDetails['exercises'],
-          }
-          localData.trainings.upsert({
-            ...item,
-            metadata: {
-              ...item.metadata,
-              sync: {
-                status: 'synced',
-                serverSyncedAt: new Date().toISOString(),
-                contentHash: trainingContentHash(shell),
-              },
-            },
-          })
-        }
-      }
+      set({
+        items: mergeFetchedCloudList(result.items, prevItems, 'replace'),
+        loading: false,
+        error: null,
+      })
+      await pullCloudTrainingDetailsForList(result.items, BACKGROUND_READ_TIMEOUT_MS)
       set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
     } catch (error) {
       const fallback = localData.trainings.list({ from: params?.from, to: params?.to })
@@ -201,6 +195,26 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
             ? error.message
             : 'Не удалось загрузить тренировки',
       })
+    }
+  },
+
+  async pullLatestFromCloud() {
+    if (!isCloudMode()) return
+    try {
+      const result = await trainingApi.list({
+        limit: 50,
+        timeoutMs: READ_TIMEOUT_MS,
+      })
+      set({
+        items: mergeFetchedCloudList(result.items, get().items, 'union'),
+        error: null,
+      })
+      await pullCloudTrainingDetailsForList(result.items, BACKGROUND_READ_TIMEOUT_MS)
+      set({
+        items: unionTrainingLists(get().items, mergeCloudWithPending(result.items)),
+      })
+    } catch {
+      // offline / slow — keep the current list
     }
   },
 
@@ -223,11 +237,11 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       set({ loading: true, error: null, current: null })
     }
 
-    const pulled = await pullCloudDetails(
+    const pulled = await pullCloudTrainingDetails(
       id,
       local ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
     )
-    if (!pulled && !localData.trainings.get(id) && !local) {
+    if (pulled !== 'ok' && !localData.trainings.get(id) && !local) {
       set({
         loading: false,
         error: 'Не удалось загрузить тренировку',
@@ -235,7 +249,7 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       return
     }
 
-    await applyTemplateHydration(id)
+    await applyTemplateHydration(id, pulled)
     const current = localData.trainings.get(id) ?? local ?? null
     set({
       current,
@@ -276,8 +290,22 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
 
   async start(id) {
     ensureLocalTrainingShell(id, get().current)
-    const existing = localData.trainings.get(id)
+    let existing = localData.trainings.get(id)
     if (!existing) throw new Error('Тренировка не найдена')
+
+    if (isCloudMode() && (trainingNeedsTemplateHydration(existing) || existing.status === 'planned')) {
+      const pulled = await pullCloudTrainingDetails(id, READ_TIMEOUT_MS)
+      existing = localData.trainings.get(id) ?? existing
+      if (pulled === 'error' && trainingNeedsTemplateHydration(existing)) {
+        set({ current: existing, error: 'Не удалось загрузить тренировку' })
+        return existing
+      }
+      await applyTemplateHydration(id, pulled)
+      existing = localData.trainings.get(id) ?? existing
+    } else {
+      await applyTemplateHydration(id)
+      existing = localData.trainings.get(id) ?? existing
+    }
 
     if (existing.status === 'finished' || existing.status === 'cancelled') {
       if (existing.templateId) {
@@ -299,14 +327,9 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
       return training
     }
 
-    if (isCloudMode() && trainingNeedsTemplateHydration(existing)) {
-      await pullCloudDetails(id, READ_TIMEOUT_MS)
-    }
-    await applyTemplateHydration(id)
-
     localData.trainings.update(id, {
       status: 'in_progress',
-      startedAt: new Date().toISOString(),
+      startedAt: existing.startedAt ?? new Date().toISOString(),
     })
     markTrainingPending(id, pendingReason())
     const current = localData.trainings.get(id)

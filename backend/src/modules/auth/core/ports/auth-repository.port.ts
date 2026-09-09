@@ -19,6 +19,11 @@ export interface AuthRepositoryPort {
     userId: string,
     input: { loginCodeHash: string; loginCodeLookup: string },
   ): Promise<void>
+  updateUserProfile(
+    userId: string,
+    input: { email: string; username: string },
+  ): Promise<User | null>
+  deleteUser(userId: string): Promise<void>
   touchLastLogin(userId: string): Promise<void>
   revokeSessionsAt(userId: string, at: Date): Promise<void>
   listUsers(): Promise<User[]>

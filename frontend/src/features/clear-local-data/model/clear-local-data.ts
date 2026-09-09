@@ -28,6 +28,7 @@ export function resetEntityStores() {
     current: null,
     loading: false,
     error: null,
+    query: '',
   })
   useProgramStore.setState({
     items: [],

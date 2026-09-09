@@ -9,6 +9,7 @@ import { DataSource } from 'typeorm'
 import { BodyMeasurementEntity } from './src/modules/body-measurement/core/entity/body-measurement.entity'
 import { UserEntity } from './src/modules/auth/core/entity/user.entity'
 import { FeedbackEntity } from './src/modules/feedback/core/entity/feedback.entity'
+import { NewsEntity } from './src/modules/news/core/entity/news.entity'
 import { ExerciseEntity } from './src/modules/exercise/core/entity/exercise.entity'
 import { ExerciseSourceEntity } from './src/modules/source/core/entity/exercise-source.entity'
 import { ExerciseTimecodeEntity } from './src/modules/source/core/entity/exercise-timecode.entity'
@@ -52,6 +53,7 @@ export default new DataSource({
     UserEntity,
     BodyMeasurementEntity,
     FeedbackEntity,
+    NewsEntity,
     ExerciseEntity,
     ExerciseSourceEntity,
     ExerciseTimecodeEntity,

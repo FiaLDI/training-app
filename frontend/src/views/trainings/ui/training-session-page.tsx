@@ -34,6 +34,7 @@ import { useExerciseStore } from '@/entities/exercise/model/store'
 import { usePreferencesStore } from '@/entities/preferences/model/store'
 import { SessionExerciseMedia } from '@/entities/exercise/ui/session-exercise-media'
 import { SessionExerciseVideo } from '@/entities/source/ui/session-exercise-video'
+import { useConstrainedConnection } from '@/shared/lib/use-constrained-connection'
 import {
   countCompletedGroupRounds,
   getNextExerciseInGroup,
@@ -235,6 +236,8 @@ export function TrainingSessionPage({ id }: Props) {
   const showSessionMuscleDiagram = usePreferencesStore((s) => s.showSessionMuscleDiagram)
   const showSessionVideo = usePreferencesStore((s) => s.showSessionVideo)
   const showSessionNotes = usePreferencesStore((s) => s.showSessionNotes)
+  const constrainedConnection = useConstrainedConnection()
+  const showExerciseImage = showSessionExerciseImage && !constrainedConnection
   const startRestTimer = useRestTimerStore((s) => s.start)
   const dismissRestTimer = useRestTimerStore((s) => s.dismiss)
 
@@ -520,10 +523,10 @@ export function TrainingSessionPage({ id }: Props) {
             onSelectExercise={(exerciseId) => setActiveExerciseId(exerciseId)}
           />
           {activeCatalogExercise &&
-          (showSessionExerciseImage || showSessionMuscleDiagram) ? (
+          (showExerciseImage || showSessionMuscleDiagram) ? (
             <SessionExerciseMedia
               exercise={activeCatalogExercise}
-              showImage={showSessionExerciseImage}
+              showImage={showExerciseImage}
               showMuscleDiagram={showSessionMuscleDiagram}
             />
           ) : null}

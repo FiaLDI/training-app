@@ -1,4 +1,6 @@
 import type { TrainingSyncMeta, TrainingWithDetails } from '@/entities/training/model/types'
+import { normalizeExerciseName } from '@/entities/exercise/lib/normalize-exercise-name'
+import type { Exercise } from '@/entities/exercise/model/types'
 import { localData } from '@/shared/lib/local-data'
 import { createLocalId } from '@/shared/lib/local-id'
 
@@ -15,6 +17,86 @@ function pendingSyncMeta(cloudMode: boolean): TrainingSyncMeta {
 function stripSyncMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
   const { sync: _sync, ...rest } = metadata
   return rest
+}
+
+function isSystemSnapshot(item: {
+  isSystem?: unknown
+  userId?: unknown
+  metadata?: unknown
+}): boolean {
+  if (item.isSystem === true) return true
+  if (item.isSystem === false) return false
+  const metadata =
+    item.metadata && typeof item.metadata === 'object'
+      ? (item.metadata as Record<string, unknown>)
+      : {}
+  return (
+    (item.userId == null || item.userId === '') &&
+    typeof metadata.catalogSyncedAt === 'string' &&
+    metadata.catalogSyncedAt.length > 0
+  )
+}
+
+function findByNormalizedName(name: string): Exercise | undefined {
+  const key = normalizeExerciseName(name)
+  return localData.exercises.list().find((exercise) => normalizeExerciseName(exercise.name) === key)
+}
+
+function importExercises(rawExercises: unknown[]): {
+  created: number
+  remap: Map<string, string>
+} {
+  const remap = new Map<string, string>()
+  let created = 0
+
+  for (const exercise of rawExercises) {
+    if (!exercise || typeof exercise !== 'object') continue
+    const item = exercise as Record<string, unknown>
+    if (typeof item.id !== 'string' || typeof item.name !== 'string') continue
+
+    const localById = localData.exercises.get(item.id)
+    const localByName = findByNormalizedName(item.name)
+
+    if (isSystemSnapshot(item)) {
+      if (localById) remap.set(item.id, localById.id)
+      else if (localByName) remap.set(item.id, localByName.id)
+      continue
+    }
+
+    if (localById) {
+      remap.set(item.id, localById.id)
+      continue
+    }
+    if (localByName) {
+      remap.set(item.id, localByName.id)
+      continue
+    }
+
+    const stamp = new Date().toISOString()
+    localData.exercises.upsert({
+      id: item.id,
+      userId: null,
+      isSystem: false,
+      name: item.name,
+      description: typeof item.description === 'string' ? item.description : null,
+      muscleGroup: typeof item.muscleGroup === 'string' ? item.muscleGroup : null,
+      difficulty: typeof item.difficulty === 'string' ? item.difficulty : null,
+      metadata:
+        item.metadata && typeof item.metadata === 'object'
+          ? (item.metadata as Record<string, unknown>)
+          : {},
+      createdAt: typeof item.createdAt === 'string' ? item.createdAt : stamp,
+      updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : stamp,
+    })
+    created += 1
+  }
+
+  return { created, remap }
+}
+
+function resolveImportedExerciseId(id: string | undefined, remap: Map<string, string>): string | undefined {
+  if (!id) return id
+  return remap.get(id) ?? id
 }
 
 function workoutExists(key: string, startedAt: string): boolean {
@@ -118,27 +200,9 @@ export function importJsonBundle(
   let exercisesCreated = 0
 
   const exercises = Array.isArray(bundle.exercises) ? bundle.exercises : []
-  for (const exercise of exercises) {
-    if (!exercise || typeof exercise !== 'object') continue
-    const item = exercise as Record<string, unknown>
-    if (typeof item.id !== 'string' || typeof item.name !== 'string') continue
-    if (localData.exercises.get(item.id)) continue
-    localData.exercises.upsert({
-      id: item.id,
-      userId: typeof item.userId === 'string' ? item.userId : null,
-      name: item.name,
-      description: typeof item.description === 'string' ? item.description : null,
-      muscleGroup: typeof item.muscleGroup === 'string' ? item.muscleGroup : null,
-      difficulty: typeof item.difficulty === 'string' ? item.difficulty : null,
-      metadata:
-        item.metadata && typeof item.metadata === 'object'
-          ? (item.metadata as Record<string, unknown>)
-          : {},
-      createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString(),
-      updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : new Date().toISOString(),
-    })
-    exercisesCreated += 1
-  }
+  const importedExercises = importExercises(exercises)
+  exercisesCreated = importedExercises.created
+  const remap = importedExercises.remap
 
   const trainings = Array.isArray(bundle.trainings) ? bundle.trainings : []
   for (const training of trainings) {
@@ -170,7 +234,7 @@ export function importJsonBundle(
     )
 
     for (const exercise of item.exercises ?? []) {
-      const exerciseId = exercise.exerciseId
+      const exerciseId = resolveImportedExerciseId(exercise.exerciseId, remap)
       if (!exerciseId) continue
       const trainingExercise = localData.trainings.addExercise(item.id, {
         id: exercise.id ?? createLocalId(),

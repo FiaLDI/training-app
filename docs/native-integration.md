@@ -274,9 +274,13 @@ file=<binary>
   "filename": "…",
   "size": 12345,
   "mimeType": "image/jpeg",
-  "originalName": "photo.jpg"
+  "originalName": "photo.jpg",
+  "thumbUrl": "/upload/…-thumb.webp",
+  "mediumUrl": "/upload/…-md.webp"
 }
 ```
+
+Для растровых изображений (jpg/png/gif/webp) upload-сервис дополнительно пишет WebP-варианты ~320w и ~800w. `thumbUrl` / `mediumUrl` могут отсутствовать, если файл не картинка или ресайз не удался. Оригинал сохраняется как есть.
 
 Upload-сервис может быть на отдельном порту (`3002`); через frontend proxy путь тот же `/api/uploads`.
 

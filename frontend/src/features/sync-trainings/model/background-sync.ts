@@ -16,6 +16,9 @@ import { syncTrainings } from './sync-trainings'
 let flushing = false
 let queued = false
 let timer: ReturnType<typeof setTimeout> | null = null
+let pulling = false
+let pullQueued = false
+let pullTimer: ReturnType<typeof setTimeout> | null = null
 let listenersStarted = false
 /** While > 0, background flush is deferred (e.g. active workout screen). */
 let pauseDepth = 0
@@ -37,12 +40,17 @@ export function pauseBackgroundSync() {
     clearTimeout(timer)
     timer = null
   }
+  if (pullTimer != null) {
+    clearTimeout(pullTimer)
+    pullTimer = null
+  }
 }
 
 export function resumeBackgroundSync() {
   pauseDepth = Math.max(0, pauseDepth - 1)
   if (pauseDepth === 0 && isCloudMode()) {
     requestBackgroundSync()
+    requestBackgroundPull()
   }
 }
 
@@ -130,12 +138,65 @@ function scheduleFlush() {
   }, DEBOUNCE_MS)
 }
 
+async function runPull() {
+  if (!isCloudMode()) return
+  if (isBackgroundSyncPaused()) {
+    pullQueued = true
+    return
+  }
+  if (pulling) {
+    pullQueued = true
+    return
+  }
+
+  pulling = true
+  pullQueued = false
+  try {
+    await catalogSync.mergeFromServer({ timeoutMs: 5000 })
+    if (isBackgroundSyncPaused()) {
+      pullQueued = true
+      return
+    }
+    const [{ useTrainingStore }, { useTemplateStore }] = await Promise.all([
+      import('@/entities/training/model/store'),
+      import('@/entities/template/model/store'),
+    ])
+    await useTrainingStore.getState().pullLatestFromCloud()
+    await useTemplateStore.getState().fetchList()
+  } catch {
+    // next pull retries
+  } finally {
+    pulling = false
+    if (pullQueued && !isBackgroundSyncPaused()) schedulePull()
+  }
+}
+
+function schedulePull() {
+  if (isBackgroundSyncPaused()) {
+    pullQueued = true
+    return
+  }
+  if (pullTimer != null) clearTimeout(pullTimer)
+  pullTimer = setTimeout(() => {
+    pullTimer = null
+    void runPull()
+  }, DEBOUNCE_MS)
+}
+
 /** Queue a background push of pending local changes (cloud mode only). */
 export function requestBackgroundSync() {
   if (typeof window === 'undefined') return
   if (!isCloudMode()) return
   queued = true
   scheduleFlush()
+}
+
+/** Queue a background pull of cloud trainings/catalog (does not push). */
+export function requestBackgroundPull() {
+  if (typeof window === 'undefined') return
+  if (!isCloudMode()) return
+  pullQueued = true
+  schedulePull()
 }
 
 /** Call once from the app shell to sync when connectivity returns. */
@@ -145,13 +206,20 @@ export function startBackgroundSyncListeners() {
 
   window.addEventListener('online', () => {
     requestBackgroundSync()
+    requestBackgroundPull()
   })
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') requestBackgroundSync()
+    if (document.visibilityState === 'visible') {
+      requestBackgroundSync()
+      requestBackgroundPull()
+    }
   })
 
-  if (isCloudMode()) requestBackgroundSync()
+  if (isCloudMode()) {
+    requestBackgroundSync()
+    requestBackgroundPull()
+  }
 }
 
 export function afterLocalCloudWrite() {

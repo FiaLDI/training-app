@@ -70,7 +70,7 @@ export function DataImportExportActions() {
         </Button>
       </div>
       <p className="text-xs text-[var(--muted)]">
-        JSON — полная копия данных (тренировки, упражнения, шаблоны, замеры). CSV — история
+        JSON — свои тренировки и кастомные упражнения (без общего каталога). CSV — история
         подходов в формате, совместимом с Strong.
       </p>
 
@@ -92,7 +92,8 @@ export function DataImportExportActions() {
         {pending ? 'Импорт…' : 'Импорт из файла'}
       </Button>
       <p className="text-xs text-[var(--muted)]">
-        JSON IronLog, а также CSV-экспорты Strong, Hevy и FitNotes. Дубликаты по дате пропускаются.
+        JSON IronLog, а также CSV-экспорты Strong, Hevy и FitNotes. Дубликаты тренировок по
+        дате и упражнений по id/названию пропускаются. Общий каталог не импортируется.
       </p>
 
       {message ? <p className="text-sm text-emerald-300">{message}</p> : null}

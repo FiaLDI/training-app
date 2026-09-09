@@ -14,6 +14,9 @@ export class ExerciseEntity {
   @Column({ name: 'user_id', type: 'uuid', nullable: true })
   userId!: string | null
 
+  @Column({ name: 'is_system', type: 'boolean', default: false })
+  isSystem!: boolean
+
   @Column({ type: 'text' })
   name!: string
 

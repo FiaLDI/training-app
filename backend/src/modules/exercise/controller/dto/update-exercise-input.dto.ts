@@ -28,7 +28,7 @@ export class UpdateExerciseInputDto {
   @IsObject()
   metadata?: Record<string, unknown>
 
-  /** Admin only: promote custom → system (clears user_id). */
+  /** Admin only: promote custom → system. */
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()

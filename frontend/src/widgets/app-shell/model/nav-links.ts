@@ -6,6 +6,8 @@ import {
   Dumbbell,
   Home,
   LayoutTemplate,
+  Library,
+  Newspaper,
   Settings,
   Users,
 } from 'lucide-react'
@@ -26,11 +28,14 @@ export const moreLinks: NavLink[] = [
   { href: '/plans', label: 'Планы', icon: LayoutTemplate },
   { href: '/exercises', label: 'Упражнения', icon: Dumbbell },
   { href: '/settings', label: 'Профиль', icon: Settings },
+  { href: '/news', label: 'Новости', icon: Newspaper },
   { href: '/help', label: 'Помощь', icon: CircleHelp },
 ]
 
 export const adminLinks: NavLink[] = [
   { href: '/admin/users', label: 'Пользователи', icon: Users },
+  { href: '/admin/catalog', label: 'Каталог', icon: Library },
+  { href: '/admin/news', label: 'Новости', icon: Newspaper },
 ]
 
 export function isActive(pathname: string, href: string) {

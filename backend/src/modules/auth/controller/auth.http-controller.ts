@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   NotFoundException,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Req,
   Res,
@@ -16,6 +18,7 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
   ApiTooManyRequestsResponse,
 } from '@nestjs/swagger'
@@ -25,11 +28,14 @@ import { RateLimit } from '../../../shared/rate-limit/rate-limit.decorator'
 import { RateLimitGuard } from '../../../shared/rate-limit/rate-limit.guard'
 import { User } from '../core/types'
 import { CreateUserByAdminUseCase } from '../core/use-cases/create-user-by-admin/create-user-by-admin.use-case'
+import { DeleteUserByAdminUseCase } from '../core/use-cases/delete-user-by-admin/delete-user-by-admin.use-case'
+import { GetAdminUserUseCase } from '../core/use-cases/get-admin-user/get-admin-user.use-case'
 import { GetMeUseCase } from '../core/use-cases/get-me/get-me.use-case'
 import { ListUsersUseCase } from '../core/use-cases/list-users/list-users.use-case'
 import { LoginUseCase } from '../core/use-cases/login/login.use-case'
 import { RegisterUseCase } from '../core/use-cases/register/register.use-case'
 import { ResetLoginCodeUseCase } from '../core/use-cases/reset-login-code/reset-login-code.use-case'
+import { UpdateUserByAdminUseCase } from '../core/use-cases/update-user-by-admin/update-user-by-admin.use-case'
 import { AdminGuard } from '../infrastructure/admin.guard'
 import { AuthSessionService } from '../infrastructure/auth-session.service'
 import { AuthGuard } from '../infrastructure/auth.guard'
@@ -43,8 +49,10 @@ import {
   CreateUserByAdminInputDto,
   LoginInputDto,
   RegisterInputDto,
+  UpdateUserByAdminInputDto,
 } from './dto/auth-input.dto'
 import {
+  AdminUserListItemDto,
   AdminUsersResponseDto,
   AuthSessionResponseDto,
   IssuedLoginCodeResponseDto,
@@ -66,6 +74,12 @@ export class AuthHttpController {
     private readonly createUserByAdminUseCase: CreateUserByAdminUseCase,
     @Inject(ResetLoginCodeUseCase)
     private readonly resetLoginCodeUseCase: ResetLoginCodeUseCase,
+    @Inject(GetAdminUserUseCase)
+    private readonly getAdminUserUseCase: GetAdminUserUseCase,
+    @Inject(UpdateUserByAdminUseCase)
+    private readonly updateUserByAdminUseCase: UpdateUserByAdminUseCase,
+    @Inject(DeleteUserByAdminUseCase)
+    private readonly deleteUserByAdminUseCase: DeleteUserByAdminUseCase,
     private readonly authSession: AuthSessionService,
     private readonly jwtTokenService: JwtTokenService,
   ) {}
@@ -174,5 +188,42 @@ export class AuthHttpController {
       userId: id,
       actorUserId: actor.id,
     })
+  }
+
+  @Get('admin/users/:id')
+  @UseGuards(AuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user by id (admin) — never includes login codes' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: AdminUserListItemDto })
+  async getUser(@Param('id', ParseUUIDPipe) id: string) {
+    return this.getAdminUserUseCase.execute({ userId: id })
+  }
+
+  @Patch('admin/users/:id')
+  @UseGuards(AuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update user email or username (admin)' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: AdminUserListItemDto })
+  async updateUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserByAdminInputDto,
+  ) {
+    return this.updateUserByAdminUseCase.execute({
+      userId: id,
+      email: dto.email,
+      username: dto.username,
+    })
+  }
+
+  @Delete('admin/users/:id')
+  @UseGuards(AuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a non-admin user (admin)' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ schema: { properties: { ok: { type: 'boolean' } } } })
+  async deleteUser(@Param('id', ParseUUIDPipe) id: string) {
+    return this.deleteUserByAdminUseCase.execute({ userId: id })
   }
 }

@@ -28,7 +28,7 @@ export function AddTemplateExerciseForm({ templateId, nextOrder }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    void fetchExercises('')
+    void fetchExercises()
   }, [fetchExercises])
 
   async function onSubmit(event: FormEvent) {

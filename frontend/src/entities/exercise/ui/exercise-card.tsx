@@ -3,9 +3,10 @@
 import Link from 'next/link'
 
 import { DeleteExerciseButton } from '@/features/delete-exercise/ui/delete-exercise-button'
-import { getPrimaryImageUrl } from '@/entities/exercise/lib/primary-image'
+import { getPrimaryImageUrls } from '@/entities/exercise/lib/primary-image'
 import { parseMuscleGroups } from '@/entities/exercise/model/muscle-groups'
 import type { Exercise } from '@/entities/exercise/model/types'
+import { ExerciseImage, EXERCISE_IMAGE_SIZES } from '@/entities/exercise/ui/exercise-image'
 import { MuscleGroupBadges } from '@/entities/exercise/ui/muscle-group-badges'
 
 type Props = {
@@ -15,7 +16,7 @@ type Props = {
 
 export function ExerciseCard({ exercise, onDeleted }: Props) {
   const muscleGroups = parseMuscleGroups(exercise.muscleGroup)
-  const imageUrl = getPrimaryImageUrl(exercise)
+  const image = getPrimaryImageUrls(exercise)
 
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--surface-2)]">
@@ -23,19 +24,22 @@ export function ExerciseCard({ exercise, onDeleted }: Props) {
         exerciseId={exercise.id}
         exerciseName={exercise.name}
         exerciseUserId={exercise.userId}
+        isSystem={exercise.isSystem}
         variant="ghost"
         iconOnly
         className="absolute top-2 right-2 z-10 bg-[var(--surface)]/80 backdrop-blur-sm"
         onDeleted={onDeleted}
       />
       <Link href={`/exercises/${exercise.id}`} className="block">
-      {imageUrl ? (
+      {image ? (
         <div className="aspect-[16/10] bg-[var(--surface-2)]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageUrl}
+          <ExerciseImage
+            src={image.src}
+            thumbUrl={image.thumbUrl}
+            mediumUrl={image.mediumUrl}
             alt=""
-            className="size-full object-cover transition group-hover:brightness-110"
+            sizes={EXERCISE_IMAGE_SIZES.card}
+            className="object-cover transition group-hover:brightness-110"
           />
         </div>
       ) : null}

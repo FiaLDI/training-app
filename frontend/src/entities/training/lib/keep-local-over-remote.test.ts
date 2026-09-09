@@ -34,4 +34,10 @@ describe('shouldKeepLocalOverRemote', () => {
   it('mirrors remote when local is an empty shell', () => {
     expect(shouldKeepLocalOverRemote(training([]), training([{ sets: [] }]))).toBe(false)
   })
+
+  it('mirrors remote when local is a hydrated template without sets', () => {
+    const local = training([{ sets: [] }, { sets: [] }])
+    const remote = training([{ sets: [{}] }])
+    expect(shouldKeepLocalOverRemote(local, remote)).toBe(false)
+  })
 })

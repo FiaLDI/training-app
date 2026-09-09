@@ -7,6 +7,8 @@ export type UploadResult = {
   size: number
   mimeType: string
   originalName: string
+  thumbUrl?: string
+  mediumUrl?: string
 }
 
 function getAccessToken(): string | null {

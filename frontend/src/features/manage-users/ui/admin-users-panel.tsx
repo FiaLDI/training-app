@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Copy, KeyRound } from 'lucide-react'
 
 import type { AdminUser } from '@/entities/session/api/auth-api'
@@ -151,7 +152,10 @@ export function AdminUsersPanel() {
               key={user.id}
               className="flex flex-col gap-3 border-b border-[var(--border)] pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div className="min-w-0 text-sm">
+              <Link
+                href={`/admin/users/${user.id}`}
+                className="min-w-0 text-sm hover:text-[var(--accent)]"
+              >
                 <p className="truncate font-medium">
                   {user.email}
                   {isSelf ? (
@@ -162,7 +166,7 @@ export function AdminUsersPanel() {
                   создан {formatDate(user.createdAt)} · вход {formatDate(user.lastLoginAt)}
                   {user.role === 'admin' ? ' · admin' : ''}
                 </p>
-              </div>
+              </Link>
               {isSelf ? (
                 <p className="text-xs text-[var(--muted)] sm:text-right">
                   Свой код сбросить нельзя

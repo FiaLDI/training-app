@@ -81,4 +81,21 @@ export const authApi = {
       method: 'POST',
     })
   },
+
+  getUser(userId: string) {
+    return apiRequest<AdminUser>(`/auth/admin/users/${userId}`)
+  },
+
+  updateUser(userId: string, input: { email?: string; username?: string }) {
+    return apiRequest<AdminUser>(`/auth/admin/users/${userId}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  },
+
+  deleteUser(userId: string) {
+    return apiRequest<{ ok: boolean }>(`/auth/admin/users/${userId}`, {
+      method: 'DELETE',
+    })
+  },
 }

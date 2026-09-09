@@ -14,8 +14,8 @@ import { cn } from '@/shared/lib/cn'
 type Props = {
   exerciseId: string
   exerciseName: string
-  /** Ownership fields for access check; omit → only admin (legacy). */
   exerciseUserId?: Exercise['userId']
+  isSystem?: boolean
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   className?: string
   iconOnly?: boolean
@@ -26,6 +26,7 @@ export function DeleteExerciseButton({
   exerciseId,
   exerciseName,
   exerciseUserId,
+  isSystem = false,
   variant = 'danger',
   className,
   iconOnly = false,
@@ -39,7 +40,8 @@ export function DeleteExerciseButton({
   const [error, setError] = useState<string | null>(null)
 
   const allowed =
-    mode === 'local' || canEditExercise({ userId: exerciseUserId ?? null }, user)
+    mode === 'local' ||
+    canEditExercise({ userId: exerciseUserId ?? null, isSystem, metadata: {} }, user)
 
   async function onConfirmDelete() {
     if (pending) return

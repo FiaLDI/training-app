@@ -57,7 +57,7 @@ export function AddTrainingExerciseModal({
     setQuery('')
     setMuscleFilter(null)
     setError(null)
-    void fetchExercises('')
+    void fetchExercises()
   }, [open, fetchExercises])
 
   useEffect(() => {

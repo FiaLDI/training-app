@@ -3,7 +3,7 @@
 
 import { defaultCache } from '@serwist/turbopack/worker'
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist'
-import { NetworkFirst, Serwist } from 'serwist'
+import { CacheFirst, ExpirationPlugin, NetworkFirst, Serwist } from 'serwist'
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -27,6 +27,18 @@ const serwist = new Serwist({
       handler: new NetworkFirst({
         cacheName: 'ironlog-api',
         networkTimeoutSeconds: 5,
+      }),
+    },
+    {
+      matcher: ({ url }) => url.pathname.startsWith('/upload/'),
+      handler: new CacheFirst({
+        cacheName: 'ironlog-uploads',
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 256,
+            maxAgeSeconds: 365 * 24 * 60 * 60,
+          }),
+        ],
       }),
     },
     ...defaultCache,

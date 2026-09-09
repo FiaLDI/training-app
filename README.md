@@ -147,7 +147,7 @@ UPLOAD_DIR=../upload BACKEND_URL=http://127.0.0.1:3000 npm run start:dev
 | `npm run ssl:issue` | Выпустить LE-сертификат на `CERTBOT_IP` |
 | `npm run ssl:renew` | Обновить сертификаты и reload nginx |
 | `cd backend && npm run migration:run` | Миграции вручную (если нужно без перезапуска backend) |
-| `npm run seed:exercises` | Сид каталога упражнений (создаёт отсутствующие, обновляет `muscleGroup` при отличии) |
+| `npm run seed:exercises` | Сид системного каталога из `backend/src/seeds/exercises.json` (+ `images/`). Создаёт отсутствующие (`is_system`), дубли по id и названию пропускает. Картинки копируются в `./upload`. Опционально: путь к zip `npm run seed:exercises -- ./archive.zip` |
 
 ### Миграции БД
 
@@ -175,7 +175,7 @@ docker exec workout-postgres \
 
 После `UPDATE` обновите страницу: приложение подтянет роль через `/auth/me`. Снять админку: `SET role = 'user'`.
 
-Админ может добавлять/править упражнения в каталоге и закрывать/удалять (только `resolved`) сообщения обратной связи.
+Админ может добавлять/править упражнения в каталоге, скачивать и импортировать seed-архив на `/admin/catalog`, и закрывать/удалять (только `resolved`) сообщения обратной связи.
 
 ## CI/CD (Jenkins)
 

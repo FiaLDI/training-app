@@ -1,4 +1,5 @@
 import { exerciseApi } from '@/entities/exercise/api/exercise-api'
+import { prefetchExerciseImages } from '@/entities/exercise/lib/prefetch-exercise-images'
 import type { Exercise } from '@/entities/exercise/model/types'
 import { useSessionStore } from '@/entities/session/model/store'
 import { ApiError } from '@/shared/api/client'
@@ -86,6 +87,7 @@ async function pushExercise(id: string, op: OutboxOp) {
         muscleGroup: local.muscleGroup,
         difficulty: local.difficulty,
         metadata: local.metadata,
+        isSystem: local.isSystem === true,
       },
       writeExtras,
     )
@@ -205,6 +207,7 @@ export const catalogSync = {
             {
               ...item,
               userId: item.userId ?? null,
+              isSystem: item.isSystem === true,
               metadata: {
                 ...item.metadata,
                 catalogSyncedAt:
@@ -229,6 +232,7 @@ export const catalogSync = {
           localData.exercises.remove(local.id)
         }
       }
+      prefetchExerciseImages(exercises.items)
     } catch {
       // offline / slow — keep local catalog
     }

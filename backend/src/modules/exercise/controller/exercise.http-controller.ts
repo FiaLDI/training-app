@@ -87,6 +87,7 @@ export class ExerciseHttpController {
     const result = await this.createUseCase.execute({
       id: dto.id,
       userId: isSystem ? null : user.id,
+      isSystem,
       name: dto.name,
       description: dto.description,
       muscleGroup: dto.muscleGroup,

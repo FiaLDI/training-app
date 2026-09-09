@@ -4,8 +4,11 @@ export class ExerciseResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string
 
-  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'null = system exercise' })
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'null when isSystem' })
   userId!: string | null
+
+  @ApiProperty({ description: 'Shared catalog exercise' })
+  isSystem!: boolean
 
   @ApiProperty()
   name!: string

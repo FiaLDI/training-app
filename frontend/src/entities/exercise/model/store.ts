@@ -16,7 +16,7 @@ type ExerciseStore = {
   loading: boolean
   error: string | null
   query: string
-  fetchList: (q?: string) => Promise<void>
+  fetchList: () => Promise<void>
   fetchOne: (id: string) => Promise<void>
   create: (input: CreateExerciseInput) => Promise<Exercise>
   update: (id: string, input: UpdateExerciseInput) => Promise<Exercise>
@@ -36,31 +36,23 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
     set({ query: q })
   },
 
-  async fetchList(q) {
+  async fetchList() {
     const prevItems = get().items
-    const query = (q ?? get().query) || undefined
-    const localItems = localData.exercises.list(query)
-    const catalogKnown = localData.exercises.list().length > 0
-    const hasCachedItems = prevItems.length > 0 || catalogKnown
+    const localItems = localData.exercises.list()
+    const hasCachedItems = prevItems.length > 0 || localItems.length > 0
     set({
-      items:
-        localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems,
-      total:
-        localItems.length > 0
-          ? localItems.length
-          : hasCachedItems
-            ? prevItems.length
-            : localItems.length,
+      items: localItems.length > 0 ? localItems : prevItems,
+      total: localItems.length > 0 ? localItems.length : prevItems.length,
       loading: !hasCachedItems,
       error: null,
     })
 
     try {
       await catalogSync.mergeFromServer({ timeoutMs: CATALOG_READ_TIMEOUT_MS })
-      const items = localData.exercises.list(query)
+      const items = localData.exercises.list()
       set({ items, total: items.length, loading: false })
     } catch (error) {
-      const items = localData.exercises.list(query)
+      const items = localData.exercises.list()
       set({
         items,
         total: items.length,

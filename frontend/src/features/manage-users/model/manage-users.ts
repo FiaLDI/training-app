@@ -12,3 +12,18 @@ export async function createAdminUser(email: string): Promise<IssuedLoginCode> {
 export async function resetAdminUserCode(userId: string): Promise<IssuedLoginCode> {
   return authApi.resetLoginCode(userId)
 }
+
+export async function getAdminUser(userId: string): Promise<AdminUser> {
+  return authApi.getUser(userId)
+}
+
+export async function updateAdminUser(
+  userId: string,
+  input: { email?: string; username?: string },
+): Promise<AdminUser> {
+  return authApi.updateUser(userId, input)
+}
+
+export async function deleteAdminUser(userId: string): Promise<void> {
+  await authApi.deleteUser(userId)
+}

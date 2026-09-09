@@ -1,15 +1,18 @@
 'use client'
 
-import { getPrimaryImageUrl } from '@/entities/exercise/lib/primary-image'
-import {
-  hasHighlightableMuscleGroups,
-  MuscleDiagram,
-} from '@/entities/exercise/ui/muscle-diagram'
+import { useEffect, useState } from 'react'
+
+import { getPrimaryImageUrls } from '@/entities/exercise/lib/primary-image'
 import {
   muscleGroupIntensities,
   parseMuscleGroups,
 } from '@/entities/exercise/model/muscle-groups'
 import type { Exercise } from '@/entities/exercise/model/types'
+import { ExerciseImage, EXERCISE_IMAGE_SIZES } from '@/entities/exercise/ui/exercise-image'
+import {
+  hasHighlightableMuscleGroups,
+  MuscleDiagram,
+} from '@/entities/exercise/ui/muscle-diagram'
 import { cn } from '@/shared/lib/cn'
 
 type Props = {
@@ -25,28 +28,38 @@ export function SessionExerciseMedia({
   showMuscleDiagram = true,
   className,
 }: Props) {
-  const imageUrl = showImage ? getPrimaryImageUrl(exercise) : null
+  const image = showImage ? getPrimaryImageUrls(exercise) : null
+  const [imageFailed, setImageFailed] = useState(false)
   const muscleGroups = parseMuscleGroups(exercise.muscleGroup)
   const showDiagram = showMuscleDiagram && hasHighlightableMuscleGroups(muscleGroups)
+  const showPhoto = Boolean(image) && !imageFailed
 
-  if (!imageUrl && !showDiagram) return null
+  useEffect(() => {
+    setImageFailed(false)
+  }, [exercise.id, image?.src])
+
+  if (!showPhoto && !showDiagram) return null
 
   return (
     <div
       className={cn(
         'mb-5 grid gap-3',
-        imageUrl && showDiagram ? 'sm:grid-cols-[1.2fr_0.8fr]' : 'grid-cols-1',
+        showPhoto && showDiagram ? 'sm:grid-cols-[1.2fr_0.8fr]' : 'grid-cols-1',
         className,
       )}
     >
-      {imageUrl ? (
+      {showPhoto && image ? (
         <div className="overflow-hidden rounded-xl bg-[var(--surface-2)]">
           <div className="relative aspect-[16/10] w-full">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imageUrl}
+            <ExerciseImage
+              src={image.src}
+              thumbUrl={image.thumbUrl}
+              mediumUrl={image.mediumUrl}
               alt={exercise.name}
-              className="size-full object-contain"
+              sizes={EXERCISE_IMAGE_SIZES.session}
+              className="object-contain"
+              priority
+              onUnavailable={() => setImageFailed(true)}
             />
           </div>
         </div>

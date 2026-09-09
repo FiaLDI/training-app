@@ -4,7 +4,10 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 import { backfillPendingSync } from '@/features/sync-trainings/model/backfill-pending-sync'
-import { requestBackgroundSync } from '@/features/sync-trainings/model/background-sync'
+import {
+  requestBackgroundPull,
+  requestBackgroundSync,
+} from '@/features/sync-trainings/model/background-sync'
 
 import { authApi, type AuthUser } from '../api/auth-api'
 import {
@@ -17,6 +20,7 @@ function afterEnterCloud() {
   if (typeof window === 'undefined') return
   backfillPendingSync()
   requestBackgroundSync()
+  requestBackgroundPull()
 }
 
 export function onCloudSessionReady() {

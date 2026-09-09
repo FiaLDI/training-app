@@ -14,6 +14,8 @@ import {
   clearPrimaryImage,
   getPrimaryImageSourceId,
   getPrimaryImageUrl,
+  getPrimaryImageUrls,
+  getSourceImageUrls,
   isImageSource,
   withPrimaryImage,
 } from '@/entities/exercise/lib/primary-image'
@@ -21,6 +23,7 @@ import { canEditExercise } from '@/entities/exercise/model/can-edit-exercise'
 import { parseMuscleGroups } from '@/entities/exercise/model/muscle-groups'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { MuscleGroupBadges } from '@/entities/exercise/ui/muscle-group-badges'
+import { ExerciseImage, EXERCISE_IMAGE_SIZES } from '@/entities/exercise/ui/exercise-image'
 import { isAdmin } from '@/entities/session/model/is-admin'
 import { useSessionStore } from '@/entities/session/model/store'
 import { uploadFile } from '@/shared/api/upload-api'
@@ -48,7 +51,7 @@ export function ExerciseDetailPage({ id }: Props) {
   const canEdit =
     mode === 'local' || (current ? canEditExercise(current, user) : false)
   const canPromoteToSystem =
-    mode === 'cloud' && isAdmin(user) && Boolean(current?.userId)
+    mode === 'cloud' && isAdmin(user) && current != null && !current.isSystem
   const [promoting, setPromoting] = useState(false)
   const [promoteConfirmOpen, setPromoteConfirmOpen] = useState(false)
   const [sources, setSources] = useState<ExerciseSource[]>([])
@@ -93,22 +96,24 @@ export function ExerciseDetailPage({ id }: Props) {
     type: string
     title: string | null
     url: string
+    metadata?: Record<string, unknown>
   }) {
     if (mode === 'local') {
-      localData.sources.create({
+      return localData.sources.create({
         exerciseId: id,
         type: input.type,
         title: input.title,
         url: input.url,
-      })
-    } else {
-      await sourceApi.create({
-        exerciseId: id,
-        type: input.type,
-        title: input.title,
-        url: input.url,
+        metadata: input.metadata,
       })
     }
+    return sourceApi.create({
+      exerciseId: id,
+      type: input.type,
+      title: input.title,
+      url: input.url,
+      metadata: input.metadata,
+    })
   }
 
   async function onAddSource(event: FormEvent) {
@@ -143,13 +148,22 @@ export function ExerciseDetailPage({ id }: Props) {
     setUploading(true)
     try {
       const uploaded = await uploadFile(file)
-      await createSource({
+      const source = await createSource({
         type: 'image',
         title: title || file.name || null,
         url: uploaded.url,
+        metadata: {
+          ...(uploaded.thumbUrl ? { thumbUrl: uploaded.thumbUrl } : {}),
+          ...(uploaded.mediumUrl ? { mediumUrl: uploaded.mediumUrl } : {}),
+        },
       })
       setTitle('')
       setType('image')
+      if (source && current && !getPrimaryImageUrl(current)) {
+        await update(id, {
+          metadata: withPrimaryImage(current.metadata ?? {}, source),
+        })
+      }
       await loadSources()
     } catch (err) {
       setSourceError(err instanceof Error ? err.message : 'Не удалось загрузить файл')
@@ -187,7 +201,7 @@ export function ExerciseDetailPage({ id }: Props) {
     return <p className="text-sm text-red-300">{error ?? 'Упражнение не найдено'}</p>
   }
 
-  const primaryUrl = getPrimaryImageUrl(current)
+  const primaryImage = getPrimaryImageUrls(current)
   const primarySourceId = getPrimaryImageSourceId(current)
   const imageSources = sources.filter(isImageSource)
   const otherSources = sources.filter((source) => !isImageSource(source))
@@ -227,6 +241,7 @@ export function ExerciseDetailPage({ id }: Props) {
               exerciseId={id}
               exerciseName={current.name}
               exerciseUserId={current.userId}
+              isSystem={current.isSystem}
               onDeleted={() => {
                 window.location.href = '/exercises'
               }}
@@ -244,14 +259,17 @@ export function ExerciseDetailPage({ id }: Props) {
         />
       ) : null}
 
-      {primaryUrl ? (
+      {primaryImage ? (
         <div className="mb-8 overflow-hidden rounded-2xl border border-[var(--accent)]/35 bg-[var(--surface)] ring-1 ring-[var(--accent)]/20">
           <div className="relative aspect-[16/10] w-full bg-[var(--surface-2)]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={primaryUrl}
+            <ExerciseImage
+              src={primaryImage.src}
+              thumbUrl={primaryImage.thumbUrl}
+              mediumUrl={primaryImage.mediumUrl}
               alt={current.name}
-              className="size-full object-cover"
+              sizes={EXERCISE_IMAGE_SIZES.hero}
+              className="object-cover"
+              priority
             />
             <span className="absolute top-3 left-3 rounded-md bg-[var(--accent)] px-2 py-1 text-xs font-medium text-[var(--accent-fg)]">
               Главное изображение
@@ -268,6 +286,7 @@ export function ExerciseDetailPage({ id }: Props) {
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {imageSources.map((source) => {
               const isPrimary = source.id === primarySourceId
+              const image = getSourceImageUrls(source)
               return (
                 <li
                   key={source.id}
@@ -279,11 +298,13 @@ export function ExerciseDetailPage({ id }: Props) {
                   )}
                 >
                   <div className="aspect-[4/3] bg-[var(--surface-2)]">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={source.url}
+                    <ExerciseImage
+                      src={image.src}
+                      thumbUrl={image.thumbUrl}
+                      mediumUrl={image.mediumUrl}
                       alt={source.title || 'Изображение упражнения'}
-                      className="size-full object-cover"
+                      sizes={EXERCISE_IMAGE_SIZES.gallery}
+                      className="object-cover"
                     />
                   </div>
                   <div className="flex items-center justify-between gap-2 px-3 py-2">

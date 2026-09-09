@@ -26,6 +26,7 @@ import type {
   Exercise,
   UpdateExerciseInput,
 } from '@/entities/exercise/model/types'
+import { hydrateExercise } from '@/entities/exercise/model/hydrate-exercise'
 import type {
   CreateSourceInput,
   CreateTimecodeInput,
@@ -204,19 +205,22 @@ function refreshPreviousMaxWeights(trainingId: string) {
 export const localData = {
   exercises: {
     list(q?: string) {
-      const items = exercisesDb.list()
+      const items = exercisesDb.list().map(hydrateExercise)
       if (!q) return items
       const needle = q.toLowerCase()
       return items.filter((item) => item.name.toLowerCase().includes(needle))
     },
     get(id: string) {
-      return exercisesDb.get(id)
+      const item = exercisesDb.get(id)
+      return item ? hydrateExercise(item) : item
     },
     create(input: CreateExerciseInput): Exercise {
       const stamp = nowIso()
+      const isSystem = input.isSystem === true
       return exercisesDb.upsert({
         id: input.id ?? createLocalId(),
         userId: null,
+        isSystem,
         name: input.name,
         description: input.description ?? null,
         muscleGroup: input.muscleGroup ?? null,
@@ -227,20 +231,23 @@ export const localData = {
       })
     },
     upsert(exercise: Exercise, origin: 'local' | 'server' = 'local'): Exercise {
-      return exercisesDb.upsert(exercise, origin)
+      return exercisesDb.upsert(hydrateExercise(exercise), origin)
     },
     update(id: string, input: UpdateExerciseInput): Exercise | null {
       const current = exercisesDb.get(id)
       if (!current) return null
-      const { isSystem: _isSystem, ...fields } = input
+      const hydrated = hydrateExercise(current)
+      const { isSystem: promoteSystem, ...fields } = input
+      const isSystem = promoteSystem === true ? true : hydrated.isSystem
       return exercisesDb.upsert({
-        ...current,
+        ...hydrated,
         ...fields,
-        userId: input.isSystem === true ? null : current.userId,
-        description: input.description === undefined ? current.description : input.description,
-        muscleGroup: input.muscleGroup === undefined ? current.muscleGroup : input.muscleGroup,
-        difficulty: input.difficulty === undefined ? current.difficulty : input.difficulty,
-        metadata: input.metadata === undefined ? current.metadata : input.metadata,
+        isSystem,
+        userId: isSystem ? null : hydrated.userId,
+        description: input.description === undefined ? hydrated.description : input.description,
+        muscleGroup: input.muscleGroup === undefined ? hydrated.muscleGroup : input.muscleGroup,
+        difficulty: input.difficulty === undefined ? hydrated.difficulty : input.difficulty,
+        metadata: input.metadata === undefined ? hydrated.metadata : input.metadata,
         updatedAt: nowIso(),
       })
     },
@@ -269,7 +276,7 @@ export const localData = {
         type: input.type,
         title: input.title ?? null,
         url: input.url,
-        metadata: {},
+        metadata: input.metadata ?? {},
         createdAt: nowIso(),
       })
     },

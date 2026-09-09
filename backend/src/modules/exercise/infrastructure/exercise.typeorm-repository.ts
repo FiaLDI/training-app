@@ -4,6 +4,7 @@ import { Repository } from 'typeorm'
 
 import {
   CreateExerciseRepositoryInput,
+  ExerciseCatalogKey,
   ExerciseRepositoryPort,
   ListExercisesRepositoryInput,
   ListExercisesRepositoryOutput,
@@ -23,6 +24,7 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
     return {
       id: entity.id,
       userId: entity.userId,
+      isSystem: entity.isSystem,
       name: entity.name,
       description: entity.description,
       muscleGroup: entity.muscleGroup,
@@ -34,7 +36,7 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
   }
 
   private visibilityWhere(alias: string): string {
-    return `(${alias}.user_id IS NULL OR ${alias}.user_id = :viewerUserId)`
+    return `(${alias}.is_system = true OR ${alias}.user_id = :viewerUserId)`
   }
 
   async list(input: ListExercisesRepositoryInput): Promise<ListExercisesRepositoryOutput> {
@@ -69,14 +71,37 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
     return entity ? this.mapToDomain(entity) : null
   }
 
+  async getByIdAny(id: string): Promise<Exercise | null> {
+    const entity = await this.exercises.findOne({ where: { id } })
+    return entity ? this.mapToDomain(entity) : null
+  }
+
+  async listSystem(): Promise<Exercise[]> {
+    const items = await this.exercises.find({
+      where: { isSystem: true },
+      order: { createdAt: 'ASC' },
+    })
+    return items.map((item) => this.mapToDomain(item))
+  }
+
+  async listCatalogKeys(): Promise<ExerciseCatalogKey[]> {
+    const items = await this.exercises.find({
+      select: ['id', 'name', 'isSystem'],
+    })
+    return items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      isSystem: item.isSystem,
+    }))
+  }
+
   async create(input: CreateExerciseRepositoryInput): Promise<Exercise> {
     if (input.id) {
       const existing = await this.exercises.findOne({ where: { id: input.id } })
       if (existing) {
-        // Idempotent create: only return if caller owns it or it is system and they are creating as system.
         if (
           existing.userId === input.userId ||
-          (existing.userId === null && input.userId === null)
+          (existing.isSystem && input.isSystem)
         ) {
           return this.mapToDomain(existing)
         }
@@ -86,6 +111,7 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
     const entity = this.exercises.create({
       ...(input.id ? { id: input.id } : {}),
       userId: input.userId,
+      isSystem: input.isSystem,
       name: input.name,
       description: input.description ?? null,
       muscleGroup: input.muscleGroup ?? null,
@@ -104,6 +130,7 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
     }
 
     if (input.userId !== undefined) entity.userId = input.userId
+    if (input.isSystem !== undefined) entity.isSystem = input.isSystem
     if (input.name !== undefined) entity.name = input.name
     if (input.description !== undefined) entity.description = input.description
     if (input.muscleGroup !== undefined) entity.muscleGroup = input.muscleGroup

@@ -156,7 +156,7 @@ export function StatsPage() {
   const yearRange = useMemo(() => statsPeriodRange('year'), [])
 
   useEffect(() => {
-    void fetchExercises('')
+    void fetchExercises()
     void fetchTemplates()
     void fetchTrainings({ limit: 100 })
   }, [fetchExercises, fetchTemplates, fetchTrainings])

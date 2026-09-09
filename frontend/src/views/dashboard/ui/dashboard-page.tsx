@@ -34,7 +34,7 @@ export function DashboardPage() {
   useEffect(() => {
     void fetchTrainings({ limit: 50 })
     void fetchTemplates()
-    void fetchExercises('')
+    void fetchExercises()
   }, [fetchTrainings, fetchTemplates, fetchExercises])
 
   const initialLoading =

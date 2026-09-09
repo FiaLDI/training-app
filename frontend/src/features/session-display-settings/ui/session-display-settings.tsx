@@ -27,7 +27,7 @@ export function SessionDisplaySettings() {
       <div className="space-y-4">
         <ToggleRow
           label="Изображение упражнения"
-          description="Главное фото из источников упражнения."
+          description="Главное фото из источников. На 2G и в режиме экономии трафика не загружается."
           checked={showSessionExerciseImage}
           onChange={setShowSessionExerciseImage}
         />
