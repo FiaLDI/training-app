@@ -18,6 +18,8 @@ export type StoredFile = {
   size: number
   mimeType: string
   originalName: string
+  thumbUrl?: string
+  mediumUrl?: string
 }
 
 export class DomainError extends Error {

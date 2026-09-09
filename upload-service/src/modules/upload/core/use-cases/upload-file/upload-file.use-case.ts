@@ -5,6 +5,7 @@ import {
   isAllowedExtension,
   isAllowedMimeType,
 } from '../../file-rules'
+import { generateImageVariants } from '../../image-variants'
 import type { FileStoragePort } from '../../ports/file-storage.port'
 import { DomainError, type IncomingFile, type StoredFile } from '../../types'
 
@@ -48,7 +49,33 @@ export class UploadFileUseCase {
       )
     }
 
-    const filename = `${randomUUID()}${ext}`
-    return this.storage.save(file, filename)
+    const id = randomUUID()
+    const filename = `${id}${ext}`
+    const stored = await this.storage.save(file, filename)
+
+    try {
+      const variants = await generateImageVariants({
+        id,
+        mimeType: file.mimeType,
+        buffer: file.buffer,
+      })
+      for (const variant of variants) {
+        const saved = await this.storage.save(
+          {
+            originalName: variant.filename,
+            mimeType: variant.mimeType,
+            size: variant.buffer.length,
+            buffer: variant.buffer,
+          },
+          variant.filename,
+        )
+        if (variant.kind === 'thumb') stored.thumbUrl = saved.url
+        if (variant.kind === 'medium') stored.mediumUrl = saved.url
+      }
+    } catch (error) {
+      console.warn('image variants failed, keeping original', error)
+    }
+
+    return stored
   }
 }

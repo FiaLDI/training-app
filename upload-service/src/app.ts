@@ -38,7 +38,12 @@ export function createApp(deps: Deps): Express {
 
   app.use(
     deps.config.publicPath,
-    express.static(uploadDir, { fallthrough: false, index: false }),
+    express.static(uploadDir, {
+      fallthrough: false,
+      index: false,
+      maxAge: '365d',
+      immutable: true,
+    }),
   )
 
   app.use(
