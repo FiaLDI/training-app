@@ -19,7 +19,7 @@ function isTrainingSessionPath(pathname: string) {
 }
 
 function isPublicPath(pathname: string) {
-  return pathname === '/login' || pathname === '/~offline'
+  return pathname === '/login' || pathname === '/~offline' || pathname.startsWith('/share/')
 }
 
 export function AuthGate({ children }: Props) {

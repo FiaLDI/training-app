@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 
 import { AuthModule } from '../auth/auth.module'
+import { ExerciseModule } from '../exercise/exercise.module'
 import { TEMPLATE_REPOSITORY_PORT, TemplateRepositoryPort } from '../template/core/ports/template-repository.port'
 import { TemplateModule } from '../template/template.module'
 import { TemplateTypeormRepository } from '../template/infrastructure/template.typeorm-repository'
@@ -20,11 +21,13 @@ import { UpdateProgramUseCase } from './core/use-cases/update/update-program.use
 import { UpdateProgramDayUseCase } from './core/use-cases/update-day/update-program-day.use-case'
 import { ProgramDayEntity } from './core/entity/program-day.entity'
 import { ProgramEntity } from './core/entity/program.entity'
+import { InstallSnapshotService } from './core/lib/install-snapshot.service'
 import { ProgramTypeormRepository } from './infrastructure/program.typeorm-repository'
 
 @Module({
   imports: [
     AuthModule,
+    ExerciseModule,
     TemplateModule,
     TrainingModule,
     TypeOrmModule.forFeature([ProgramEntity, ProgramDayEntity]),
@@ -87,7 +90,17 @@ import { ProgramTypeormRepository } from './infrastructure/program.typeorm-repos
       ) => new ApplyProgramUseCase(programRepo, trainingRepo, templateRepo),
       inject: [ProgramTypeormRepository, TrainingTypeormRepository, TemplateTypeormRepository],
     },
+    InstallSnapshotService,
   ],
-  exports: [PROGRAM_REPOSITORY_PORT, ListProgramsUseCase, GetProgramUseCase],
+  exports: [
+    PROGRAM_REPOSITORY_PORT,
+    ListProgramsUseCase,
+    GetProgramUseCase,
+    CreateProgramUseCase,
+    CreateProgramDayUseCase,
+    ApplyProgramUseCase,
+    ProgramTypeormRepository,
+    InstallSnapshotService,
+  ],
 })
 export class ProgramModule {}

@@ -9,6 +9,7 @@ import { resolveLinkWithBelowAction } from '@/entities/session/lib/exercise-grou
 import { AddTemplateExerciseForm } from '@/features/add-template-exercise/ui/add-template-exercise-form'
 import { EditTemplateExerciseRow } from '@/features/edit-template-exercise/ui/edit-template-exercise-row'
 import { TemplateExerciseGroupCard } from '@/features/manage-exercise-group/ui/template-exercise-group-card'
+import { ShareResourceButton } from '@/features/share-resource/ui/share-resource-button'
 import { StartTrainingButton } from '@/features/start-training/ui/start-training-button'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
@@ -66,6 +67,7 @@ export function TemplateDetailPage({ id }: Props) {
         description={current.description ?? undefined}
         action={
           <div className="flex flex-wrap gap-2">
+            <ShareResourceButton resourceType="template" resourceId={current.id} />
             <StartTrainingButton templateId={current.id} />
             <Button
               variant="danger"

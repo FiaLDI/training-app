@@ -201,6 +201,29 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     }
   }
 
+  async getByIdAny(id: string): Promise<TrainingWithDetails | null> {
+    const entity = await this.trainings.findOne({ where: { id } })
+    if (!entity) return null
+    return this.getById(id, entity.userId)
+  }
+
+  async findSetContext(
+    setId: string,
+  ): Promise<{ setId: string; trainingId: string; userId: string } | null> {
+    const row = await this.trainingSets
+      .createQueryBuilder('s')
+      .innerJoin('training_exercises', 'e', 'e.id = s.training_exercise_id')
+      .innerJoin('trainings', 't', 't.id = e.training_id')
+      .select('s.id', 'set_id')
+      .addSelect('t.id', 'training_id')
+      .addSelect('t.user_id', 'user_id')
+      .where('s.id = :setId', { setId })
+      .getRawOne<{ set_id: string; training_id: string; user_id: string }>()
+
+    if (!row) return null
+    return { setId: row.set_id, trainingId: row.training_id, userId: row.user_id }
+  }
+
   async create(input: CreateTrainingRepositoryInput): Promise<Training> {
     if (input.id) {
       const existing = await this.trainings.findOne({

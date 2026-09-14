@@ -10,6 +10,12 @@ import { BodyMeasurementEntity } from './src/modules/body-measurement/core/entit
 import { UserEntity } from './src/modules/auth/core/entity/user.entity'
 import { FeedbackEntity } from './src/modules/feedback/core/entity/feedback.entity'
 import { NewsEntity } from './src/modules/news/core/entity/news.entity'
+import { CatalogProgramEntity } from './src/modules/catalog/core/entity/catalog-program.entity'
+import { ShareLinkEntity } from './src/modules/share/core/entity/share-link.entity'
+import { CoachInviteEntity } from './src/modules/coach/core/entity/coach-invite.entity'
+import { CoachRelationshipEntity } from './src/modules/coach/core/entity/coach-relationship.entity'
+import { ProgramAssignmentEntity } from './src/modules/coach/core/entity/program-assignment.entity'
+import { TrainingSetCommentEntity } from './src/modules/coach/core/entity/training-set-comment.entity'
 import { ExerciseEntity } from './src/modules/exercise/core/entity/exercise.entity'
 import { ExerciseSourceEntity } from './src/modules/source/core/entity/exercise-source.entity'
 import { ExerciseTimecodeEntity } from './src/modules/source/core/entity/exercise-timecode.entity'
@@ -54,6 +60,12 @@ export default new DataSource({
     BodyMeasurementEntity,
     FeedbackEntity,
     NewsEntity,
+    CatalogProgramEntity,
+    ShareLinkEntity,
+    CoachInviteEntity,
+    CoachRelationshipEntity,
+    ProgramAssignmentEntity,
+    TrainingSetCommentEntity,
     ExerciseEntity,
     ExerciseSourceEntity,
     ExerciseTimecodeEntity,

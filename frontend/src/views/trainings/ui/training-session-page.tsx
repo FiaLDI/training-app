@@ -19,6 +19,10 @@ import {
 import { AddTrainingExerciseModal } from '@/features/add-training-exercise/ui/add-training-exercise-modal'
 import { TrainingExerciseNotes } from '@/features/training-exercise-notes/ui/training-exercise-notes'
 import { EditSetRow } from '@/features/edit-set/ui/edit-set-row'
+import { SetComments } from '@/features/set-comments/ui/set-comments'
+import { coachApi } from '@/entities/coach/api/coach-api'
+import type { SetComment } from '@/entities/coach/model/types'
+import { useSessionStore } from '@/entities/session/model/store'
 import { EditTrainingExerciseRow } from '@/features/edit-training-exercise/ui/edit-training-exercise-row'
 import { EditTrainingForm } from '@/features/edit-training/ui/edit-training-form'
 import { LogSetForm } from '@/features/log-set/ui/log-set-form'
@@ -228,6 +232,8 @@ export function TrainingSessionPage({ id }: Props) {
   const [addExerciseOpen, setAddExerciseOpen] = useState(false)
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
+  const [setComments, setSetComments] = useState<SetComment[]>([])
+  const mode = useSessionStore((s) => s.mode)
 
   const autoStartRestTimer = usePreferencesStore((s) => s.autoStartRestTimer)
   const restTimerSkipWarmup = usePreferencesStore((s) => s.restTimerSkipWarmup)
@@ -274,6 +280,25 @@ export function TrainingSessionPage({ id }: Props) {
     void fetchExercises()
     void fetchTemplates()
   }, [id, fetchOne, fetchExercises, fetchTemplates])
+
+  useEffect(() => {
+    if (mode !== 'cloud') {
+      setSetComments([])
+      return
+    }
+    let cancelled = false
+    void coachApi
+      .listComments(id)
+      .then((result) => {
+        if (!cancelled) setSetComments(result.items)
+      })
+      .catch(() => {
+        if (!cancelled) setSetComments([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id, mode])
 
   useEffect(() => {
     pauseBackgroundSync()
@@ -598,6 +623,12 @@ export function TrainingSessionPage({ id }: Props) {
                     trainingId={id}
                     set={set}
                     canEdit={canEditSets}
+                    footer={
+                      <SetComments
+                        setId={set.id}
+                        comments={setComments}
+                      />
+                    }
                   />
                 ))}
               </ul>

@@ -82,6 +82,13 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
     return { ...this.mapProgram(entity), days }
   }
 
+  async getByIdAny(id: string): Promise<ProgramWithDays | null> {
+    const entity = await this.programs.findOne({ where: { id } })
+    if (!entity) return null
+    const days = await this.listDays(id)
+    return { ...this.mapProgram(entity), days }
+  }
+
   async create(input: CreateProgramRepositoryInput): Promise<Program> {
     const entity = this.programs.create({
       userId: input.userId,

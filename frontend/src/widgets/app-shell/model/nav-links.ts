@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BarChart3,
+  BookOpen,
   CalendarDays,
   CircleHelp,
   Dumbbell,
@@ -26,7 +27,9 @@ export const primaryLinks: NavLink[] = [
 
 export const moreLinks: NavLink[] = [
   { href: '/plans', label: 'Планы', icon: LayoutTemplate },
+  { href: '/catalog', label: 'Программы', icon: BookOpen },
   { href: '/exercises', label: 'Упражнения', icon: Dumbbell },
+  { href: '/coach', label: 'Тренер', icon: Users },
   { href: '/settings', label: 'Профиль', icon: Settings },
   { href: '/news', label: 'Новости', icon: Newspaper },
   { href: '/help', label: 'Помощь', icon: CircleHelp },

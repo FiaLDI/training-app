@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, ReactNode, useEffect, useState } from 'react'
 import { Check, Trash2, X } from 'lucide-react'
 
 import { isDropSet } from '@/entities/training/lib/drop-set'
@@ -16,9 +16,10 @@ type Props = {
   trainingId: string
   set: TrainingSet
   canEdit: boolean
+  footer?: ReactNode
 }
 
-export function EditSetRow({ trainingId, set, canEdit }: Props) {
+export function EditSetRow({ trainingId, set, canEdit, footer }: Props) {
   const updateSet = useTrainingStore((s) => s.updateSet)
   const removeSet = useTrainingStore((s) => s.removeSet)
   const weightStep = usePreferencesStore((s) => s.weightStep)
@@ -123,12 +124,13 @@ export function EditSetRow({ trainingId, set, canEdit }: Props) {
           </div>
           {error ? <p className="text-xs text-red-300">{error}</p> : null}
         </form>
+        {footer}
       </li>
     )
   }
 
   return (
-    <li>
+    <li className="space-y-2">
       <button
         type="button"
         disabled={!canEdit}
@@ -174,6 +176,7 @@ export function EditSetRow({ trainingId, set, canEdit }: Props) {
           </span>
         ) : null}
       </button>
+      {footer}
     </li>
   )
 }

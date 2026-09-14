@@ -22,11 +22,11 @@ test.describe('app shell', () => {
     await expect(page.locator('h1')).toBeVisible()
 
     await page.getByRole('button', { name: 'Ещё' }).click()
-    await page.getByRole('link', { name: 'Планы' }).click()
+    await page.getByRole('navigation').getByRole('link', { name: 'Планы' }).click()
     await expect(page).toHaveURL(/\/plans/)
     await expect(page.getByRole('heading', { name: 'Планы' })).toBeVisible()
 
-    await page.getByRole('link', { name: 'Упражнения' }).click()
+    await page.getByRole('navigation').getByRole('link', { name: 'Упражнения' }).click()
     await expect(page).toHaveURL(/\/exercises/)
     await expect(page.getByRole('heading', { name: 'Упражнения' })).toBeVisible()
     await expect(page.getByText('Пока нет упражнений.')).toBeVisible()

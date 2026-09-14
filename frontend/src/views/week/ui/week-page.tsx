@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { ArrowRight, ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
 
 import { useProgramStore } from '@/entities/program/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
 import type { WorkoutTemplate } from '@/entities/template/model/types'
+import { ShareResourceButton } from '@/features/share-resource/ui/share-resource-button'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
 import { useTrainingStore } from '@/entities/training/model/store'
 import type { TrainingStatus } from '@/entities/training/model/types'
@@ -16,6 +18,7 @@ import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Modal } from '@/shared/ui/modal'
 import { PageHeader } from '@/shared/ui/page-header'
+import { Select } from '@/shared/ui/select'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
 
@@ -328,6 +331,8 @@ export function WeekPage() {
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
 
   const [programId, setProgramId] = useState('')
+  const searchParams = useSearchParams()
+  const requestedProgram = searchParams.get('program')
   const [savingDay, setSavingDay] = useState<number | null>(null)
   const [dayOverrides, setDayOverrides] = useState<Record<string, string>>({})
   const [dayErrors, setDayErrors] = useState<Record<string, string>>({})
@@ -356,6 +361,10 @@ export function WeekPage() {
 
   useEffect(() => {
     if (programs.length > 0) {
+      if (requestedProgram && programs.some((item) => item.id === requestedProgram)) {
+        if (programId !== requestedProgram) setProgramId(requestedProgram)
+        return
+      }
       if (!programId || !programs.some((p) => p.id === programId)) {
         setProgramId(programs[0].id)
       }
@@ -371,7 +380,7 @@ export function WeekPage() {
       .finally(() => {
         ensuringProgram.current = false
       })
-  }, [programs, programId, createProgram, fetchPrograms])
+  }, [programs, programId, requestedProgram, createProgram, fetchPrograms])
 
   useEffect(() => {
     if (programId) void fetchProgram(programId)
@@ -650,11 +659,35 @@ export function WeekPage() {
         title={weekTitle(weekStart)}
         description={formatWeekRange(weekStart)}
         action={
-          <Link href="/plans" className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]">
-            Планы
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {programId ? (
+              <ShareResourceButton resourceType="program" resourceId={programId} label="Ссылка" />
+            ) : null}
+            <Link href="/catalog" className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]">
+              Каталог
+            </Link>
+            <Link href="/plans" className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]">
+              Планы
+            </Link>
+          </div>
         }
       />
+
+      {programs.length > 1 ? (
+        <div className="mb-4 max-w-sm">
+          <Select
+            value={programId}
+            onChange={(event) => setProgramId(event.target.value)}
+            aria-label="Программа недели"
+          >
+            {programs.map((program) => (
+              <option key={program.id} value={program.id}>
+                {program.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      ) : null}
 
       <div className="mb-4 inline-flex items-center gap-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1">
         <button

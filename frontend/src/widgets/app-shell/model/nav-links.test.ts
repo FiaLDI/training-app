@@ -16,6 +16,10 @@ describe('isTabRoute', () => {
     expect(isTabRoute('/help')).toBe(true)
     expect(isTabRoute('/news')).toBe(true)
     expect(isTabRoute('/news/what-you-can-do')).toBe(true)
+    expect(isTabRoute('/catalog')).toBe(true)
+    expect(isTabRoute('/catalog/ppl')).toBe(true)
+    expect(isTabRoute('/coach')).toBe(true)
+    expect(isTabRoute('/coach/trainees/user-1')).toBe(true)
   })
 
   it('matches admin routes', () => {
@@ -29,6 +33,7 @@ describe('isTabRoute', () => {
     expect(isTabRoute('/login')).toBe(false)
     expect(isTabRoute('/~offline')).toBe(false)
     expect(isTabRoute('/trainings/tr-1')).toBe(false)
+    expect(isTabRoute('/share/abc')).toBe(false)
   })
 
   it('excludes unrelated routes', () => {

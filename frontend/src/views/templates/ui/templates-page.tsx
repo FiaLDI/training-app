@@ -8,6 +8,7 @@ import { useTemplateStore } from '@/entities/template/model/store'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
 import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
+import Link from 'next/link'
 
 export function TemplatesPage() {
   const items = useTemplateStore((s) => s.items)
@@ -27,7 +28,14 @@ export function TemplatesPage() {
     <div>
       <PageHeader
         title="Планы"
-        description="Состав тренировок: упражнения и подходы."
+        description={
+          <span>
+            Состав тренировок: упражнения и подходы.{' '}
+            <Link href="/catalog" className="text-[var(--accent)] hover:underline">
+              Готовые программы
+            </Link>
+          </span>
+        }
         action={<CreateTemplateForm />}
       />
 

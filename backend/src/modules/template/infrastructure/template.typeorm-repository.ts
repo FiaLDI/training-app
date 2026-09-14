@@ -116,6 +116,14 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
     return { ...this.mapTemplate(entity), exercises, groups }
   }
 
+  async getByIdAny(id: string): Promise<WorkoutTemplateWithExercises | null> {
+    const entity = await this.templates.findOne({ where: { id } })
+    if (!entity) return null
+    const exercises = await this.listExercises(id)
+    const groups = await this.listGroups(id)
+    return { ...this.mapTemplate(entity), exercises, groups }
+  }
+
   async create(input: CreateTemplateRepositoryInput): Promise<WorkoutTemplate> {
     if (input.id) {
       const existing = await this.templates.findOne({
