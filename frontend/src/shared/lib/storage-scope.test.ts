@@ -1,6 +1,8 @@
 import {
   applyStorageScopeFromSession,
   clearScopeData,
+  getStorageScope,
+  restorePersistedStorageScope,
   SCOPED_DATA_SUFFIXES,
   scopeStorageKey,
   scopedStorageKey,
@@ -34,6 +36,22 @@ describe('storage-scope', () => {
 
     applyStorageScopeFromSession('cloud', 'uid-42')
     expect(scopedStorageKey('trainings')).toBe('ironlog:scope:cloud:uid-42:trainings')
+  })
+
+  it('persists the active scope across a reload', () => {
+    setStorageScope('cloud:user-a')
+    expect(localStorage.getItem('ironlog:active-scope')).toBe('cloud:user-a')
+
+    setStorageScope('local')
+    localStorage.setItem('ironlog:active-scope', 'cloud:user-a')
+    expect(restorePersistedStorageScope()).toBe('cloud:user-a')
+    expect(getStorageScope()).toBe('cloud:user-a')
+    expect(scopedStorageKey('trainings')).toBe('ironlog:scope:cloud:user-a:trainings')
+  })
+
+  it('ignores an invalid persisted scope', () => {
+    localStorage.setItem('ironlog:active-scope', 'cloud:')
+    expect(restorePersistedStorageScope()).toBe('local')
   })
 
   it('migrates legacy local keys on first local scope activation', () => {

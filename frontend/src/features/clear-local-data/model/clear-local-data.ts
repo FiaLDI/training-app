@@ -43,6 +43,37 @@ export function resetEntityStores() {
   })
 }
 
+/** Fill RAM stores from IndexedDB so lists are not empty until the next fetch. */
+export function seedEntityStoresFromLocal() {
+  const exercises = localData.exercises.list()
+  useTrainingStore.setState({
+    items: localData.trainings.list(),
+    loading: false,
+    error: null,
+  })
+  useTemplateStore.setState({
+    items: localData.templates.list(),
+    loading: false,
+    error: null,
+  })
+  useExerciseStore.setState({
+    items: exercises,
+    total: exercises.length,
+    loading: false,
+    error: null,
+  })
+  useProgramStore.setState({
+    items: localData.programs.list(),
+    loading: false,
+    error: null,
+  })
+  useBodyMeasurementStore.setState({
+    items: localData.bodyMeasurements.list(),
+    loading: false,
+    error: null,
+  })
+}
+
 export function clearPendingLocalChanges() {
   for (const training of listPendingTrainings()) {
     localData.trainings.remove(training.id)

@@ -4,8 +4,10 @@ import { ReactNode, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
 import { onCloudSessionReady, useSessionStore } from '@/entities/session/model/store'
-import { syncStorageScopeFromSession } from '@/entities/session/lib/session-boundary'
-import { hydrateLocalDb } from '@/shared/lib/offline-db'
+import {
+  hydrateClientStorage,
+  syncStorageScopeFromSession,
+} from '@/entities/session/lib/session-boundary'
 import { AppShell } from '@/widgets/app-shell/ui/app-shell'
 
 type Props = {
@@ -29,19 +31,35 @@ export function AuthGate({ children }: Props) {
   const refreshUser = useSessionStore((s) => s.refreshUser)
 
   useEffect(() => {
-    let finished = false
+    let cancelled = false
+    let started = false
+    let cloudReady = false
+
     const finishHydration = () => {
-      if (finished) return
-      finished = true
+      if (cancelled) return
       const { mode, user } = useSessionStore.getState()
       syncStorageScopeFromSession(mode, user?.id ?? null)
-      void hydrateLocalDb()
-        .then(() => {
-          if (useSessionStore.getState().mode === 'cloud') {
-            onCloudSessionReady()
-          }
-        })
-        .finally(() => setHydrated(true))
+
+      const apply = () =>
+        hydrateClientStorage()
+          .then(() => {
+            if (cancelled) return
+            if (useSessionStore.getState().mode === 'cloud' && !cloudReady) {
+              cloudReady = true
+              onCloudSessionReady()
+            }
+          })
+          .finally(() => {
+            if (!cancelled) setHydrated(true)
+          })
+
+      if (!started) {
+        started = true
+        void apply()
+        return
+      }
+      // Persist finished after the 1.5s fallback — reload the real scope.
+      void apply()
     }
 
     // Subscribe first, then check — otherwise a sync rehydrate between the two
@@ -53,6 +71,7 @@ export function AuthGate({ children }: Props) {
 
     const fallback = window.setTimeout(finishHydration, 1500)
     return () => {
+      cancelled = true
       unsub()
       window.clearTimeout(fallback)
     }

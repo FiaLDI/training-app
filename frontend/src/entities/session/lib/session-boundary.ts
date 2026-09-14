@@ -1,4 +1,7 @@
-import { resetEntityStores } from '@/features/clear-local-data/model/clear-local-data'
+import {
+  resetEntityStores,
+  seedEntityStoresFromLocal,
+} from '@/features/clear-local-data/model/clear-local-data'
 import { hydrateLocalDb } from '@/shared/lib/offline-db'
 import {
   applyStorageScopeFromSession,
@@ -10,6 +13,11 @@ export function resetClientStateOnSessionBoundary(): void {
   resetEntityStores()
 }
 
+export async function hydrateClientStorage(): Promise<void> {
+  await hydrateLocalDb()
+  seedEntityStoresFromLocal()
+}
+
 export async function enterSessionScope(mode: 'local' | 'cloud', userId?: string): Promise<void> {
   resetClientStateOnSessionBoundary()
   if (mode === 'local') {
@@ -17,7 +25,7 @@ export async function enterSessionScope(mode: 'local' | 'cloud', userId?: string
   } else if (userId) {
     setStorageScope(`cloud:${userId}`)
   }
-  await hydrateLocalDb()
+  await hydrateClientStorage()
 }
 
 export function syncStorageScopeFromSession(

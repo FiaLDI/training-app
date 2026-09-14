@@ -4,6 +4,7 @@ type SessionMode = 'local' | 'cloud'
 
 const LEGACY_PREFIX = 'ironlog:local:'
 const SCOPE_PREFIX = 'ironlog:scope:'
+const ACTIVE_SCOPE_KEY = 'ironlog:active-scope'
 
 /** Entity collections persisted as IndexedDB records (formerly localStorage arrays). */
 export const COLLECTION_SUFFIXES = [
@@ -36,9 +37,39 @@ export const SCOPED_DATA_SUFFIXES = [...COLLECTION_SUFFIXES, ...KV_SUFFIXES] as 
 export type CollectionSuffix = (typeof COLLECTION_SUFFIXES)[number]
 export type KvSuffix = (typeof KV_SUFFIXES)[number]
 
-let currentScope: StorageScope = 'local'
+function isStorageScope(value: string): value is StorageScope {
+  return value === 'local' || /^cloud:[^:]+/.test(value)
+}
+
+function readPersistedScope(): StorageScope {
+  if (typeof window === 'undefined') return 'local'
+  try {
+    const raw = localStorage.getItem(ACTIVE_SCOPE_KEY)?.trim()
+    if (raw && isStorageScope(raw)) return raw
+  } catch {
+    // ignore quota / privacy errors
+  }
+  return 'local'
+}
+
+function persistActiveScope(scope: StorageScope): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(ACTIVE_SCOPE_KEY, scope)
+  } catch {
+    // ignore quota / privacy errors
+  }
+}
+
+let currentScope: StorageScope = readPersistedScope()
 
 export function getStorageScope(): StorageScope {
+  return currentScope
+}
+
+/** Re-read the last active scope from localStorage (simulates a reload). */
+export function restorePersistedStorageScope(): StorageScope {
+  currentScope = readPersistedScope()
   return currentScope
 }
 
@@ -77,6 +108,7 @@ export function setStorageScope(scope: StorageScope): void {
     migrateLegacyKeysToScope('local')
   }
   currentScope = scope
+  persistActiveScope(scope)
 }
 
 export function applyStorageScopeFromSession(
