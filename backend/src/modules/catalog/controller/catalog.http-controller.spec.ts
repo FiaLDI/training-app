@@ -13,6 +13,7 @@ describe('CatalogHttpController', () => {
     tags: ['гипертрофия'],
     verified: true,
     daysPerWeek: 6,
+    programId: 'sys-1',
     snapshot: { name: 'PPL', description: null, days: [] },
   }
 

@@ -40,7 +40,7 @@ export function CatalogPage() {
     <div>
       <PageHeader
         title="Готовые программы"
-        description="Проверенные шаблоны: Starting Strength, PPL, верх/низ и 5/3/1. Можно поставить себе в планы."
+        description="Проверенные недели: Starting Strength, PPL, верх/низ и 5/3/1. Можно поставить на текущую неделю и править как своё расписание."
       />
 
       {loading && items.length === 0 && !error ? (

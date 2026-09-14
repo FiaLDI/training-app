@@ -13,7 +13,8 @@ export interface TemplateExerciseGroup {
 
 export interface WorkoutTemplate {
   id: string
-  userId: string
+  userId: string | null
+  isSystem: boolean
   name: string
   description: string | null
   metadata: Record<string, unknown>

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { areExerciseOrdersContiguous, groupTypeFromMemberCount } from '../../../common/core/exercise-group'
 import { InjectRepository } from '@nestjs/typeorm'
-import { ILike, Repository } from 'typeorm'
+import { Repository } from 'typeorm'
 
 import {
   AddExerciseToTemplateGroupRepositoryInput,
@@ -35,6 +35,7 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
     return {
       id: entity.id,
       userId: entity.userId,
+      isSystem: entity.isSystem,
       name: entity.name,
       description: entity.description,
       metadata: entity.metadata ?? {},
@@ -74,7 +75,9 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
   }
 
   private async ownsTemplate(templateId: string, userId: string): Promise<boolean> {
-    const count = await this.templates.count({ where: { id: templateId, userId } })
+    const count = await this.templates.count({
+      where: { id: templateId, userId, isSystem: false },
+    })
     return count > 0
   }
 
@@ -89,15 +92,19 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
   }
 
   async list(input: ListTemplatesRepositoryInput): Promise<ListTemplatesRepositoryOutput> {
-    const where = input.q
-      ? { userId: input.userId, name: ILike(`%${input.q}%`) }
-      : { userId: input.userId }
-    const [items, total] = await this.templates.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      skip: (input.page - 1) * input.limit,
-      take: input.limit,
-    })
+    const qb = this.templates
+      .createQueryBuilder('t')
+      .where('(t.user_id = :userId OR t.is_system = true)', { userId: input.userId })
+      .orderBy('t.is_system', 'ASC')
+      .addOrderBy('t.created_at', 'DESC')
+      .skip((input.page - 1) * input.limit)
+      .take(input.limit)
+
+    if (input.q) {
+      qb.andWhere('t.name ILIKE :q', { q: `%${input.q}%` })
+    }
+
+    const [items, total] = await qb.getManyAndCount()
 
     return {
       items: items.map((item) => this.mapTemplate(item)),
@@ -108,8 +115,9 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
   }
 
   async getById(id: string, userId: string): Promise<WorkoutTemplateWithExercises | null> {
-    const entity = await this.templates.findOne({ where: { id, userId } })
+    const entity = await this.templates.findOne({ where: { id } })
     if (!entity) return null
+    if (!entity.isSystem && entity.userId !== userId) return null
 
     const exercises = await this.listExercises(id)
     const groups = await this.listGroups(id)
@@ -127,14 +135,18 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
   async create(input: CreateTemplateRepositoryInput): Promise<WorkoutTemplate> {
     if (input.id) {
       const existing = await this.templates.findOne({
-        where: { id: input.id, userId: input.userId },
+        where: input.userId
+          ? { id: input.id, userId: input.userId }
+          : { id: input.id },
       })
       if (existing) return this.mapTemplate(existing)
     }
 
+    const isSystem = input.isSystem === true
     const entity = this.templates.create({
       ...(input.id ? { id: input.id } : {}),
-      userId: input.userId,
+      userId: isSystem ? null : input.userId,
+      isSystem,
       name: input.name,
       description: input.description ?? null,
       metadata: input.metadata ?? {},
@@ -143,7 +155,9 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
   }
 
   async update(input: UpdateTemplateRepositoryInput): Promise<WorkoutTemplate | null> {
-    const entity = await this.templates.findOne({ where: { id: input.id, userId: input.userId } })
+    const entity = await this.templates.findOne({
+      where: { id: input.id, userId: input.userId, isSystem: false },
+    })
     if (!entity) return null
 
     if (input.name !== undefined) entity.name = input.name
@@ -154,7 +168,7 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
   }
 
   async delete(id: string, userId: string): Promise<boolean> {
-    const result = await this.templates.delete({ id, userId })
+    const result = await this.templates.delete({ id, userId, isSystem: false })
     return (result.affected ?? 0) > 0
   }
 

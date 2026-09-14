@@ -8,6 +8,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, Plus, Search } from 'lucide-reac
 import { useProgramStore } from '@/entities/program/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
 import type { WorkoutTemplate } from '@/entities/template/model/types'
+import { CreateProgramForm } from '@/features/create-program/ui/create-program-form'
 import { ShareResourceButton } from '@/features/share-resource/ui/share-resource-button'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
 import { useTrainingStore } from '@/entities/training/model/store'
@@ -318,14 +319,18 @@ export function WeekPage() {
   const create = useTrainingStore((s) => s.create)
   const update = useTrainingStore((s) => s.update)
   const programs = useProgramStore((s) => s.items)
+  const listReady = useProgramStore((s) => s.listReady)
+  const programError = useProgramStore((s) => s.error)
   const currentProgram = useProgramStore((s) => s.current)
   const fetchPrograms = useProgramStore((s) => s.fetchList)
   const fetchProgram = useProgramStore((s) => s.fetchOne)
   const createProgram = useProgramStore((s) => s.create)
+  const pruneDefaultDuplicates = useProgramStore((s) => s.pruneDefaultDuplicates)
   const addDay = useProgramStore((s) => s.addDay)
   const updateDay = useProgramStore((s) => s.updateDay)
   const removeDay = useProgramStore((s) => s.removeDay)
   const applyProgram = useProgramStore((s) => s.apply)
+  const forkProgram = useProgramStore((s) => s.fork)
   const templates = useTemplateStore((s) => s.items)
   const templateLoading = useTemplateStore((s) => s.loading)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
@@ -338,6 +343,8 @@ export function WeekPage() {
   const [dayErrors, setDayErrors] = useState<Record<string, string>>({})
   const appliedKey = useRef<string | null>(null)
   const ensuringProgram = useRef(false)
+  const prunedDefaults = useRef(false)
+  const replaceOnNextApply = useRef(Boolean(requestedProgram))
 
   const from = useMemo(() => {
     const d = new Date(weekStart)
@@ -360,42 +367,71 @@ export function WeekPage() {
   }, [from, to, fetchTrainings, fetchPrograms, fetchTemplates])
 
   useEffect(() => {
-    if (programs.length > 0) {
-      if (requestedProgram && programs.some((item) => item.id === requestedProgram)) {
-        if (programId !== requestedProgram) setProgramId(requestedProgram)
+    if (!listReady) return
+    let cancelled = false
+
+    void (async () => {
+      if (!prunedDefaults.current) {
+        prunedDefaults.current = true
+        await pruneDefaultDuplicates()
+      }
+      if (cancelled) return
+
+      const items = useProgramStore.getState().items
+      if (items.length > 0) {
+        if (requestedProgram && items.some((item) => item.id === requestedProgram)) {
+          setProgramId((current) => (current === requestedProgram ? current : requestedProgram))
+          return
+        }
+        setProgramId((current) =>
+          current && items.some((item) => item.id === current)
+            ? current
+            : (items.find((item) => !item.isSystem) ?? items[0]).id,
+        )
         return
       }
-      if (!programId || !programs.some((p) => p.id === programId)) {
-        setProgramId(programs[0].id)
-      }
-      return
-    }
-    if (ensuringProgram.current) return
-    ensuringProgram.current = true
-    void createProgram({ name: 'Моя неделя' })
-      .then((program) => {
-        setProgramId(program.id)
-        return fetchPrograms()
-      })
-      .finally(() => {
+
+      if (programError || ensuringProgram.current) return
+      ensuringProgram.current = true
+      try {
+        const program = await createProgram({ name: 'Моя неделя' })
+        if (!cancelled) setProgramId(program.id)
+        await fetchPrograms()
+      } finally {
         ensuringProgram.current = false
-      })
-  }, [programs, programId, requestedProgram, createProgram, fetchPrograms])
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    listReady,
+    programs,
+    programError,
+    requestedProgram,
+    createProgram,
+    fetchPrograms,
+    pruneDefaultDuplicates,
+  ])
 
   useEffect(() => {
     if (programId) void fetchProgram(programId)
   }, [programId, fetchProgram])
 
   useEffect(() => {
+    if (!isCurrentWeek) return
     if (!programId || !currentProgram || currentProgram.id !== programId) return
-    if (currentProgram.days.length === 0) return
+    if (currentProgram.days.length === 0 && !replaceOnNextApply.current) return
     const key = `${programId}:${toDateKey(weekStart)}`
     if (appliedKey.current === key) return
     appliedKey.current = key
-    void applyProgram(programId, toDateKey(weekStart)).then(() =>
+    const replacePlanned = replaceOnNextApply.current
+    replaceOnNextApply.current = false
+    void applyProgram(programId, toDateKey(weekStart), replacePlanned).then(() =>
       fetchTrainings({ from, to, limit: 100 }),
     )
-  }, [programId, currentProgram, weekStart, from, to, applyProgram, fetchTrainings])
+  }, [isCurrentWeek, programId, currentProgram, weekStart, from, to, applyProgram, fetchTrainings])
 
   const days = useMemo(
     () =>
@@ -468,29 +504,30 @@ export function WeekPage() {
     )
   }
 
-  async function upsertScheduleDay(dayOfWeek: number, templateId: string) {
-    if (!currentProgram || currentProgram.id !== programId) return
-    const primary = currentProgram.days
+  async function upsertScheduleDay(targetProgramId: string, dayOfWeek: number, templateId: string) {
+    const program = useProgramStore.getState().current
+    if (!program || program.id !== targetProgramId) return
+    const primary = program.days
       .filter((d) => d.dayOfWeek === dayOfWeek)
       .sort((a, b) => a.slotOrder - b.slotOrder)[0]
-    const extras = currentProgram.days
+    const extras = program.days
       .filter((d) => d.dayOfWeek === dayOfWeek)
       .sort((a, b) => a.slotOrder - b.slotOrder)
       .slice(1)
 
     for (const extra of extras) {
-      await removeDay(programId, extra.id)
+      await removeDay(targetProgramId, extra.id)
     }
 
     if (!templateId) {
-      if (primary) await removeDay(programId, primary.id)
+      if (primary) await removeDay(targetProgramId, primary.id)
       return
     }
 
     if (primary) {
-      await updateDay(programId, primary.id, { templateId, slotOrder: 0 })
+      await updateDay(targetProgramId, primary.id, { templateId, slotOrder: 0 })
     } else {
-      await addDay(programId, { dayOfWeek, slotOrder: 0, templateId })
+      await addDay(targetProgramId, { dayOfWeek, slotOrder: 0, templateId })
     }
   }
 
@@ -574,11 +611,25 @@ export function WeekPage() {
     if (!programId) return
     setSavingDay(dayOfWeek)
     try {
+      let targetProgramId = programId
+      if (currentProgram?.isSystem) {
+        const forked = await forkProgram(programId)
+        targetProgramId = forked.id
+        appliedKey.current = `${forked.id}:${toDateKey(weekStart)}`
+        setProgramId(forked.id)
+      }
+
       const dateKey = toDateKey(date)
       const templateId = weekDayTemplateId(date)
-      await upsertScheduleDay(dayOfWeek, templateId)
+      await upsertScheduleDay(targetProgramId, dayOfWeek, templateId)
 
-      const programDay = primaryProgramDay(dayOfWeek)
+      const program = useProgramStore.getState().current
+      const programDay =
+        program?.id === targetProgramId
+          ? (program.days
+              .filter((d) => d.dayOfWeek === dayOfWeek)
+              .sort((a, b) => a.slotOrder - b.slotOrder)[0] ?? null)
+          : null
       const primaryPlanned = useTrainingStore
         .getState()
         .items.filter((t) => {
@@ -590,7 +641,7 @@ export function WeekPage() {
 
       if (programDay && primaryPlanned) {
         await update(primaryPlanned.id, {
-          programId,
+          programId: targetProgramId,
           programDayId: programDay.id,
           templateId: primaryPlanned.templateId,
         })
@@ -660,7 +711,7 @@ export function WeekPage() {
         description={formatWeekRange(weekStart)}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            {programId ? (
+            {programId && !currentProgram?.isSystem ? (
               <ShareResourceButton resourceType="program" resourceId={programId} label="Ссылка" />
             ) : null}
             <Link href="/catalog" className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]">
@@ -673,20 +724,42 @@ export function WeekPage() {
         }
       />
 
-      {programs.length > 1 ? (
-        <div className="mb-4 max-w-sm">
-          <Select
-            value={programId}
-            onChange={(event) => setProgramId(event.target.value)}
-            aria-label="Программа недели"
-          >
-            {programs.map((program) => (
-              <option key={program.id} value={program.id}>
-                {program.name}
-              </option>
-            ))}
-          </Select>
+      {programs.length > 0 ? (
+        <div className="mb-4 flex max-w-xl flex-wrap items-end gap-3">
+          <label className="min-w-[12rem] flex-1 text-sm">
+            <span className="mb-1.5 block text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+              Расписание
+            </span>
+            <Select
+              value={programId}
+              onChange={(event) => {
+                replaceOnNextApply.current = true
+                appliedKey.current = null
+                setProgramId(event.target.value)
+              }}
+              aria-label="Расписание недели"
+            >
+              {programs.map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.isSystem ? `${program.name} · каталог` : program.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <CreateProgramForm
+            onCreated={(program) => {
+              replaceOnNextApply.current = true
+              appliedKey.current = null
+              setProgramId(program.id)
+            }}
+          />
         </div>
+      ) : null}
+
+      {!isCurrentWeek ? (
+        <p className="mb-4 text-xs text-[var(--muted)]">
+          Готовая неделя подставляется только в текущую. Завершённые тренировки не трогаем.
+        </p>
       ) : null}
 
       <div className="mb-4 inline-flex items-center gap-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1">

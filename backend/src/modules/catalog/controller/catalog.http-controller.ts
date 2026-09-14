@@ -35,7 +35,7 @@ export class CatalogHttpController {
   @Post(':slug/install')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Copy a catalog program into my account' })
+  @ApiOperation({ summary: 'Put a catalog program on my current week' })
   async install(@CurrentUser() user: User, @Param('slug') slug: string) {
     return this.catalog.install(user.id, slug)
   }

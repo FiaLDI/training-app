@@ -34,6 +34,7 @@ export function resetEntityStores() {
     items: [],
     current: null,
     loading: false,
+    listReady: false,
     error: null,
   })
   useBodyMeasurementStore.setState({
@@ -65,6 +66,7 @@ export function seedEntityStoresFromLocal() {
   useProgramStore.setState({
     items: localData.programs.list(),
     loading: false,
+    listReady: false,
     error: null,
   })
   useBodyMeasurementStore.setState({

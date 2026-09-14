@@ -22,7 +22,7 @@ export function ProgramsPage() {
     <div>
       <PageHeader
         title="Программы"
-        description="Раз в цикл: назначь шаблоны на дни, потом нажми «Заполнить неделю»."
+        description="Свои недели и готовые из каталога. Назначь планы на дни — на текущую неделю подставится расписание."
         action={<CreateProgramForm />}
       />
 
@@ -39,6 +39,11 @@ export function ProgramsPage() {
                 className="block rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition hover:border-[var(--accent)]/30"
               >
                 <p className="font-[family-name:var(--font-display)] text-lg">{program.name}</p>
+                {program.isSystem ? (
+                  <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[var(--accent)]">
+                    Каталог
+                  </p>
+                ) : null}
                 {program.description ? (
                   <p className="mt-1 text-sm text-[var(--muted)]">{program.description}</p>
                 ) : (

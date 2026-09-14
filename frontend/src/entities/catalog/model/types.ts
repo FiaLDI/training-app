@@ -9,6 +9,7 @@ export type CatalogProgramListItem = {
   tags: string[]
   verified: boolean
   daysPerWeek: number
+  programId?: string | null
 }
 
 export type CatalogProgramDetail = CatalogProgramListItem & {

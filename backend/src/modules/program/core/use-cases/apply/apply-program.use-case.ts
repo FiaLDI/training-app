@@ -4,11 +4,16 @@ import { UseCase } from '../../../../../common/core/use-case'
 import { TemplateRepositoryPort } from '../../../../template/core/ports/template-repository.port'
 import { copyTemplateStructureToTraining } from '../../../../training/core/lib/copy-template-structure'
 import { TrainingRepositoryPort } from '../../../../training/core/ports/training-repository.port'
+import {
+  isApplyWeekAllowed,
+  scheduledAtForDay,
+  weekRangeIso,
+} from '../../lib/week-window'
 import { ProgramRepositoryPort } from '../../ports/program-repository.port'
 import { ApplyProgramInput } from './interfaces/apply-program.input'
 import { ApplyProgramOutput } from './interfaces/apply-program.output'
 
-function parseWeekStart(weekStart: string): Date {
+function parseWeekStart(weekStart: string): void {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(weekStart)
   if (!match) {
     throw new BadRequestException('weekStart must be YYYY-MM-DD (Monday)')
@@ -20,13 +25,10 @@ function parseWeekStart(weekStart: string): Date {
   if (date.getUTCDay() !== 1) {
     throw new BadRequestException('weekStart must be a Monday')
   }
-  return date
 }
 
-function scheduledAtForDay(weekStart: Date, dayOfWeek: number): string {
-  const date = new Date(weekStart)
-  date.setUTCDate(date.getUTCDate() + (dayOfWeek - 1))
-  return date.toISOString()
+function dateKey(iso: string): string {
+  return iso.slice(0, 10)
 }
 
 export class ApplyProgramUseCase implements UseCase<ApplyProgramInput, ApplyProgramOutput> {
@@ -42,22 +44,34 @@ export class ApplyProgramUseCase implements UseCase<ApplyProgramInput, ApplyProg
       throw new BadRequestException('Program not found')
     }
 
-    const weekStart = parseWeekStart(input.weekStart)
+    parseWeekStart(input.weekStart)
+    if (!isApplyWeekAllowed(input.weekStart)) {
+      throw new BadRequestException('Program can only be applied to the current week')
+    }
+
+    const replacePlanned = input.replacePlanned === true
+    if (replacePlanned) {
+      await this.cancelPlannedInWeek(input.userId, input.weekStart)
+    }
+
     const created = []
     let skipped = 0
 
     for (const day of program.days) {
       if (!day.templateId) continue
 
-      const scheduledAt = scheduledAtForDay(weekStart, day.dayOfWeek)
-      const existingByProgramDay = await this.trainingRepository.findActiveByProgramDay(
-        input.userId,
-        day.id,
-        scheduledAt,
-      )
-      if (existingByProgramDay) {
-        skipped += 1
-        continue
+      const scheduledAt = scheduledAtForDay(input.weekStart, day.dayOfWeek)
+
+      if (!replacePlanned) {
+        const existingByProgramDay = await this.trainingRepository.findActiveByProgramDay(
+          input.userId,
+          day.id,
+          scheduledAt,
+        )
+        if (existingByProgramDay) {
+          skipped += 1
+          continue
+        }
       }
 
       const existingOnDate = await this.trainingRepository.findActiveOnScheduledDate(
@@ -94,5 +108,28 @@ export class ApplyProgramUseCase implements UseCase<ApplyProgramInput, ApplyProg
     }
 
     return { created, skipped }
+  }
+
+  private async cancelPlannedInWeek(userId: string, weekStart: string): Promise<void> {
+    const { from, to } = weekRangeIso(weekStart)
+    const planned = await this.trainingRepository.list({
+      userId,
+      page: 1,
+      limit: 200,
+      status: 'planned',
+      from,
+      to,
+    })
+
+    for (const training of planned.items) {
+      const when = training.scheduledAt ?? training.startedAt ?? training.createdAt
+      const key = dateKey(when)
+      if (key < weekStart || key > dateKey(to)) continue
+      await this.trainingRepository.update({
+        id: training.id,
+        userId,
+        status: 'cancelled',
+      })
+    }
   }
 }

@@ -16,7 +16,8 @@ export interface ListTemplatesRepositoryOutput {
 
 export interface CreateTemplateRepositoryInput {
   id?: string
-  userId: string
+  userId: string | null
+  isSystem?: boolean
   name: string
   description?: string | null
   metadata?: Record<string, unknown>

@@ -11,6 +11,8 @@ export type TemplateExerciseGroup = {
 
 export type WorkoutTemplate = {
   id: string
+  userId?: string | null
+  isSystem?: boolean
   name: string
   description: string | null
   metadata: Record<string, unknown>

@@ -11,8 +11,11 @@ export class WorkoutTemplateEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string
 
-  @Column({ name: 'user_id', type: 'uuid' })
-  userId!: string
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
+  userId!: string | null
+
+  @Column({ name: 'is_system', type: 'boolean', default: false })
+  isSystem!: boolean
 
   @Column({ type: 'text' })
   name!: string

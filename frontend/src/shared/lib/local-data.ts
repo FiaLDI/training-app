@@ -340,6 +340,7 @@ export const localData = {
         name: input.name,
         description: input.description ?? null,
         metadata: { ...(input.metadata ?? {}), sync },
+        isSystem: false,
         createdAt: stamp,
         updatedAt: stamp,
       })
@@ -542,6 +543,7 @@ export const localData = {
         name: input.name,
         description: input.description ?? null,
         metadata: {},
+        isSystem: false,
         createdAt: stamp,
         updatedAt: stamp,
       })
@@ -574,24 +576,43 @@ export const localData = {
     removeDay(dayId: string) {
       return programDaysDb.remove(dayId)
     },
-    apply(programId: string, weekStart: string): { created: Training[]; skipped: number } {
+    apply(
+      programId: string,
+      weekStart: string,
+      options?: { replacePlanned?: boolean },
+    ): { created: Training[]; skipped: number } {
       const program = this.get(programId)
       if (!program) return { created: [], skipped: 0 }
+      const monday = new Date(`${weekStart}T12:00:00.000Z`)
+      const weekEndKey = new Date(monday)
+      weekEndKey.setUTCDate(weekEndKey.getUTCDate() + 6)
+      const sundayKey = weekEndKey.toISOString().slice(0, 10)
+
+      if (options?.replacePlanned) {
+        for (const training of trainingsDb.list()) {
+          if (training.status !== 'planned') continue
+          const key = (training.scheduledAt ?? training.startedAt ?? training.createdAt).slice(0, 10)
+          if (key < weekStart || key > sundayKey) continue
+          trainingsDb.upsert({ ...training, status: 'cancelled' })
+        }
+      }
+
       const created: Training[] = []
       let skipped = 0
-      const monday = new Date(`${weekStart}T12:00:00.000Z`)
       for (const day of program.days) {
         if (!day.templateId) continue
         const scheduled = new Date(monday)
         scheduled.setUTCDate(scheduled.getUTCDate() + (day.dayOfWeek - 1))
         const scheduledAt = scheduled.toISOString()
         const dayKey = scheduledAt.slice(0, 10)
-        const existingByProgramDay = trainingsDb.list().find(
-          (t) => t.programDayId === day.id && t.scheduledAt?.slice(0, 10) === dayKey,
-        )
-        if (existingByProgramDay) {
-          skipped += 1
-          continue
+        if (!options?.replacePlanned) {
+          const existingByProgramDay = trainingsDb.list().find(
+            (t) => t.programDayId === day.id && t.scheduledAt?.slice(0, 10) === dayKey,
+          )
+          if (existingByProgramDay) {
+            skipped += 1
+            continue
+          }
         }
         const existingOnDate = trainingsDb.list().find(
           (t) => t.status !== 'cancelled' && t.scheduledAt?.slice(0, 10) === dayKey,
@@ -611,6 +632,36 @@ export const localData = {
         created.push(training)
       }
       return { created, skipped }
+    },
+    fork(programId: string): ProgramWithDays | null {
+      const source = this.get(programId)
+      if (!source) return null
+      if (!source.isSystem) return source
+      const existing = programsDb
+        .list()
+        .find((item) => item.metadata?.forkedFrom === source.id)
+      if (existing) return this.get(existing.id)
+      const stamp = nowIso()
+      const copy = programsDb.upsert({
+        id: createLocalId(),
+        name: source.name,
+        description: source.description,
+        metadata: { ...source.metadata, forkedFrom: source.id },
+        isSystem: false,
+        createdAt: stamp,
+        updatedAt: stamp,
+      })
+      for (const day of source.days) {
+        programDaysDb.upsert({
+          id: createLocalId(),
+          programId: copy.id,
+          dayOfWeek: day.dayOfWeek,
+          slotOrder: day.slotOrder,
+          templateId: day.templateId,
+          notes: day.notes,
+        })
+      }
+      return this.get(copy.id)
     },
   },
 

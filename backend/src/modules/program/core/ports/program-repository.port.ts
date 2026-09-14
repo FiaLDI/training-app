@@ -14,7 +14,8 @@ export interface ListProgramsRepositoryOutput {
 }
 
 export interface CreateProgramRepositoryInput {
-  userId: string
+  userId: string | null
+  isSystem?: boolean
   name: string
   description?: string | null
   metadata?: Record<string, unknown>
@@ -49,6 +50,7 @@ export interface UpdateProgramDayRepositoryInput {
 export interface ProgramRepositoryPort {
   list(input: ListProgramsRepositoryInput): Promise<ListProgramsRepositoryOutput>
   getById(id: string, userId: string): Promise<ProgramWithDays | null>
+  findUserFork(userId: string, sourceProgramId: string): Promise<ProgramWithDays | null>
   create(input: CreateProgramRepositoryInput): Promise<Program>
   update(input: UpdateProgramRepositoryInput): Promise<Program | null>
   delete(id: string, userId: string): Promise<boolean>

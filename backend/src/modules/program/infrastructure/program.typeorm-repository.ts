@@ -24,15 +24,17 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
     private readonly programDays: Repository<ProgramDayEntity>,
   ) {}
 
-  private mapProgram(entity: ProgramEntity): Program {
+  private mapProgram(entity: ProgramEntity, dayCount?: number): Program {
     return {
       id: entity.id,
       userId: entity.userId,
+      isSystem: entity.isSystem,
       name: entity.name,
       description: entity.description,
       metadata: entity.metadata ?? {},
       createdAt: entity.createdAt.toISOString(),
       updatedAt: entity.updatedAt.toISOString(),
+      ...(dayCount === undefined ? {} : { dayCount }),
     }
   }
 
@@ -48,7 +50,9 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
   }
 
   private async ownsProgram(programId: string, userId: string): Promise<boolean> {
-    const count = await this.programs.count({ where: { id: programId, userId } })
+    const count = await this.programs.count({
+      where: { id: programId, userId, isSystem: false },
+    })
     return count > 0
   }
 
@@ -60,15 +64,32 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
   }
 
   async list(input: ListProgramsRepositoryInput): Promise<ListProgramsRepositoryOutput> {
-    const [items, total] = await this.programs.findAndCount({
-      where: { userId: input.userId },
-      order: { createdAt: 'DESC' },
-      skip: (input.page - 1) * input.limit,
-      take: input.limit,
-    })
+    const qb = this.programs
+      .createQueryBuilder('p')
+      .where('(p.user_id = :userId OR p.is_system = true)', { userId: input.userId })
+      .orderBy('p.is_system', 'ASC')
+      .addOrderBy('p.created_at', 'DESC')
+      .skip((input.page - 1) * input.limit)
+      .take(input.limit)
+
+    const [items, total] = await qb.getManyAndCount()
+
+    const countRows =
+      items.length === 0
+        ? []
+        : await this.programDays
+            .createQueryBuilder('d')
+            .select('d.programId', 'programId')
+            .addSelect('COUNT(*)', 'count')
+            .where('d.programId IN (:...ids)', { ids: items.map((item) => item.id) })
+            .groupBy('d.programId')
+            .getRawMany<{ programId: string; count: string }>()
+    const dayCountById = new Map(
+      countRows.map((row) => [row.programId, Number(row.count)]),
+    )
 
     return {
-      items: items.map((item) => this.mapProgram(item)),
+      items: items.map((item) => this.mapProgram(item, dayCountById.get(item.id) ?? 0)),
       total,
       page: input.page,
       limit: input.limit,
@@ -76,9 +97,22 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
   }
 
   async getById(id: string, userId: string): Promise<ProgramWithDays | null> {
-    const entity = await this.programs.findOne({ where: { id, userId } })
+    const entity = await this.programs.findOne({ where: { id } })
     if (!entity) return null
+    if (!entity.isSystem && entity.userId !== userId) return null
     const days = await this.listDays(id)
+    return { ...this.mapProgram(entity), days }
+  }
+
+  async findUserFork(userId: string, sourceProgramId: string): Promise<ProgramWithDays | null> {
+    const entity = await this.programs
+      .createQueryBuilder('p')
+      .where('p.user_id = :userId', { userId })
+      .andWhere("p.metadata->>'forkedFrom' = :source", { source: sourceProgramId })
+      .orderBy('p.created_at', 'DESC')
+      .getOne()
+    if (!entity) return null
+    const days = await this.listDays(entity.id)
     return { ...this.mapProgram(entity), days }
   }
 
@@ -90,8 +124,10 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
   }
 
   async create(input: CreateProgramRepositoryInput): Promise<Program> {
+    const isSystem = input.isSystem === true
     const entity = this.programs.create({
-      userId: input.userId,
+      userId: isSystem ? null : input.userId,
+      isSystem,
       name: input.name,
       description: input.description ?? null,
       metadata: input.metadata ?? {},
@@ -100,7 +136,9 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
   }
 
   async update(input: UpdateProgramRepositoryInput): Promise<Program | null> {
-    const entity = await this.programs.findOne({ where: { id: input.id, userId: input.userId } })
+    const entity = await this.programs.findOne({
+      where: { id: input.id, userId: input.userId, isSystem: false },
+    })
     if (!entity) return null
 
     if (input.name !== undefined) entity.name = input.name
@@ -111,7 +149,7 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
   }
 
   async delete(id: string, userId: string): Promise<boolean> {
-    const result = await this.programs.delete({ id, userId })
+    const result = await this.programs.delete({ id, userId, isSystem: false })
     return (result.affected ?? 0) > 0
   }
 

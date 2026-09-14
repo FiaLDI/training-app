@@ -1,8 +1,7 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
-import { InstallSnapshotService } from '../../program/core/lib/install-snapshot.service'
 import { CatalogProgramEntity } from './entity/catalog-program.entity'
 import type { ProgramSnapshot } from '../../program/core/lib/program-snapshot'
 
@@ -15,6 +14,7 @@ export type CatalogProgramListItem = {
   tags: string[]
   verified: boolean
   daysPerWeek: number
+  programId: string | null
 }
 
 export type CatalogProgramDetail = CatalogProgramListItem & {
@@ -26,7 +26,6 @@ export class CatalogService {
   constructor(
     @InjectRepository(CatalogProgramEntity)
     private readonly programs: Repository<CatalogProgramEntity>,
-    @Inject(InstallSnapshotService) private readonly installer: InstallSnapshotService,
   ) {}
 
   async list(): Promise<CatalogProgramListItem[]> {
@@ -42,12 +41,14 @@ export class CatalogService {
     return { ...this.mapList(item), snapshot: item.snapshot }
   }
 
-  async install(userId: string, slug: string) {
+  async install(_userId: string, slug: string) {
     const item = await this.getBySlug(slug)
-    const result = await this.installer.installProgram(userId, item.snapshot)
+    if (!item.programId) {
+      throw new NotFoundException('Системная программа ещё не готова')
+    }
     return {
-      programId: result.program?.id,
-      skippedExercises: result.skippedExercises,
+      programId: item.programId,
+      skippedExercises: [] as string[],
     }
   }
 
@@ -61,6 +62,7 @@ export class CatalogService {
       tags: entity.tags ?? [],
       verified: entity.verified,
       daysPerWeek: entity.snapshot.days.length,
+      programId: entity.programId,
     }
   }
 }

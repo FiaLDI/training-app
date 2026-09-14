@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 
 import { useProgramStore } from '@/entities/program/model/store'
@@ -18,6 +19,7 @@ type Props = {
 }
 
 export function ProgramDetailPage({ id }: Props) {
+  const router = useRouter()
   const current = useProgramStore((s) => s.current)
   const loading = useProgramStore((s) => s.loading)
   const error = useProgramStore((s) => s.error)
@@ -26,6 +28,7 @@ export function ProgramDetailPage({ id }: Props) {
   const updateDay = useProgramStore((s) => s.updateDay)
   const removeDay = useProgramStore((s) => s.removeDay)
   const remove = useProgramStore((s) => s.remove)
+  const fork = useProgramStore((s) => s.fork)
   const templates = useTemplateStore((s) => s.items)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const [savingDay, setSavingDay] = useState<number | null>(null)
@@ -39,27 +42,36 @@ export function ProgramDetailPage({ id }: Props) {
     if (!current) return
     setSavingDay(dayOfWeek)
     try {
-      const primary = current.days
+      let programId = current.id
+      let days = current.days
+      if (current.isSystem) {
+        const forked = await fork(current.id)
+        programId = forked.id
+        days = forked.days
+        router.replace(`/programs/${forked.id}`)
+      }
+
+      const primary = days
         .filter((d) => d.dayOfWeek === dayOfWeek)
         .sort((a, b) => a.slotOrder - b.slotOrder)[0]
-      const extras = current.days
+      const extras = days
         .filter((d) => d.dayOfWeek === dayOfWeek)
         .sort((a, b) => a.slotOrder - b.slotOrder)
         .slice(1)
 
       for (const extra of extras) {
-        await removeDay(id, extra.id)
+        await removeDay(programId, extra.id)
       }
 
       if (!templateId) {
-        if (primary) await removeDay(id, primary.id)
+        if (primary) await removeDay(programId, primary.id)
         return
       }
 
       if (primary) {
-        await updateDay(id, primary.id, { templateId, slotOrder: 0 })
+        await updateDay(programId, primary.id, { templateId, slotOrder: 0 })
       } else {
-        await addDay(id, { dayOfWeek, slotOrder: 0, templateId })
+        await addDay(programId, { dayOfWeek, slotOrder: 0, templateId })
       }
     } finally {
       setSavingDay(null)
@@ -83,20 +95,26 @@ export function ProgramDetailPage({ id }: Props) {
 
       <PageHeader
         title={current.name}
-        description="Один шаблон на день. Пусто = отдых (не попадает в неделю)."
+        description={
+          current.isSystem
+            ? 'Системная неделя. Правки сохраняются в вашей копии, каталог не меняется.'
+            : 'Один шаблон на день. Пусто = отдых (не попадает в неделю).'
+        }
         action={
-          <Button
-            type="button"
-            variant="danger"
-            onClick={() =>
-              void remove(id).then(() => {
-                window.location.href = '/programs'
-              })
-            }
-          >
-            <Trash2 className="size-4" />
-            Удалить
-          </Button>
+          current.isSystem ? undefined : (
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() =>
+                void remove(id).then(() => {
+                  window.location.href = '/programs'
+                })
+              }
+            >
+              <Trash2 className="size-4" />
+              Удалить
+            </Button>
+          )
         }
       />
 

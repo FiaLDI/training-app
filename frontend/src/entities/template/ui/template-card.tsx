@@ -15,6 +15,9 @@ export function TemplateCard({ template }: Props) {
       <h3 className="font-[family-name:var(--font-display)] text-lg text-[var(--foreground)]">
         {template.name}
       </h3>
+      {template.isSystem ? (
+        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[var(--accent)]">Каталог</p>
+      ) : null}
       <p className="mt-2 line-clamp-2 text-sm text-[var(--muted)]">
         {template.description || 'Без описания'}
       </p>

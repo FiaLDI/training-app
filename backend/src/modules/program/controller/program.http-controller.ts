@@ -30,6 +30,7 @@ import { CreateProgramUseCase } from '../core/use-cases/create/create-program.us
 import { CreateProgramDayUseCase } from '../core/use-cases/create-day/create-program-day.use-case'
 import { DeleteProgramUseCase } from '../core/use-cases/delete/delete-program.use-case'
 import { DeleteProgramDayUseCase } from '../core/use-cases/delete-day/delete-program-day.use-case'
+import { ForkProgramUseCase } from '../core/use-cases/fork/fork-program.use-case'
 import { GetProgramUseCase } from '../core/use-cases/get/get-program.use-case'
 import { ListProgramsUseCase } from '../core/use-cases/list/list-programs.use-case'
 import { UpdateProgramUseCase } from '../core/use-cases/update/update-program.use-case'
@@ -55,6 +56,7 @@ export class ProgramHttpController {
     @Inject(CreateProgramDayUseCase) private readonly createDayUseCase: CreateProgramDayUseCase,
     @Inject(UpdateProgramDayUseCase) private readonly updateDayUseCase: UpdateProgramDayUseCase,
     @Inject(DeleteProgramDayUseCase) private readonly deleteDayUseCase: DeleteProgramDayUseCase,
+    @Inject(ForkProgramUseCase) private readonly forkUseCase: ForkProgramUseCase,
     @Inject(ApplyProgramUseCase) private readonly applyUseCase: ApplyProgramUseCase,
   ) {}
 
@@ -160,8 +162,17 @@ export class ProgramHttpController {
     return result
   }
 
+  @Post(':id/fork')
+  @ApiOperation({ summary: 'Copy a system program into my editable schedule' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiCreatedResponse({ type: ProgramResponseDto })
+  async fork(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.forkUseCase.execute({ id, userId: user.id })
+    return result.program
+  }
+
   @Post(':id/apply')
-  @ApiOperation({ summary: 'Materialize program as planned trainings for a week' })
+  @ApiOperation({ summary: 'Materialize program as planned trainings for the current week' })
   @ApiParam({ name: 'id', format: 'uuid' })
   async apply(
     @CurrentUser() user: User,
@@ -172,6 +183,7 @@ export class ProgramHttpController {
       id,
       userId: user.id,
       weekStart: dto.weekStart,
+      replacePlanned: dto.replacePlanned,
     })
   }
 }

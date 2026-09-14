@@ -6,6 +6,7 @@ import { ensureTemplateWithExercises } from '@/entities/training/lib/hydrate-fro
 import { useSessionStore } from '@/entities/session/model/store'
 import { localData } from '@/shared/lib/local-data'
 
+import { extraDefaultProgramIds } from '../lib/prune-default-programs'
 import { programApi } from '../api/program-api'
 import type {
   CreateProgramDayInput,
@@ -23,35 +24,48 @@ type ProgramStore = {
   items: Program[]
   current: ProgramWithDays | null
   loading: boolean
+  listReady: boolean
   error: string | null
   fetchList: () => Promise<void>
   fetchOne: (id: string) => Promise<void>
   create: (input: CreateProgramInput) => Promise<Program>
   remove: (id: string) => Promise<void>
+  pruneDefaultDuplicates: () => Promise<void>
   addDay: (programId: string, input: CreateProgramDayInput) => Promise<void>
   updateDay: (programId: string, dayId: string, input: UpdateProgramDayInput) => Promise<void>
   removeDay: (programId: string, dayId: string) => Promise<void>
-  apply: (programId: string, weekStart: string) => Promise<{ created: number; skipped: number }>
+  fork: (programId: string) => Promise<ProgramWithDays>
+  apply: (
+    programId: string,
+    weekStart: string,
+    replacePlanned?: boolean,
+  ) => Promise<{ created: number; skipped: number }>
 }
 
-export const useProgramStore = create<ProgramStore>((set) => ({
+export const useProgramStore = create<ProgramStore>((set, get) => ({
   items: [],
   current: null,
   loading: false,
+  listReady: false,
   error: null,
 
   async fetchList() {
     set({ loading: true, error: null })
     try {
       if (isLocalMode()) {
-        set({ items: localData.programs.list(), loading: false })
+        const items = localData.programs.list().map((program) => ({
+          ...program,
+          dayCount: localData.programs.get(program.id)?.days.length ?? 0,
+        }))
+        set({ items, loading: false, listReady: true })
         return
       }
       const result = await programApi.list({ limit: 100 })
-      set({ items: result.items, loading: false })
+      set({ items: result.items, loading: false, listReady: true })
     } catch (error) {
       set({
         loading: false,
+        listReady: true,
         error: error instanceof Error ? error.message : 'Не удалось загрузить программы',
       })
     }
@@ -97,6 +111,13 @@ export const useProgramStore = create<ProgramStore>((set) => ({
     }))
   },
 
+  async pruneDefaultDuplicates() {
+    const extraIds = extraDefaultProgramIds(get().items)
+    for (const id of extraIds) {
+      await get().remove(id)
+    }
+  },
+
   async addDay(programId, input) {
     if (isLocalMode()) {
       localData.programs.addDay(programId, input)
@@ -127,7 +148,7 @@ export const useProgramStore = create<ProgramStore>((set) => ({
     set({ current: await programApi.getById(programId) })
   },
 
-  async apply(programId, weekStart) {
+  async apply(programId, weekStart, replacePlanned = false) {
     if (isLocalMode()) {
       const program = localData.programs.get(programId)
       if (program) {
@@ -136,10 +157,28 @@ export const useProgramStore = create<ProgramStore>((set) => ({
         ] as string[]
         await Promise.all(templateIds.map((templateId) => ensureTemplateWithExercises(templateId)))
       }
-      const result = localData.programs.apply(programId, weekStart)
+      const result = localData.programs.apply(programId, weekStart, { replacePlanned })
       return { created: result.created.length, skipped: result.skipped }
     }
-    const result = await programApi.apply(programId, weekStart)
+    const result = await programApi.apply(programId, weekStart, replacePlanned)
     return { created: result.created.length, skipped: result.skipped }
+  },
+
+  async fork(programId) {
+    if (isLocalMode()) {
+      const program = localData.programs.fork(programId)
+      if (!program) throw new Error('Программа не найдена')
+      set((state) => ({
+        current: program,
+        items: [program, ...state.items.filter((item) => item.id !== program.id)],
+      }))
+      return program
+    }
+    const program = await programApi.fork(programId)
+    set((state) => ({
+      current: program,
+      items: [program, ...state.items.filter((item) => item.id !== program.id)],
+    }))
+    return program
   },
 }))

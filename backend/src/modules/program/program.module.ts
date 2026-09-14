@@ -15,6 +15,7 @@ import { CreateProgramUseCase } from './core/use-cases/create/create-program.use
 import { CreateProgramDayUseCase } from './core/use-cases/create-day/create-program-day.use-case'
 import { DeleteProgramUseCase } from './core/use-cases/delete/delete-program.use-case'
 import { DeleteProgramDayUseCase } from './core/use-cases/delete-day/delete-program-day.use-case'
+import { ForkProgramUseCase } from './core/use-cases/fork/fork-program.use-case'
 import { GetProgramUseCase } from './core/use-cases/get/get-program.use-case'
 import { ListProgramsUseCase } from './core/use-cases/list/list-programs.use-case'
 import { UpdateProgramUseCase } from './core/use-cases/update/update-program.use-case'
@@ -82,6 +83,11 @@ import { ProgramTypeormRepository } from './infrastructure/program.typeorm-repos
       inject: [ProgramTypeormRepository],
     },
     {
+      provide: ForkProgramUseCase,
+      useFactory: (repo: ProgramTypeormRepository) => new ForkProgramUseCase(repo),
+      inject: [ProgramTypeormRepository],
+    },
+    {
       provide: ApplyProgramUseCase,
       useFactory: (
         programRepo: ProgramTypeormRepository,
@@ -99,6 +105,7 @@ import { ProgramTypeormRepository } from './infrastructure/program.typeorm-repos
     CreateProgramUseCase,
     CreateProgramDayUseCase,
     ApplyProgramUseCase,
+    ForkProgramUseCase,
     ProgramTypeormRepository,
     InstallSnapshotService,
   ],

@@ -171,6 +171,7 @@ export class CoachService {
         id: installed.program.id,
         userId: traineeId,
         weekStart,
+        replacePlanned: true,
       })
       applied = { created: result.created.length, skipped: result.skipped }
     }

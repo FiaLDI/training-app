@@ -47,6 +47,23 @@ function day(
   }
 }
 
+export function systemProgramIdForSlug(slug: string): string {
+  const index = CATALOG_PROGRAM_SEEDS.findIndex((item) => item.slug === slug) + 1
+  if (index < 1) {
+    throw new Error(`Unknown catalog slug: ${slug}`)
+  }
+  return `c1c0b0e0-1111-4a91-9c3e-${String(index).padStart(12, '0')}`
+}
+
+export function systemTemplateIdForDay(slug: string, dayIndex: number): string {
+  const programIndex = CATALOG_PROGRAM_SEEDS.findIndex((item) => item.slug === slug) + 1
+  if (programIndex < 1) {
+    throw new Error(`Unknown catalog slug: ${slug}`)
+  }
+  const n = programIndex * 100 + dayIndex + 1
+  return `c1c0b0e0-2222-4a91-9c3e-${String(n).padStart(12, '0')}`
+}
+
 export const CATALOG_PROGRAM_SEEDS: CatalogProgramSeed[] = [
   {
     id: 'a1c0b0e0-1111-4a91-9c3e-000000000001',

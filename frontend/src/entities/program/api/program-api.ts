@@ -56,10 +56,14 @@ export const programApi = {
     })
   },
 
-  apply(programId: string, weekStart: string) {
+  apply(programId: string, weekStart: string, replacePlanned?: boolean) {
     return apiRequest<ApplyProgramResult>(`/programs/${programId}/apply`, {
       method: 'POST',
-      body: { weekStart },
+      body: { weekStart, replacePlanned: replacePlanned === true },
     })
+  },
+
+  fork(id: string) {
+    return apiRequest<ProgramWithDays>(`/programs/${id}/fork`, { method: 'POST' })
   },
 }

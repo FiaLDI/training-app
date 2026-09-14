@@ -99,7 +99,7 @@ export function CatalogDetailPage({ slug }: Props) {
         action={
           mode === 'cloud' ? (
             <Button type="button" disabled={installing} onClick={() => void install()}>
-              {installing ? 'Добавляем…' : 'Добавить себе'}
+              {installing ? 'Ставим на неделю…' : 'Поставить на эту неделю'}
             </Button>
           ) : undefined
         }
@@ -113,7 +113,7 @@ export function CatalogDetailPage({ slug }: Props) {
       ) : null}
       {mode !== 'cloud' ? (
         <div className="mb-6">
-          <CloudRequired action="Чтобы поставить программу в свои планы, войдите в облако." />
+          <CloudRequired action="Чтобы поставить программу на текущую неделю, войдите в облако." />
         </div>
       ) : null}
       <ProgramSnapshotPreview snapshot={item.snapshot} />

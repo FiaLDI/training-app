@@ -34,6 +34,9 @@ export class CatalogProgramEntity {
   @Column({ name: 'sort_order', type: 'integer', default: 0 })
   sortOrder!: number
 
+  @Column({ name: 'program_id', type: 'uuid', nullable: true })
+  programId!: string | null
+
   @Column({ type: 'jsonb' })
   snapshot!: ProgramSnapshot
 

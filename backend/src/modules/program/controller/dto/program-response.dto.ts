@@ -24,8 +24,11 @@ export class ProgramResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string
 
-  @ApiProperty({ format: 'uuid' })
-  userId!: string
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'null when isSystem' })
+  userId!: string | null
+
+  @ApiProperty()
+  isSystem!: boolean
 
   @ApiProperty()
   name!: string
@@ -41,6 +44,9 @@ export class ProgramResponseDto {
 
   @ApiProperty()
   updatedAt!: string
+
+  @ApiPropertyOptional()
+  dayCount?: number
 
   @ApiPropertyOptional({ type: [ProgramDayResponseDto] })
   days?: ProgramDayResponseDto[]

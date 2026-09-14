@@ -1,10 +1,13 @@
 export type Program = {
   id: string
+  userId?: string | null
+  isSystem?: boolean
   name: string
   description: string | null
   metadata: Record<string, unknown>
   createdAt: string
   updatedAt: string
+  dayCount?: number
 }
 
 export type ProgramDay = {

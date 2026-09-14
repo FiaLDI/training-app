@@ -51,6 +51,7 @@ export function TemplateDetailPage({ id }: Props) {
     (a, b) => a.exerciseOrder - b.exerciseOrder,
   )
   const sessionItems = buildTemplateSessionItems(sortedExercises, current.groups ?? [])
+  const editable = !current.isSystem
 
   return (
     <div>
@@ -64,23 +65,29 @@ export function TemplateDetailPage({ id }: Props) {
 
       <PageHeader
         title={current.name}
-        description={current.description ?? undefined}
+        description={
+          current.isSystem
+            ? 'Системный план из каталога. Состав общий, его нельзя менять.'
+            : (current.description ?? undefined)
+        }
         action={
           <div className="flex flex-wrap gap-2">
             <ShareResourceButton resourceType="template" resourceId={current.id} />
             <StartTrainingButton templateId={current.id} />
-            <Button
-              variant="danger"
-              type="button"
-              onClick={() =>
-                void remove(id).then(() => {
-                  window.location.href = '/plans'
-                })
-              }
-            >
-              <Trash2 className="size-4" />
-              Удалить
-            </Button>
+            {editable ? (
+              <Button
+                variant="danger"
+                type="button"
+                onClick={() =>
+                  void remove(id).then(() => {
+                    window.location.href = '/plans'
+                  })
+                }
+              >
+                <Trash2 className="size-4" />
+                Удалить
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -117,13 +124,13 @@ export function TemplateDetailPage({ id }: Props) {
                 item={item}
                 exerciseName={exerciseName(item.exerciseId)}
                 displayIndex={index + 1}
-                canMoveUp={index > 0}
-                canMoveDown={index < sortedExercises.length - 1}
+                canMoveUp={editable && index > 0}
+                canMoveDown={editable && index < sortedExercises.length - 1}
                 neighborAboveId={above?.id}
                 neighborAboveOrder={above?.exerciseOrder}
                 neighborBelowId={below?.id}
                 neighborBelowOrder={below?.exerciseOrder}
-                canLinkWithBelow={linkAction != null}
+                canLinkWithBelow={editable && linkAction != null}
                 linkAction={linkAction}
               />
             )
@@ -131,12 +138,14 @@ export function TemplateDetailPage({ id }: Props) {
         </ul>
       )}
 
-      <AddTemplateExerciseForm
-        templateId={id}
-        nextOrder={
-          current.exercises.reduce((max, item) => Math.max(max, item.exerciseOrder), -1) + 1
-        }
-      />
+      {editable ? (
+        <AddTemplateExerciseForm
+          templateId={id}
+          nextOrder={
+            current.exercises.reduce((max, item) => Math.max(max, item.exerciseOrder), -1) + 1
+          }
+        />
+      ) : null}
     </div>
   )
 }
