@@ -10,6 +10,8 @@ import { IsNull, Repository } from 'typeorm'
 import { AUTH_REPOSITORY_PORT, AuthRepositoryPort } from '../../auth/core/ports/auth-repository.port'
 import { InstallSnapshotService } from '../../program/core/lib/install-snapshot.service'
 import type { SharedResource } from '../../program/core/lib/program-snapshot'
+import { ApplyProgramUseCase } from '../../program/core/use-cases/apply/apply-program.use-case'
+import { currentMondayKey } from '../../program/core/lib/week-window'
 import { ProgramTypeormRepository } from '../../program/infrastructure/program.typeorm-repository'
 import { TemplateTypeormRepository } from '../../template/infrastructure/template.typeorm-repository'
 import { ShareLinkEntity } from '../core/entity/share-link.entity'
@@ -36,6 +38,7 @@ export class ShareService {
     private readonly templates: TemplateTypeormRepository,
     private readonly programs: ProgramTypeormRepository,
     private readonly installer: InstallSnapshotService,
+    private readonly applyProgram: ApplyProgramUseCase,
     @Inject(AUTH_REPOSITORY_PORT) private readonly users: AuthRepositoryPort,
   ) {}
 
@@ -48,6 +51,7 @@ export class ShareService {
   async createProgramLink(userId: string, programId: string): Promise<ShareLinkView> {
     const program = await this.programs.getById(programId, userId)
     if (!program) throw new NotFoundException('Программа не найдена')
+    await this.installer.hydrateFromCurrentWeek(programId, userId)
     return this.upsertLink(userId, 'program', programId)
   }
 
@@ -87,7 +91,20 @@ export class ShareService {
 
   async importForUser(userId: string, token: string) {
     const view = await this.getPublic(token)
-    return this.installer.installShared(userId, view.resource)
+    const installed = await this.installer.installShared(userId, view.resource)
+    if (installed.program?.days.some((day) => day.templateId)) {
+      try {
+        await this.applyProgram.execute({
+          id: installed.program.id,
+          userId,
+          weekStart: currentMondayKey(),
+          replacePlanned: true,
+        })
+      } catch {
+        // Week page retries apply if this week window is rejected.
+      }
+    }
+    return installed
   }
 
   private async upsertLink(

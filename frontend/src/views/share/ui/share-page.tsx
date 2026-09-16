@@ -85,6 +85,7 @@ export function SharePage({ token }: Props) {
         description={
           <span>
             Поделился {data.ownerUsername}
+            {data.resource.kind === 'program' ? ' · расписание на неделю' : ''}
             {data.resource.description ? ` · ${data.resource.description}` : ''}
           </span>
         }

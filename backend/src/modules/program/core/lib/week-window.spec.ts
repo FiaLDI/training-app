@@ -1,6 +1,19 @@
-import { isApplyWeekAllowed, scheduledAtForDay } from './week-window'
+import { currentMondayKey, dayOfWeekFromDateKey, isApplyWeekAllowed, scheduledAtForDay } from './week-window'
 
 describe('week-window', () => {
+  it('returns the UTC Monday of the current week', () => {
+    expect(currentMondayKey(new Date('2026-09-16T18:29:00.000Z'))).toBe('2026-09-14')
+    expect(currentMondayKey(new Date('2026-09-14T00:00:00.000Z'))).toBe('2026-09-14')
+    expect(currentMondayKey(new Date('2026-09-20T23:00:00.000Z'))).toBe('2026-09-14')
+  })
+
+  it('maps a date key to Monday=1 Sunday=7', () => {
+    expect(dayOfWeekFromDateKey('2026-09-14')).toBe(1)
+    expect(dayOfWeekFromDateKey('2026-09-16')).toBe(3)
+    expect(dayOfWeekFromDateKey('2026-09-20')).toBe(7)
+    expect(dayOfWeekFromDateKey('nope')).toBeNull()
+  })
+
   it('allows the Monday that contains today', () => {
     expect(isApplyWeekAllowed('2026-09-14', new Date('2026-09-16T10:00:00.000Z'))).toBe(true)
   })

@@ -88,7 +88,11 @@ export function ShareResourceButton({ resourceType, resourceId, label = 'Под�
         open={open}
         onClose={() => setOpen(false)}
         title="Публичная ссылка"
-        description="Любой, у кого есть ссылка или QR, увидит состав и сможет скопировать к себе."
+        description={
+          resourceType === 'program'
+            ? 'Скопирует текущую неделю: какие планы стоят на днях. История подходов не передаётся.'
+            : 'Любой, у кого есть ссылка или QR, увидит состав плана и сможет скопировать к себе.'
+        }
         footer={
           <Button variant="ghost" type="button" onClick={() => setOpen(false)}>
             Закрыть

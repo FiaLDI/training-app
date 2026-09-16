@@ -29,6 +29,15 @@ function TemplatePreview({ template }: { template: SnapshotTemplate }) {
 }
 
 export function ProgramSnapshotPreview({ snapshot }: { snapshot: ProgramSnapshot }) {
+  if (snapshot.days.length === 0 || snapshot.days.every((day) => !day.template)) {
+    return (
+      <p className="text-sm text-[var(--muted)]">
+        В этой неделе нет тренировок — нечего копировать. Сначала назначьте планы на дни вкладки
+        «Неделя».
+      </p>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {snapshot.days.map((day) => (

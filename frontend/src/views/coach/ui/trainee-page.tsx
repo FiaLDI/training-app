@@ -119,7 +119,8 @@ export function TraineePage({ traineeId }: Props) {
         <h2 className="mb-3 font-[family-name:var(--font-display)] text-lg">Назначить программу</h2>
         {programs.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">
-            Сначала соберите неделю на вкладке «Неделя» или возьмите программу из каталога.
+            Сначала соберите неделю на вкладке «Неделя» — её и получит подопечный. Можно также
+            взять готовую программу из каталога.
           </p>
         ) : (
           <form onSubmit={assign} className="space-y-3">
@@ -140,7 +141,7 @@ export function TraineePage({ traineeId }: Props) {
                 checked={applyWeek}
                 onChange={(event) => setApplyWeek(event.target.checked)}
               />
-              Поставить на текущую неделю
+              Поставить на текущую неделю подопечного
             </label>
             <Button type="submit" disabled={busy || !programId}>
               {busy ? 'Назначаем…' : 'Назначить'}

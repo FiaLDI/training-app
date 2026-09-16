@@ -148,9 +148,11 @@ export class CoachService {
 
   async assignProgram(coachId: string, traineeId: string, sourceProgramId: string, weekStart?: string) {
     await this.requireCoachOf(coachId, traineeId)
-    const snapshot = await this.installer.snapshotProgram(sourceProgramId)
     const owned = await this.programs.getById(sourceProgramId, coachId)
-    if (!owned || !snapshot) throw new NotFoundException('Программа не найдена')
+    if (!owned) throw new NotFoundException('Программа не найдена')
+    await this.installer.hydrateFromCurrentWeek(sourceProgramId, coachId)
+    const snapshot = await this.installer.snapshotProgram(sourceProgramId)
+    if (!snapshot) throw new NotFoundException('Программа не найдена')
 
     const installed = await this.installer.installProgram(traineeId, snapshot)
     if (!installed.program) throw new BadRequestException('Не удалось назначить программу')
