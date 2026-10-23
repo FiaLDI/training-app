@@ -71,6 +71,11 @@ h6 {
   }
 }
 
+/* Overlay is a screenshot; if it captures clicks, tabs feel locked ~1s. */
+::view-transition {
+  pointer-events: none;
+}
+
 ::view-transition-old(.tab-fade) {
   animation: var(--tab-fade-exit) ease-out both tab-fade-out;
 }

@@ -7,16 +7,9 @@ import { BodyWeightSection } from '@/entities/body-measurement/ui/body-weight-se
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { ExerciseCombobox } from '@/entities/exercise/ui/exercise-combobox'
 import { useSessionStore } from '@/entities/session/model/store'
-import { statsApi } from '@/entities/stats/api/stats-api'
+import { useStatsStore } from '@/entities/stats/model/store'
 import { muscleStatsToDiagram } from '@/entities/stats/lib/muscle-diagram-stats'
 import { STATS_PERIOD_LABELS, statsPeriodRange, type StatsPeriod } from '@/entities/stats/lib/period-range'
-import type {
-  ActivityStatPoint,
-  ExerciseProgressPoint,
-  MuscleGroupStatPoint,
-  StrengthCorrelationPoint,
-  VolumeStatPoint,
-} from '@/entities/stats/model/types'
 import { DualSeriesChart } from '@/entities/stats/ui/dual-series-chart'
 import { MuscleGroupChart } from '@/entities/stats/ui/muscle-group-chart'
 import { SimpleBarChart } from '@/entities/stats/ui/simple-bar-chart'
@@ -32,7 +25,6 @@ import {
 } from '@/entities/exercise/ui/muscle-diagram'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration, formatNumber } from '@/shared/lib/format'
-import { localData } from '@/shared/lib/local-data'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
 import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
@@ -142,15 +134,22 @@ export function StatsPage() {
   const [tab, setTab] = useState<StatsTab>('overview')
   const [period, setPeriod] = useState<StatsPeriod>('month')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [volume, setVolume] = useState<VolumeStatPoint[]>([])
-  const [muscleGroups, setMuscleGroups] = useState<MuscleGroupStatPoint[]>([])
-  const [activity, setActivity] = useState<ActivityStatPoint[]>([])
-  const [progress, setProgress] = useState<ExerciseProgressPoint[]>([])
-  const [correlation, setCorrelation] = useState<StrengthCorrelationPoint[]>([])
-  const [overviewLoading, setOverviewLoading] = useState(true)
-  const [progressLoading, setProgressLoading] = useState(false)
   const [exerciseId, setExerciseId] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const dayKey = useMemo(() => toDateKey(new Date()), [])
+  const overviewKey = `${dayKey}:${period}`
+  const progressKey = `${overviewKey}:${exerciseId}`
+  const overviewCache = useStatsStore((s) => s.overviewByKey[overviewKey])
+  const progressCache = useStatsStore((s) => s.progressByKey[progressKey])
+  const overviewError = useStatsStore((s) => s.overviewError)
+  const progressError = useStatsStore((s) => s.progressError)
+  const loadOverview = useStatsStore((s) => s.loadOverview)
+  const loadProgress = useStatsStore((s) => s.loadProgress)
+  const volume = overviewCache?.volume ?? []
+  const muscleGroups = overviewCache?.muscleGroups ?? []
+  const activity = overviewCache?.activity ?? []
+  const progress = progressCache?.progress ?? []
+  const correlation = progressCache?.correlation ?? []
+  const error = tab === 'progress' ? progressError : overviewError
 
   const range = useMemo(() => statsPeriodRange(period), [period])
   const yearRange = useMemo(() => statsPeriodRange('year'), [])
@@ -169,102 +168,14 @@ export function StatsPage() {
 
   useEffect(() => {
     if (tab !== 'overview') return
-    let cancelled = false
-    async function load() {
-      setOverviewLoading(true)
-      try {
-        if (mode === 'local') {
-          const points = localData.stats.volume(range.from, range.to)
-          const groups = localData.stats.muscleGroups(range.from, range.to)
-          const activityPoints = localData.stats.activity(yearRange.from, yearRange.to)
-          if (cancelled) return
-          setVolume(points.map((p) => ({ date: p.date, volume: Number(p.volume) || 0 })))
-          setMuscleGroups(groups)
-          setActivity(activityPoints)
-        } else {
-          const [volumeRes, groupsRes, activityRes] = await Promise.all([
-            statsApi.volume(range),
-            statsApi.muscleGroups(range),
-            statsApi.activity(yearRange),
-          ])
-          if (cancelled) return
-          setVolume(
-            volumeRes.points.map((p) => ({
-              date: p.date,
-              volume: Number(p.volume) || 0,
-            })),
-          )
-          setMuscleGroups(groupsRes.groups)
-          setActivity(activityRes.points)
-        }
-        setError(null)
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Не удалось загрузить статистику')
-        }
-      } finally {
-        if (!cancelled) setOverviewLoading(false)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [mode, range, yearRange, tab])
+    void loadOverview(overviewKey, range, yearRange)
+  }, [mode, range, yearRange, tab, overviewKey, loadOverview])
 
   useEffect(() => {
     if (tab !== 'progress') return
-    if (!exerciseId) {
-      setProgress([])
-      setCorrelation([])
-      setProgressLoading(false)
-      return
-    }
-    let cancelled = false
-    async function load() {
-      setProgressLoading(true)
-      try {
-        if (mode === 'local') {
-          const points = localData.stats.exerciseProgress(exerciseId, range.from, range.to)
-          const corr = localData.stats.strengthCorrelation(exerciseId, range.from, range.to)
-          if (cancelled) return
-          setProgress(
-            points.map((p) => ({
-              date: p.date,
-              maxWeight: p.maxWeight == null ? null : Number(p.maxWeight),
-              bestVolume: Number(p.bestVolume) || 0,
-            })),
-          )
-          setCorrelation(corr)
-        } else {
-          const [progressRes, corrRes] = await Promise.all([
-            statsApi.exerciseProgress({ exerciseId, ...range }),
-            statsApi.strengthCorrelation({ exerciseId, ...range }),
-          ])
-          if (cancelled) return
-          setProgress(
-            progressRes.points.map((p) => ({
-              date: p.date,
-              maxWeight: p.maxWeight == null ? null : Number(p.maxWeight),
-              bestVolume: Number(p.bestVolume) || 0,
-            })),
-          )
-          setCorrelation(corrRes.points)
-        }
-        setError(null)
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Не удалось загрузить прогресс')
-        }
-      } finally {
-        if (!cancelled) setProgressLoading(false)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [mode, range, exerciseId, tab])
+    if (!exerciseId) return
+    void loadProgress(progressKey, exerciseId, range)
+  }, [mode, range, exerciseId, tab, progressKey, loadProgress])
 
   const sessions = useMemo(() => {
     const fromMs = new Date(range.from).getTime()
@@ -396,7 +307,7 @@ export function StatsPage() {
       ) : null}
 
       {tab === 'overview' ? (
-        overviewLoading && volume.length === 0 ? (
+        !overviewCache ? (
           <TabPageFallback title="Статистика" variant="stats" withHeader={false} />
         ) : (
         <>
@@ -493,7 +404,7 @@ export function StatsPage() {
       ) : null}
 
       {tab === 'progress' ? (
-        progressLoading && progress.length === 0 && exerciseId ? (
+        !progressCache && exerciseId ? (
           <TabPageFallback title="Статистика" variant="stats" withHeader={false} />
         ) : (
         <div className="space-y-8">

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { ArrowRight, ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
 
 import { useProgramStore } from '@/entities/program/model/store'
@@ -308,6 +307,14 @@ function DayTrainingCard({
   )
 }
 
+const appliedProgramWeeks = new Set<string>()
+let prunedDefaultPrograms = false
+
+function readRequestedProgram() {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get('program')
+}
+
 export function WeekPage() {
   const todayWeek = useMemo(() => startOfWeekMonday(new Date()), [])
   const [weekStart, setWeekStart] = useState(() => todayWeek)
@@ -336,14 +343,11 @@ export function WeekPage() {
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
 
   const [programId, setProgramId] = useState('')
-  const searchParams = useSearchParams()
-  const requestedProgram = searchParams.get('program')
+  const [requestedProgram] = useState(readRequestedProgram)
   const [savingDay, setSavingDay] = useState<number | null>(null)
   const [dayOverrides, setDayOverrides] = useState<Record<string, string>>({})
   const [dayErrors, setDayErrors] = useState<Record<string, string>>({})
-  const appliedKey = useRef<string | null>(null)
   const ensuringProgram = useRef(false)
-  const prunedDefaults = useRef(false)
   const replaceOnNextApply = useRef(Boolean(requestedProgram))
 
   const from = useMemo(() => {
@@ -371,14 +375,8 @@ export function WeekPage() {
     let cancelled = false
 
     void (async () => {
-      if (!prunedDefaults.current) {
-        prunedDefaults.current = true
-        await pruneDefaultDuplicates()
-      }
-      if (cancelled) return
-
-      const items = useProgramStore.getState().items
-      if (items.length > 0) {
+      const pickProgram = (items: typeof programs) => {
+        if (items.length === 0) return
         if (requestedProgram && items.some((item) => item.id === requestedProgram)) {
           setProgramId((current) => (current === requestedProgram ? current : requestedProgram))
           return
@@ -388,8 +386,20 @@ export function WeekPage() {
             ? current
             : (items.find((item) => !item.isSystem) ?? items[0]).id,
         )
-        return
       }
+
+      pickProgram(useProgramStore.getState().items)
+
+      if (!prunedDefaultPrograms) {
+        prunedDefaultPrograms = true
+        await pruneDefaultDuplicates()
+        if (cancelled) return
+        pickProgram(useProgramStore.getState().items)
+      }
+      if (cancelled) return
+
+      const items = useProgramStore.getState().items
+      if (items.length > 0) return
 
       if (programError || ensuringProgram.current) return
       ensuringProgram.current = true
@@ -424,9 +434,9 @@ export function WeekPage() {
     if (!programId || !currentProgram || currentProgram.id !== programId) return
     if (currentProgram.days.length === 0 && !replaceOnNextApply.current) return
     const key = `${programId}:${toDateKey(weekStart)}`
-    if (appliedKey.current === key) return
-    appliedKey.current = key
     const replacePlanned = replaceOnNextApply.current
+    if (appliedProgramWeeks.has(key) && !replacePlanned) return
+    appliedProgramWeeks.add(key)
     replaceOnNextApply.current = false
     void applyProgram(programId, toDateKey(weekStart), replacePlanned).then(() =>
       fetchTrainings({ from, to, limit: 100 }),
@@ -445,7 +455,6 @@ export function WeekPage() {
   )
 
   function goToWeek(next: Date) {
-    appliedKey.current = null
     setDayOverrides({})
     setDayErrors({})
     setPickerOpen(false)
@@ -615,7 +624,7 @@ export function WeekPage() {
       if (currentProgram?.isSystem) {
         const forked = await forkProgram(programId)
         targetProgramId = forked.id
-        appliedKey.current = `${forked.id}:${toDateKey(weekStart)}`
+        appliedProgramWeeks.add(`${forked.id}:${toDateKey(weekStart)}`)
         setProgramId(forked.id)
       }
 
@@ -734,7 +743,6 @@ export function WeekPage() {
               value={programId}
               onChange={(event) => {
                 replaceOnNextApply.current = true
-                appliedKey.current = null
                 setProgramId(event.target.value)
               }}
               aria-label="Расписание недели"
@@ -749,7 +757,6 @@ export function WeekPage() {
           <CreateProgramForm
             onCreated={(program) => {
               replaceOnNextApply.current = true
-              appliedKey.current = null
               setProgramId(program.id)
             }}
           />

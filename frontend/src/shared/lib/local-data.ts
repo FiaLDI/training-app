@@ -536,6 +536,21 @@ export const localData = {
         .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.slotOrder - b.slotOrder)
       return { ...program, days }
     },
+    upsertHeader(program: Program): Program {
+      return programsDb.upsert(program)
+    },
+    replaceDaysFromCloud(program: ProgramWithDays): ProgramWithDays {
+      this.upsertHeader(program)
+      const existing = programDaysDb.list().filter((item) => item.programId === program.id)
+      const keep = new Set(program.days.map((day) => day.id))
+      for (const day of existing) {
+        if (!keep.has(day.id)) programDaysDb.remove(day.id)
+      }
+      for (const day of program.days) {
+        programDaysDb.upsert(day)
+      }
+      return this.get(program.id) ?? { ...program, days: program.days }
+    },
     create(input: CreateProgramInput): Program {
       const stamp = nowIso()
       return programsDb.upsert({

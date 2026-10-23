@@ -182,8 +182,9 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
         loading: false,
         error: null,
       })
-      await pullCloudTrainingDetailsForList(result.items, BACKGROUND_READ_TIMEOUT_MS)
-      set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
+      void pullCloudTrainingDetailsForList(result.items, BACKGROUND_READ_TIMEOUT_MS).then(() => {
+        set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
+      })
     } catch (error) {
       const fallback = localData.trainings.list({ from: params?.from, to: params?.to })
       set({

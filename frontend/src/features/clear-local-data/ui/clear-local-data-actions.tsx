@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Eraser, Trash2 } from 'lucide-react'
 
@@ -24,7 +24,16 @@ export function ClearLocalDataActions() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const summary = getPendingSyncSummary()
+  const [summary, setSummary] = useState(() => ({
+    trainings: 0,
+    templates: 0,
+    exercises: 0,
+    total: 0,
+  }))
+
+  useEffect(() => {
+    setSummary(getPendingSyncSummary())
+  }, [mode, pendingConfirmOpen, allConfirmOpen, pending])
 
   function onClearPendingClick() {
     if (summary.total === 0) {

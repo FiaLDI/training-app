@@ -20,6 +20,13 @@ function isLocalMode() {
   return useSessionStore.getState().mode === 'local'
 }
 
+function programsFromLocal(): Program[] {
+  return localData.programs.list().map((program) => ({
+    ...program,
+    dayCount: localData.programs.get(program.id)?.days.length ?? 0,
+  }))
+}
+
 type ProgramStore = {
   items: Program[]
   current: ProgramWithDays | null
@@ -50,40 +57,66 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
   error: null,
 
   async fetchList() {
-    set({ loading: true, error: null })
+    const prevItems = get().items
+    const localItems = programsFromLocal()
+    const hasCachedItems = prevItems.length > 0 || localItems.length > 0
+    const items = localItems.length > 0 ? localItems : prevItems
+    if (isLocalMode()) {
+      set({ items, loading: false, listReady: true, error: null })
+      return
+    }
+    set({
+      items,
+      loading: !hasCachedItems,
+      listReady: hasCachedItems || get().listReady,
+      error: null,
+    })
     try {
-      if (isLocalMode()) {
-        const items = localData.programs.list().map((program) => ({
-          ...program,
-          dayCount: localData.programs.get(program.id)?.days.length ?? 0,
-        }))
-        set({ items, loading: false, listReady: true })
-        return
-      }
       const result = await programApi.list({ limit: 100 })
-      set({ items: result.items, loading: false, listReady: true })
+      for (const item of result.items) {
+        localData.programs.upsertHeader(item)
+      }
+      set({ items: result.items, loading: false, listReady: true, error: null })
     } catch (error) {
       set({
+        items: programsFromLocal().length > 0 ? programsFromLocal() : get().items,
         loading: false,
         listReady: true,
-        error: error instanceof Error ? error.message : 'Не удалось загрузить программы',
+        error: hasCachedItems
+          ? null
+          : error instanceof Error
+            ? error.message
+            : 'Не удалось загрузить программы',
       })
     }
   },
 
   async fetchOne(id) {
-    set({ loading: true, error: null })
+    const local = localData.programs.get(id)
+    if (local) {
+      set({ current: local, loading: false, error: null })
+    } else if (get().current?.id !== id) {
+      set({ loading: true, error: null })
+    }
+
     try {
       if (isLocalMode()) {
         set({ current: localData.programs.get(id), loading: false })
         return
       }
       const current = await programApi.getById(id)
-      set({ current, loading: false })
+      localData.programs.replaceDaysFromCloud(current)
+      set({ current, loading: false, error: null })
     } catch (error) {
+      const fallback = localData.programs.get(id) ?? (get().current?.id === id ? get().current : null)
       set({
+        current: fallback,
         loading: false,
-        error: error instanceof Error ? error.message : 'Не удалось загрузить программу',
+        error: fallback
+          ? null
+          : error instanceof Error
+            ? error.message
+            : 'Не удалось загрузить программу',
       })
     }
   },
@@ -95,6 +128,7 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
       return program
     }
     const program = await programApi.create(input)
+    localData.programs.upsertHeader(program)
     set((state) => ({ items: [program, ...state.items] }))
     return program
   },
@@ -175,6 +209,7 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
       return program
     }
     const program = await programApi.fork(programId)
+    localData.programs.replaceDaysFromCloud(program)
     set((state) => ({
       current: program,
       items: [program, ...state.items.filter((item) => item.id !== program.id)],

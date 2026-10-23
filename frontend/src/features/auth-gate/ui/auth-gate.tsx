@@ -34,9 +34,11 @@ export function AuthGate({ children }: Props) {
     let cancelled = false
     let started = false
     let cloudReady = false
+    let fallback = 0
 
-    const finishHydration = () => {
+    const finishHydration = (source: 'persist' | 'fallback') => {
       if (cancelled) return
+      if (source === 'persist') window.clearTimeout(fallback)
       const { mode, user } = useSessionStore.getState()
       syncStorageScopeFromSession(mode, user?.id ?? null)
 
@@ -59,17 +61,17 @@ export function AuthGate({ children }: Props) {
         return
       }
       // Persist finished after the 1.5s fallback — reload the real scope.
-      void apply()
+      if (source === 'persist') void apply()
     }
 
     // Subscribe first, then check — otherwise a sync rehydrate between the two
     // never fires onFinishHydration and the gate stays on «Загрузка…».
-    const unsub = useSessionStore.persist.onFinishHydration(finishHydration)
+    const unsub = useSessionStore.persist.onFinishHydration(() => finishHydration('persist'))
     if (useSessionStore.persist.hasHydrated()) {
-      finishHydration()
+      finishHydration('persist')
     }
 
-    const fallback = window.setTimeout(finishHydration, 1500)
+    fallback = window.setTimeout(() => finishHydration('fallback'), 1500)
     return () => {
       cancelled = true
       unsub()

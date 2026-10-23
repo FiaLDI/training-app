@@ -1,6 +1,7 @@
 import { useBodyMeasurementStore } from '@/entities/body-measurement/model/store'
 import { useExerciseStore } from '@/entities/exercise/model/store'
 import { useProgramStore } from '@/entities/program/model/store'
+import { useStatsStore } from '@/entities/stats/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { deleteOutbox } from '@/features/sync-trainings/model/delete-outbox'
@@ -42,6 +43,12 @@ export function resetEntityStores() {
     loading: false,
     error: null,
   })
+  useStatsStore.setState({
+    overviewByKey: {},
+    progressByKey: {},
+    overviewError: null,
+    progressError: null,
+  })
 }
 
 /** Fill RAM stores from IndexedDB so lists are not empty until the next fetch. */
@@ -63,10 +70,11 @@ export function seedEntityStoresFromLocal() {
     loading: false,
     error: null,
   })
+  const programs = localData.programs.list()
   useProgramStore.setState({
-    items: localData.programs.list(),
+    items: programs,
     loading: false,
-    listReady: false,
+    listReady: true,
     error: null,
   })
   useBodyMeasurementStore.setState({

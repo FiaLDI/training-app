@@ -104,6 +104,9 @@ describe('cloud fetchList', () => {
     vi.spyOn(trainingApi, 'getById').mockResolvedValue(detailed())
 
     await useTrainingStore.getState().fetchList({ limit: 50 })
+    await vi.waitFor(() => {
+      expect(localData.trainings.get('tr-1')?.exercises[0]?.sets).toHaveLength(1)
+    })
 
     expect(useTrainingStore.getState().items.some((item) => item.id === 'tr-1')).toBe(true)
     const local = localData.trainings.get('tr-1')
@@ -138,8 +141,9 @@ describe('cloud fetchList', () => {
     vi.spyOn(trainingApi, 'getById').mockResolvedValue(detailed())
 
     await useTrainingStore.getState().fetchList({ limit: 50 })
-
-    expect(localData.trainings.get('tr-1')?.exercises[0]?.sets).toHaveLength(1)
+    await vi.waitFor(() => {
+      expect(localData.trainings.get('tr-1')?.exercises[0]?.sets).toHaveLength(1)
+    })
   })
 
   it('does not mark an empty header as pending when details fail to load', async () => {
@@ -153,6 +157,9 @@ describe('cloud fetchList', () => {
     vi.spyOn(trainingApi, 'getById').mockRejectedValue(new Error('timeout'))
 
     await useTrainingStore.getState().fetchList({ limit: 50 })
+    await vi.waitFor(() => {
+      expect(localData.trainings.get('tr-1')).toBeTruthy()
+    })
 
     expect(useTrainingStore.getState().items.map((item) => item.id)).toContain('tr-1')
     const local = localData.trainings.get('tr-1')

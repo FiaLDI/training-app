@@ -29,11 +29,17 @@ export const useBodyMeasurementStore = create<BodyMeasurementStore>((set) => ({
   error: null,
 
   async fetchList(params) {
-    set({ loading: true, error: null })
+    const localItems = localData.bodyMeasurements.list(params?.from, params?.to)
+    const hasCachedItems = localItems.length > 0
+    set({
+      items: localItems,
+      loading: !hasCachedItems,
+      error: null,
+    })
     try {
       if (isLocalMode()) {
         set({
-          items: localData.bodyMeasurements.list(params?.from, params?.to),
+          items: localItems,
           loading: false,
         })
         return
