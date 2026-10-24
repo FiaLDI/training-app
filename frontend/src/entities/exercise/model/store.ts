@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 
 import { catalogSync } from '@/shared/lib/catalog-sync'
+import { coalesceFetch, markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
 import { localData } from '@/shared/lib/local-data'
 
 import type { CreateExerciseInput, Exercise, UpdateExerciseInput } from './types'
@@ -37,34 +38,41 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
   },
 
   async fetchList() {
+    const key = 'exercises'
     const prevItems = get().items
     const localItems = localData.exercises.list()
     const hasCachedItems = prevItems.length > 0 || localItems.length > 0
-    set({
-      items: localItems.length > 0 ? localItems : prevItems,
-      total: localItems.length > 0 ? localItems.length : prevItems.length,
-      loading: !hasCachedItems,
-      error: null,
-    })
+    if (skipFreshFetch(key, hasCachedItems)) return
+    const items = localItems.length > 0 ? localItems : prevItems
 
-    try {
-      await catalogSync.mergeFromServer({ timeoutMs: CATALOG_READ_TIMEOUT_MS })
-      const items = localData.exercises.list()
-      set({ items, total: items.length, loading: false })
-    } catch (error) {
-      const items = localData.exercises.list()
+    return coalesceFetch(key, async () => {
       set({
         items,
         total: items.length,
-        loading: false,
-        error:
-          items.length === 0 && error instanceof Error
-            ? error.message
-            : items.length === 0
-              ? 'Не удалось загрузить упражнения'
-              : null,
+        loading: !hasCachedItems,
+        error: null,
       })
-    }
+
+      try {
+        await catalogSync.mergeFromServer({ timeoutMs: CATALOG_READ_TIMEOUT_MS })
+        const next = localData.exercises.list()
+        set({ items: next, total: next.length, loading: false })
+        markFetched(key)
+      } catch (error) {
+        const next = localData.exercises.list()
+        set({
+          items: next,
+          total: next.length,
+          loading: false,
+          error:
+            next.length === 0 && error instanceof Error
+              ? error.message
+              : next.length === 0
+                ? 'Не удалось загрузить упражнения'
+                : null,
+        })
+      }
+    })
   },
 
   async fetchOne(id) {

@@ -6,11 +6,13 @@ import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { deleteOutbox } from '@/features/sync-trainings/model/delete-outbox'
 import { catalogSync } from '@/shared/lib/catalog-sync'
+import { resetFreshFetch } from '@/shared/lib/fresh-fetch'
 import { clearAllLocalData, localData } from '@/shared/lib/local-data'
 import { listPendingTemplates } from '@/shared/lib/template-sync-meta'
 import { listPendingTrainings } from '@/shared/lib/training-sync-meta'
 
 export function resetEntityStores() {
+  resetFreshFetch()
   useTrainingStore.setState({
     items: [],
     current: null,

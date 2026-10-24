@@ -4,6 +4,7 @@ import { create } from 'zustand'
 
 import { ensureTemplateWithExercises } from '@/entities/training/lib/hydrate-from-template'
 import { useSessionStore } from '@/entities/session/model/store'
+import { coalesceFetch, markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
 import { localData } from '@/shared/lib/local-data'
 
 import { extraDefaultProgramIds } from '../lib/prune-default-programs'
@@ -57,41 +58,51 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
   error: null,
 
   async fetchList() {
+    const key = 'programs'
     const prevItems = get().items
     const localItems = programsFromLocal()
     const hasCachedItems = prevItems.length > 0 || localItems.length > 0
+    if (skipFreshFetch(key, hasCachedItems)) return
     const items = localItems.length > 0 ? localItems : prevItems
     if (isLocalMode()) {
       set({ items, loading: false, listReady: true, error: null })
+      markFetched(key)
       return
     }
-    set({
-      items,
-      loading: !hasCachedItems,
-      listReady: hasCachedItems || get().listReady,
-      error: null,
-    })
-    try {
-      const result = await programApi.list({ limit: 100 })
-      for (const item of result.items) {
-        localData.programs.upsertHeader(item)
-      }
-      set({ items: result.items, loading: false, listReady: true, error: null })
-    } catch (error) {
+
+    return coalesceFetch(key, async () => {
       set({
-        items: programsFromLocal().length > 0 ? programsFromLocal() : get().items,
-        loading: false,
-        listReady: true,
-        error: hasCachedItems
-          ? null
-          : error instanceof Error
-            ? error.message
-            : 'Не удалось загрузить программы',
+        items,
+        loading: !hasCachedItems,
+        listReady: hasCachedItems || get().listReady,
+        error: null,
       })
-    }
+      try {
+        const result = await programApi.list({ limit: 100 })
+        for (const item of result.items) {
+          localData.programs.upsertHeader(item)
+        }
+        set({ items: result.items, loading: false, listReady: true, error: null })
+        markFetched(key)
+      } catch (error) {
+        set({
+          items: programsFromLocal().length > 0 ? programsFromLocal() : get().items,
+          loading: false,
+          listReady: true,
+          error: hasCachedItems
+            ? null
+            : error instanceof Error
+              ? error.message
+              : 'Не удалось загрузить программы',
+        })
+      }
+    })
   },
 
   async fetchOne(id) {
+    const key = `program:${id}`
+    if (skipFreshFetch(key, get().current?.id === id)) return
+
     const local = localData.programs.get(id)
     if (local) {
       set({ current: local, loading: false, error: null })
@@ -102,11 +113,13 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
     try {
       if (isLocalMode()) {
         set({ current: localData.programs.get(id), loading: false })
+        markFetched(key)
         return
       }
       const current = await programApi.getById(id)
       localData.programs.replaceDaysFromCloud(current)
       set({ current, loading: false, error: null })
+      markFetched(key)
     } catch (error) {
       const fallback = localData.programs.get(id) ?? (get().current?.id === id ? get().current : null)
       set({

@@ -51,7 +51,7 @@ export function AppSerwistProvider({ children }: Props) {
     <SerwistProvider
       swUrl="/serwist/sw.js"
       disable={isDev}
-      cacheOnNavigation={!isDev}
+      cacheOnNavigation={false}
       reloadOnOnline={!isDev}
     >
       {children}

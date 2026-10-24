@@ -995,10 +995,7 @@ export const localData = {
                 : training.status === 'finished'
                   ? workingSetMaxWeight(sets, exercise.isWarmup ?? false)
                   : null,
-            previousMaxWeight:
-              exercise.previousMaxWeight !== undefined
-                ? exercise.previousMaxWeight
-                : findPreviousMaxWeight(exercise.exerciseId, id),
+            previousMaxWeight: exercise.previousMaxWeight ?? null,
             sets,
           }
         })

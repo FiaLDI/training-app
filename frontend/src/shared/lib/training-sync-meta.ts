@@ -73,11 +73,7 @@ export function trainingContentHash(training: TrainingWithDetails): string {
 
 export function isTrainingPendingSync(training: Training): boolean {
   const sync = getTrainingSyncMeta(training.metadata)
-  if (!sync || sync.status !== 'synced') return true
-  if (!sync.contentHash) return false
-  const detailed = localData.trainings.get(training.id)
-  if (!detailed) return false
-  return trainingContentHash(detailed) !== sync.contentHash
+  return !sync || sync.status !== 'synced'
 }
 
 export function markTrainingPending(

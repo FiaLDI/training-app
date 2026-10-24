@@ -4,6 +4,7 @@ import { create } from 'zustand'
 
 import { useSessionStore } from '@/entities/session/model/store'
 import { statsApi } from '@/entities/stats/api/stats-api'
+import { markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
 import { localData } from '@/shared/lib/local-data'
 
 import type {
@@ -53,6 +54,7 @@ export const useStatsStore = create<StatsStore>((set, get) => ({
   progressError: null,
 
   async loadOverview(key, range, yearRange) {
+    if (skipFreshFetch(`stats-overview:${key}`, Boolean(get().overviewByKey[key]))) return
     try {
       if (isLocalMode()) {
         const overview: StatsOverview = {
@@ -67,6 +69,7 @@ export const useStatsStore = create<StatsStore>((set, get) => ({
           overviewByKey: { ...state.overviewByKey, [key]: overview },
           overviewError: null,
         }))
+        markFetched(`stats-overview:${key}`)
         return
       }
 
@@ -89,6 +92,7 @@ export const useStatsStore = create<StatsStore>((set, get) => ({
         },
         overviewError: null,
       }))
+      markFetched(`stats-overview:${key}`)
     } catch (error) {
       if (get().overviewByKey[key]) {
         set({ overviewError: null })

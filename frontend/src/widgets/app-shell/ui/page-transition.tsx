@@ -1,7 +1,6 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { ViewTransition } from 'react'
 
 type Props = {
   pathname: string
@@ -9,14 +8,7 @@ type Props = {
   children: ReactNode
 }
 
-export function PageTransition({ pathname, enabled = true, children }: Props) {
-  if (!enabled) {
-    return <>{children}</>
-  }
-
-  return (
-    <ViewTransition key={pathname} enter="tab-fade" exit="tab-fade" default="none">
-      <div className="tab-content-slot">{children}</div>
-    </ViewTransition>
-  )
+/** Content slot only — View Transitions freeze the whole UI until in-flight fetches finish. */
+export function PageTransition({ children }: Props) {
+  return <div className="tab-content-slot">{children}</div>
 }

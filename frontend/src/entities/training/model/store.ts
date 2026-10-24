@@ -7,6 +7,7 @@ import { deleteOutbox } from '@/features/sync-trainings/model/delete-outbox'
 import { useSessionStore } from '@/entities/session/model/store'
 import { ApiError } from '@/shared/api/client'
 import { createLocalId } from '@/shared/lib/local-id'
+import { coalesceFetch, markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
 import { localData } from '@/shared/lib/local-data'
 import {
   isTrainingPendingSync,
@@ -154,49 +155,56 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
   error: null,
 
   async fetchList(params) {
+    const key = `trainings:${params?.limit ?? 100}:${params?.from ?? ''}:${params?.to ?? ''}`
     const prevItems = get().items
     const localItems = localData.trainings.list({ from: params?.from, to: params?.to })
     const catalogKnown = localData.trainings.list().length > 0
     const hasCachedItems = prevItems.length > 0 || catalogKnown
+    if (skipFreshFetch(key, hasCachedItems)) return
     const items =
       localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems
     if (isLocalMode()) {
       set({ items, loading: false, error: null })
+      markFetched(key)
       return
     }
-    set({
-      items,
-      loading: !hasCachedItems,
-      error: null,
-    })
 
-    try {
-      const result = await trainingApi.list({
-        limit: params?.limit ?? 100,
-        from: params?.from,
-        to: params?.to,
-        timeoutMs: READ_TIMEOUT_MS,
-      })
+    return coalesceFetch(key, async () => {
       set({
-        items: mergeFetchedCloudList(result.items, prevItems, 'replace'),
-        loading: false,
+        items,
+        loading: !hasCachedItems,
         error: null,
       })
-      void pullCloudTrainingDetailsForList(result.items, BACKGROUND_READ_TIMEOUT_MS).then(() => {
-        set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
-      })
-    } catch (error) {
-      const fallback = localData.trainings.list({ from: params?.from, to: params?.to })
-      set({
-        items: mergeCloudWithPending(fallback),
-        loading: false,
-        error: catalogKnown
-          ? null
-          : error instanceof Error
-            ? error.message
-            : 'Не удалось загрузить тренировки',
-      })
-    }
+
+      try {
+        const result = await trainingApi.list({
+          limit: params?.limit ?? 100,
+          from: params?.from,
+          to: params?.to,
+          timeoutMs: READ_TIMEOUT_MS,
+        })
+        set({
+          items: mergeFetchedCloudList(result.items, prevItems, 'replace'),
+          loading: false,
+          error: null,
+        })
+        markFetched(key)
+        void pullCloudTrainingDetailsForList(result.items, BACKGROUND_READ_TIMEOUT_MS).then(() => {
+          set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
+        })
+      } catch (error) {
+        const fallback = localData.trainings.list({ from: params?.from, to: params?.to })
+        set({
+          items: mergeCloudWithPending(fallback),
+          loading: false,
+          error: catalogKnown
+            ? null
+            : error instanceof Error
+              ? error.message
+              : 'Не удалось загрузить тренировки',
+        })
+      }
+    })
   },
 
   async pullLatestFromCloud() {

@@ -7,6 +7,7 @@ import { deleteOutbox } from '@/features/sync-trainings/model/delete-outbox'
 import { useSessionStore } from '@/entities/session/model/store'
 import { ApiError } from '@/shared/api/client'
 import { createLocalId } from '@/shared/lib/local-id'
+import { coalesceFetch, markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
 import { localData } from '@/shared/lib/local-data'
 import {
   isTemplatePendingSync,
@@ -98,53 +99,62 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
   error: null,
 
   async fetchList(q) {
+    const key = `templates:${q ?? ''}`
     const prevItems = get().items
-    const localItems = mergeCloudWithPending(localData.templates.list(q))
-    const catalogKnown = localData.templates.list().length > 0
+    const headers = localData.templates.list()
+    const localItems = mergeCloudWithPending(q ? localData.templates.list(q) : headers)
+    const catalogKnown = headers.length > 0
     const hasCachedItems = prevItems.length > 0 || catalogKnown
+    if (skipFreshFetch(key, hasCachedItems)) return
     const items =
       localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems
     if (isLocalMode()) {
       set({ items, loading: false, error: null })
+      markFetched(key)
       return
     }
-    set({
-      items,
-      loading: !hasCachedItems,
-      error: null,
-    })
 
-    try {
-      const result = await templateApi.list({
-        limit: 100,
-        q,
-        timeoutMs: catalogKnown ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
-      })
-      for (const item of result.items) {
-        const local = localData.templates.get(item.id)
-        if (local && isTemplatePendingSync(local)) continue
-        if (!local) {
-          localData.templates.upsert({
-            ...item,
-            metadata: {
-              ...item.metadata,
-              sync: { status: 'synced', serverSyncedAt: new Date().toISOString() },
-            },
-          })
-        }
-      }
-      set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
-    } catch (error) {
+    return coalesceFetch(key, async () => {
       set({
-        items: mergeCloudWithPending(localData.templates.list(q)),
-        loading: false,
-        error: catalogKnown
-          ? null
-          : error instanceof Error
-            ? error.message
-            : 'Не удалось загрузить планы',
+        items,
+        loading: !hasCachedItems,
+        error: null,
       })
-    }
+
+      try {
+        const result = await templateApi.list({
+          limit: 100,
+          q,
+          timeoutMs: catalogKnown ? BACKGROUND_READ_TIMEOUT_MS : READ_TIMEOUT_MS,
+        })
+        const localById = new Map(localData.templates.list().map((item) => [item.id, item]))
+        for (const item of result.items) {
+          const local = localById.get(item.id)
+          if (local && isTemplatePendingSync(local)) continue
+          if (!local) {
+            localData.templates.upsert({
+              ...item,
+              metadata: {
+                ...item.metadata,
+                sync: { status: 'synced', serverSyncedAt: new Date().toISOString() },
+              },
+            })
+          }
+        }
+        set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
+        markFetched(key)
+      } catch (error) {
+        set({
+          items: mergeCloudWithPending(localData.templates.list(q)),
+          loading: false,
+          error: catalogKnown
+            ? null
+            : error instanceof Error
+              ? error.message
+              : 'Не удалось загрузить планы',
+        })
+      }
+    })
   },
 
   async fetchOne(id) {
