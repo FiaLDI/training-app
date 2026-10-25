@@ -61,50 +61,61 @@ pipeline {
       }
     }
 
-    stage('Docker build') {
+    stage('Build backend') {
       steps {
         retry(2) {
           sh '''
             set -euo pipefail
             export DOCKER_BUILDKIT=1
-
-            reclaim_disk() {
-              docker builder prune -af || true
-              df -h / /var/lib/docker 2>/dev/null || df -h /
-            }
-
-            echo "Disk before build:"
-            reclaim_disk
+            echo "Disk before backend build:"
+            docker builder prune -af || true
+            df -h / /var/lib/docker 2>/dev/null || df -h /
             bash scripts/ci-disk-check.sh 2.5
-
             docker build -t "${BACKEND_IMAGE}:${IMAGE_TAG}" ./backend
+            docker image inspect "${BACKEND_IMAGE}:${IMAGE_TAG}" >/dev/null
+            echo "Built ${BACKEND_IMAGE}:${IMAGE_TAG}"
+          '''
+        }
+      }
+    }
 
+    stage('Build frontend') {
+      steps {
+        retry(2) {
+          sh '''
+            set -euo pipefail
+            export DOCKER_BUILDKIT=1
             # Give the host a moment after peak memory from previous layer work.
             sleep 2
             echo "Reclaim disk before frontend (Next.js build is the heaviest step)…"
-            reclaim_disk
+            docker builder prune -af || true
+            df -h / /var/lib/docker 2>/dev/null || df -h /
             bash scripts/ci-disk-check.sh 2.5
-
             docker build \
               --build-arg NEXT_PUBLIC_API_URL=/api \
               -t "${FRONTEND_IMAGE}:${IMAGE_TAG}" ./frontend
+            docker image inspect "${FRONTEND_IMAGE}:${IMAGE_TAG}" >/dev/null
+            echo "Built ${FRONTEND_IMAGE}:${IMAGE_TAG}"
+          '''
+        }
+      }
+    }
 
+    stage('Build upload') {
+      steps {
+        retry(2) {
+          sh '''
+            set -euo pipefail
+            export DOCKER_BUILDKIT=1
             sleep 2
             echo "Reclaim disk before upload-service build…"
-            reclaim_disk
+            docker builder prune -af || true
+            df -h / /var/lib/docker 2>/dev/null || df -h /
             bash scripts/ci-disk-check.sh 2.5
-
             docker build -t "${UPLOAD_IMAGE}:${IMAGE_TAG}" ./upload-service
-
-            docker image inspect "${BACKEND_IMAGE}:${IMAGE_TAG}" >/dev/null
-            docker image inspect "${FRONTEND_IMAGE}:${IMAGE_TAG}" >/dev/null
             docker image inspect "${UPLOAD_IMAGE}:${IMAGE_TAG}" >/dev/null
-
-            echo "Built images:"
-            echo "  ${BACKEND_IMAGE}:${IMAGE_TAG}"
-            echo "  ${FRONTEND_IMAGE}:${IMAGE_TAG}"
-            echo "  ${UPLOAD_IMAGE}:${IMAGE_TAG}"
-            echo "Disk after build:"
+            echo "Built ${UPLOAD_IMAGE}:${IMAGE_TAG}"
+            echo "Disk after builds:"
             df -h / 2>/dev/null || true
           '''
         }
