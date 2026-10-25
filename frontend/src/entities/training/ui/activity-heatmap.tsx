@@ -29,7 +29,7 @@ export function ActivityHeatmap({ points, className }: Props) {
           <p className="mt-1 font-[family-name:var(--font-display)] text-2xl tracking-tight">
             {total}
             <span className="ml-2 text-sm font-normal text-[var(--muted)]">
-              {total === 1 ? 'день с тренировкой за год' : 'дней с тренировкой за год'}
+              {total === 1 ? 'день с тренировкой' : 'дней с тренировкой'}
             </span>
           </p>
         </div>

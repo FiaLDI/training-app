@@ -10,12 +10,14 @@ import { localData } from '@/shared/lib/local-data'
 
 export function useLastFinishedTraining() {
   const mode = useSessionStore((s) => s.mode)
-  const trainings = useTrainingStore((s) => s.items)
+  const storeItems = useTrainingStore((s) => s.items)
   const [details, setDetails] = useState<TrainingWithDetails | null>(null)
 
   const training = useMemo((): Training | null => {
+    const catalog = localData.trainings.list()
+    const source = catalog.length > 0 ? catalog : storeItems
     return (
-      trainings
+      source
         .filter((item) => item.status === 'finished')
         .sort((a, b) => {
           const aKey = a.finishedAt ?? a.startedAt ?? a.createdAt
@@ -23,7 +25,7 @@ export function useLastFinishedTraining() {
           return bKey.localeCompare(aKey)
         })[0] ?? null
     )
-  }, [trainings])
+  }, [storeItems])
 
   useEffect(() => {
     if (!training) {

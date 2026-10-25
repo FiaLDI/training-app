@@ -1,7 +1,15 @@
 'use client'
 
 import { useSessionStore } from '@/entities/session/model/store'
+import { calendarDayRange } from '@/entities/training/lib/activity-calendar'
 import { catalogSync } from '@/shared/lib/catalog-sync'
+import {
+  collectionNeedsFetch,
+  fetchCloudSyncState,
+  getVisibleTrainingWindow,
+  isStatsScreenVisible,
+  reloadVisibleStats,
+} from '@/shared/lib/cloud-sync-state'
 import { localData } from '@/shared/lib/local-data'
 import { listPendingTemplates } from '@/shared/lib/template-sync-meta'
 import {
@@ -152,17 +160,25 @@ async function runPull() {
   pulling = true
   pullQueued = false
   try {
-    await catalogSync.mergeFromServer({ timeoutMs: 5000 })
+    const live = await fetchCloudSyncState({ refresh: true, timeoutMs: 4000 })
+    if (!live) return
     if (isBackgroundSyncPaused()) {
       pullQueued = true
       return
     }
-    const [{ useTrainingStore }, { useTemplateStore }] = await Promise.all([
-      import('@/entities/training/model/store'),
-      import('@/entities/template/model/store'),
-    ])
-    await useTrainingStore.getState().pullLatestFromCloud()
-    await useTemplateStore.getState().fetchList()
+    if (collectionNeedsFetch('trainings', live)) {
+      const { useTrainingStore } = await import('@/entities/training/model/store')
+      const window = getVisibleTrainingWindow() ?? calendarDayRange()
+      await useTrainingStore.getState().fetchList({
+        from: window.from,
+        to: window.to,
+        limit: 100,
+        merge: 'union',
+      })
+    }
+    if (isStatsScreenVisible() && collectionNeedsFetch('stats', live)) {
+      await reloadVisibleStats()
+    }
   } catch {
     // next pull retries
   } finally {

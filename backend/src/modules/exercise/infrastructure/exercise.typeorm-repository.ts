@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
+import { StatsCacheService } from '../../../shared/stats/stats-cache.service'
+
 import {
   CreateExerciseRepositoryInput,
   ExerciseCatalogKey,
@@ -18,7 +20,13 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
   constructor(
     @InjectRepository(ExerciseEntity)
     private readonly exercises: Repository<ExerciseEntity>,
+    private readonly statsCache?: StatsCacheService,
   ) {}
+
+  private async bumpExercises(userId: string | null | undefined): Promise<void> {
+    if (!userId || !this.statsCache) return
+    await this.statsCache.bumpCollection(userId, 'exercises')
+  }
 
   private mapToDomain(entity: ExerciseEntity): Exercise {
     return {
@@ -120,6 +128,7 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
     })
 
     const saved = await this.exercises.save(entity)
+    await this.bumpExercises(input.userId)
     return this.mapToDomain(saved)
   }
 
@@ -138,11 +147,15 @@ export class ExerciseTypeormRepository implements ExerciseRepositoryPort {
     if (input.metadata !== undefined) entity.metadata = input.metadata
 
     const saved = await this.exercises.save(entity)
+    await this.bumpExercises(saved.userId ?? entity.userId)
     return this.mapToDomain(saved)
   }
 
   async delete(id: string): Promise<boolean> {
+    const entity = await this.exercises.findOne({ where: { id } })
     const result = await this.exercises.delete(id)
-    return (result.affected ?? 0) > 0
+    const deleted = (result.affected ?? 0) > 0
+    if (deleted) await this.bumpExercises(entity?.userId)
+    return deleted
   }
 }

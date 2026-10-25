@@ -3,6 +3,8 @@ import { Injectable } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
+import { StatsCacheService } from '../../../shared/stats/stats-cache.service'
+
 import {
   AddExerciseToTrainingGroupRepositoryInput,
   CreateTrainingExerciseGroupRepositoryInput,
@@ -35,6 +37,7 @@ import { TrainingExerciseGroupEntity } from '../core/entity/training-exercise-gr
 import { TrainingExerciseEntity } from '../core/entity/training-exercise.entity'
 import { TrainingSetEntity } from '../core/entity/training-set.entity'
 import { TrainingEntity } from '../core/entity/training.entity'
+import { countsByTrainingId, TrainingListCountRow } from './list-training-counts'
 
 @Injectable()
 export class TrainingTypeormRepository implements TrainingRepositoryPort {
@@ -47,7 +50,13 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     private readonly trainingSets: Repository<TrainingSetEntity>,
     @InjectRepository(TrainingExerciseGroupEntity)
     private readonly trainingGroups: Repository<TrainingExerciseGroupEntity>,
+    private readonly statsCache?: StatsCacheService,
   ) {}
+
+  private async bumpTrainings(userId: string): Promise<void> {
+    if (!this.statsCache) return
+    await this.statsCache.bumpCollection(userId, 'trainings')
+  }
 
   private mapTraining(entity: TrainingEntity): Training {
     return {
@@ -164,13 +173,37 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       .take(input.limit)
 
     const [items, total] = await qb.getManyAndCount()
+    const counts = await this.loadListCounts(items.map((item) => item.id))
 
     return {
-      items: items.map((item) => this.mapTraining(item)),
+      items: items.map((item) => {
+        const extra = counts.get(item.id)
+        return {
+          ...this.mapTraining(item),
+          setCount: extra?.setCount ?? 0,
+          exerciseCount: extra?.exerciseCount ?? 0,
+        }
+      }),
       total,
       page: input.page,
       limit: input.limit,
     }
+  }
+
+  private async loadListCounts(ids: string[]): Promise<Map<string, { setCount: number; exerciseCount: number }>> {
+    if (ids.length === 0) return new Map()
+
+    const rows = await this.trainingExercises
+      .createQueryBuilder('e')
+      .leftJoin(TrainingSetEntity, 's', 's.training_exercise_id = e.id')
+      .select('e.training_id', 'trainingId')
+      .addSelect('COUNT(DISTINCT e.id)', 'exerciseCount')
+      .addSelect('COUNT(s.id)', 'setCount')
+      .where('e.training_id IN (:...ids)', { ids })
+      .groupBy('e.training_id')
+      .getRawMany<TrainingListCountRow>()
+
+    return countsByTrainingId(rows)
   }
 
   async getById(id: string, userId: string): Promise<TrainingWithDetails | null> {
@@ -245,7 +278,9 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       notes: input.notes ?? null,
       metadata: input.metadata ?? {},
     })
-    return this.mapTraining(await this.trainings.save(entity))
+    const saved = this.mapTraining(await this.trainings.save(entity))
+    await this.bumpTrainings(input.userId)
+    return saved
   }
 
   async update(input: UpdateTrainingRepositoryInput): Promise<Training | null> {
@@ -268,12 +303,16 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     if (input.programDayId !== undefined) entity.programDayId = input.programDayId
     if (input.templateId !== undefined) entity.templateId = input.templateId
 
-    return this.mapTraining(await this.trainings.save(entity))
+    const saved = this.mapTraining(await this.trainings.save(entity))
+    await this.bumpTrainings(input.userId)
+    return saved
   }
 
   async delete(id: string, userId: string): Promise<boolean> {
     const result = await this.trainings.delete({ id, userId })
-    return (result.affected ?? 0) > 0
+    const deleted = (result.affected ?? 0) > 0
+    if (deleted) await this.bumpTrainings(userId)
+    return deleted
   }
 
   async findActiveByProgramDay(
@@ -354,7 +393,9 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       positionInGroup: input.positionInGroup ?? null,
       metadata: input.metadata ?? {},
     })
-    return this.mapExercise(await this.trainingExercises.save(entity))
+    const saved = this.mapExercise(await this.trainingExercises.save(entity))
+    await this.bumpTrainings(input.userId)
+    return saved
   }
 
   async updateExercise(
@@ -381,7 +422,9 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     if (input.positionInGroup !== undefined) entity.positionInGroup = input.positionInGroup
     if (input.metadata !== undefined) entity.metadata = input.metadata
 
-    return this.mapExercise(await this.trainingExercises.save(entity))
+    const saved = this.mapExercise(await this.trainingExercises.save(entity))
+    await this.bumpTrainings(input.userId)
+    return saved
   }
 
   async deleteExercise(id: string, userId: string): Promise<boolean> {
@@ -401,7 +444,9 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     }
 
     const result = await this.trainingExercises.delete(id)
-    return (result.affected ?? 0) > 0
+    const deleted = (result.affected ?? 0) > 0
+    if (deleted) await this.bumpTrainings(userId)
+    return deleted
   }
 
   async listGroups(trainingId: string): Promise<TrainingExerciseGroup[]> {
@@ -622,7 +667,9 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
       isWarmup: input.isWarmup ?? false,
       metadata: input.metadata ?? {},
     })
-    return this.mapSet(await this.trainingSets.save(entity))
+    const saved = this.mapSet(await this.trainingSets.save(entity))
+    await this.bumpTrainings(input.userId)
+    return saved
   }
 
   async updateSet(input: UpdateTrainingSetRepositoryInput): Promise<TrainingSet | null> {
@@ -642,14 +689,18 @@ export class TrainingTypeormRepository implements TrainingRepositoryPort {
     if (input.isWarmup !== undefined) entity.isWarmup = input.isWarmup
     if (input.metadata !== undefined) entity.metadata = input.metadata
 
-    return this.mapSet(await this.trainingSets.save(entity))
+    const saved = this.mapSet(await this.trainingSets.save(entity))
+    await this.bumpTrainings(input.userId)
+    return saved
   }
 
   async deleteSet(id: string, userId: string): Promise<boolean> {
     const entity = await this.findOwnedSet(id, userId)
     if (!entity) return false
     const result = await this.trainingSets.delete(id)
-    return (result.affected ?? 0) > 0
+    const deleted = (result.affected ?? 0) > 0
+    if (deleted) await this.bumpTrainings(userId)
+    return deleted
   }
 
   async getVolumeStats(input: VolumeStatsRepositoryInput): Promise<VolumeStatPoint[]> {

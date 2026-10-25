@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 
+import { StatsCacheService } from '../../shared/stats/stats-cache.service'
 import { AuthModule } from '../auth/auth.module'
 import { ExerciseModule } from '../exercise/exercise.module'
 import { TEMPLATE_REPOSITORY_PORT, TemplateRepositoryPort } from '../template/core/ports/template-repository.port'
@@ -35,6 +36,7 @@ import { ProgramTypeormRepository } from './infrastructure/program.typeorm-repos
   ],
   controllers: [ProgramHttpController],
   providers: [
+    StatsCacheService,
     ProgramTypeormRepository,
     {
       provide: PROGRAM_REPOSITORY_PORT,

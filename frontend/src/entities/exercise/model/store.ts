@@ -2,13 +2,23 @@
 
 import { create } from 'zustand'
 
+import { useSessionStore } from '@/entities/session/model/store'
 import { catalogSync } from '@/shared/lib/catalog-sync'
-import { coalesceFetch, markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
+import {
+  collectionNeedsFetch,
+  fetchCloudSyncState,
+  persistSyncCollections,
+} from '@/shared/lib/cloud-sync-state'
+import { coalesceFetch, markFetched } from '@/shared/lib/fresh-fetch'
 import { localData } from '@/shared/lib/local-data'
 
 import type { CreateExerciseInput, Exercise, UpdateExerciseInput } from './types'
 
 const CATALOG_READ_TIMEOUT_MS = 4000
+
+function isLocalMode() {
+  return useSessionStore.getState().mode === 'local'
+}
 
 type ExerciseStore = {
   items: Exercise[]
@@ -42,8 +52,12 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
     const prevItems = get().items
     const localItems = localData.exercises.list()
     const hasCachedItems = prevItems.length > 0 || localItems.length > 0
-    if (skipFreshFetch(key, hasCachedItems)) return
     const items = localItems.length > 0 ? localItems : prevItems
+    if (isLocalMode()) {
+      set({ items, total: items.length, loading: false, error: null })
+      markFetched(key)
+      return
+    }
 
     return coalesceFetch(key, async () => {
       set({
@@ -53,11 +67,22 @@ export const useExerciseStore = create<ExerciseStore>((set, get) => ({
         error: null,
       })
 
+      if (hasCachedItems) {
+        const live = await fetchCloudSyncState()
+        if (live && !collectionNeedsFetch('exercises', live)) {
+          persistSyncCollections(live, ['exercises'])
+          set({ items: localItems, total: localItems.length, loading: false, error: null })
+          return
+        }
+      }
+
       try {
         await catalogSync.mergeFromServer({ timeoutMs: CATALOG_READ_TIMEOUT_MS })
         const next = localData.exercises.list()
         set({ items: next, total: next.length, loading: false })
         markFetched(key)
+        const live = await fetchCloudSyncState()
+        if (live) persistSyncCollections(live, ['exercises'])
       } catch (error) {
         const next = localData.exercises.list()
         set({

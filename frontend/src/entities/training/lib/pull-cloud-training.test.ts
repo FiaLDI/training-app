@@ -8,6 +8,7 @@ import { localData } from '@/shared/lib/local-data'
 import {
   getTrainingSyncMeta,
   isTrainingPendingSync,
+  mirrorTrainingLocally,
 } from '@/shared/lib/training-sync-meta'
 import type { Training, TrainingWithDetails } from '@/entities/training/model/types'
 
@@ -134,5 +135,41 @@ describe('pull-cloud-training', () => {
     const prev = [header({ id: 'old', startedAt: '2026-08-01T10:00:00.000Z' })]
     const incoming = [header({ id: 'new', startedAt: '2026-09-02T10:00:00.000Z' })]
     expect(unionTrainingLists(prev, incoming).map((item) => item.id)).toEqual(['new', 'old'])
+  })
+
+  it('skips details when the header matches and setCount agrees', () => {
+    mirrorTrainingLocally(detailed(), 'synced')
+    expect(trainingNeedsCloudDetails(header({ setCount: 1, exerciseCount: 1 }))).toBe(false)
+  })
+
+  it('skips details for an empty header when exerciseCount and setCount are zero', () => {
+    ingestCloudTrainingHeader(header({ setCount: 0, exerciseCount: 0 }))
+    expect(trainingNeedsCloudDetails(header({ setCount: 0, exerciseCount: 0 }))).toBe(false)
+  })
+
+  it('pulls details when exerciseCount disagrees with the local skeleton', () => {
+    ingestCloudTrainingHeader(header({ setCount: 0, exerciseCount: 3 }))
+    expect(trainingNeedsCloudDetails(header({ setCount: 0, exerciseCount: 3 }))).toBe(true)
+  })
+
+  it('pulls details when setCount grew or the session is in progress', () => {
+    mirrorTrainingLocally(detailed(), 'synced')
+    expect(trainingNeedsCloudDetails(header({ setCount: 2 }))).toBe(true)
+    expect(trainingNeedsCloudDetails(header({ status: 'in_progress', finishedAt: null, setCount: 1 }))).toBe(
+      true,
+    )
+  })
+
+  it('does not pull details for a pending local training', () => {
+    localData.trainings.create({
+      id: 'tr-1',
+      templateId: 'tpl-1',
+      status: 'in_progress',
+      startedAt: '2026-09-02T10:00:00.000Z',
+      metadata: { sync: { status: 'pending', reason: 'queued' } },
+    })
+    expect(trainingNeedsCloudDetails(header({ status: 'in_progress', finishedAt: null, setCount: 9 }))).toBe(
+      false,
+    )
   })
 })

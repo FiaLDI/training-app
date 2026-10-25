@@ -7,6 +7,7 @@ import { localData } from '@/shared/lib/local-data'
 import {
   getTrainingSyncMeta,
   isTrainingPendingSync,
+  mirrorTrainingLocally,
   trainingContentHash,
 } from '@/shared/lib/training-sync-meta'
 import type { Training, TrainingWithDetails } from '@/entities/training/model/types'
@@ -91,6 +92,23 @@ describe('cloud fetchList', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     resetEntityStores()
+  })
+
+  it('does not pull details when setCount matches local sets', async () => {
+    cloudSession()
+    mirrorTrainingLocally(detailed(), 'synced')
+    vi.spyOn(trainingApi, 'list').mockResolvedValue({
+      items: [listItem({ setCount: 1 })],
+      total: 1,
+      page: 1,
+      limit: 100,
+    })
+    const getById = vi.spyOn(trainingApi, 'getById')
+
+    await useTrainingStore.getState().fetchList({ from: '2026-09-02T00:00:00.000Z', to: '2026-09-02T23:59:59.999Z' })
+    await Promise.resolve()
+
+    expect(getById).not.toHaveBeenCalled()
   })
 
   it('pulls details for a cloud training missing locally', async () => {

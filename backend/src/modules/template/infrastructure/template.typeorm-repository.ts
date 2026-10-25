@@ -3,6 +3,8 @@ import { areExerciseOrdersContiguous, groupTypeFromMemberCount } from '../../../
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
+import { StatsCacheService } from '../../../shared/stats/stats-cache.service'
+
 import {
   AddExerciseToTemplateGroupRepositoryInput,
   CreateTemplateExerciseGroupRepositoryInput,
@@ -29,7 +31,13 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
     private readonly templateExercises: Repository<TemplateExerciseEntity>,
     @InjectRepository(TemplateExerciseGroupEntity)
     private readonly templateGroups: Repository<TemplateExerciseGroupEntity>,
+    private readonly statsCache?: StatsCacheService,
   ) {}
+
+  private async bumpTemplates(userId: string | null | undefined): Promise<void> {
+    if (!userId || !this.statsCache) return
+    await this.statsCache.bumpCollection(userId, 'templates')
+  }
 
   private mapTemplate(entity: WorkoutTemplateEntity): WorkoutTemplate {
     return {
@@ -151,7 +159,9 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
       description: input.description ?? null,
       metadata: input.metadata ?? {},
     })
-    return this.mapTemplate(await this.templates.save(entity))
+    const saved = this.mapTemplate(await this.templates.save(entity))
+    await this.bumpTemplates(input.userId)
+    return saved
   }
 
   async update(input: UpdateTemplateRepositoryInput): Promise<WorkoutTemplate | null> {
@@ -164,12 +174,16 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
     if (input.description !== undefined) entity.description = input.description
     if (input.metadata !== undefined) entity.metadata = input.metadata
 
-    return this.mapTemplate(await this.templates.save(entity))
+    const saved = this.mapTemplate(await this.templates.save(entity))
+    await this.bumpTemplates(input.userId)
+    return saved
   }
 
   async delete(id: string, userId: string): Promise<boolean> {
     const result = await this.templates.delete({ id, userId, isSystem: false })
-    return (result.affected ?? 0) > 0
+    const deleted = (result.affected ?? 0) > 0
+    if (deleted) await this.bumpTemplates(userId)
+    return deleted
   }
 
   async listExercises(templateId: string): Promise<TemplateExercise[]> {
@@ -209,7 +223,9 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
       positionInGroup: input.positionInGroup ?? null,
       metadata: input.metadata ?? {},
     })
-    return this.mapExercise(await this.templateExercises.save(entity))
+    const saved = this.mapExercise(await this.templateExercises.save(entity))
+    await this.bumpTemplates(input.userId)
+    return saved
   }
 
   async updateExercise(
@@ -232,7 +248,9 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
     if (input.positionInGroup !== undefined) entity.positionInGroup = input.positionInGroup
     if (input.metadata !== undefined) entity.metadata = input.metadata
 
-    return this.mapExercise(await this.templateExercises.save(entity))
+    const saved = this.mapExercise(await this.templateExercises.save(entity))
+    await this.bumpTemplates(input.userId)
+    return saved
   }
 
   async deleteExercise(id: string, userId: string): Promise<boolean> {
@@ -252,7 +270,9 @@ export class TemplateTypeormRepository implements TemplateRepositoryPort {
     }
 
     const result = await this.templateExercises.delete(id)
-    return (result.affected ?? 0) > 0
+    const deleted = (result.affected ?? 0) > 0
+    if (deleted) await this.bumpTemplates(userId)
+    return deleted
   }
 
   async listGroups(templateId: string): Promise<TemplateExerciseGroup[]> {

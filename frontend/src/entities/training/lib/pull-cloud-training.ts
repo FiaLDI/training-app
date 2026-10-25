@@ -30,15 +30,19 @@ export function trainingHeaderChanged(local: Training, cloud: Training): boolean
   )
 }
 
-/** Pull details when local is missing, empty, header-stale, or still in progress. */
+/** Pull details on header/setCount/exerciseCount mismatch or an in-progress session. */
 export function trainingNeedsCloudDetails(cloud: Training): boolean {
   const local = localData.trainings.get(cloud.id)
   if (local && isTrainingPendingSync(local)) return false
   if (!local) return true
-  if (local.exercises.length === 0) return true
-  if (trainingHeaderChanged(local, cloud)) return true
   if (cloud.status === 'in_progress' || local.status === 'in_progress') return true
-  if (cloud.status === 'finished' && countTrainingSets(local) === 0) return true
+  if (trainingHeaderChanged(local, cloud)) return true
+  const localSets = countTrainingSets(local)
+  if (cloud.setCount != null && localSets !== cloud.setCount) return true
+  if (cloud.exerciseCount != null && local.exercises.length !== cloud.exerciseCount) return true
+  if (cloud.setCount == null && cloud.exerciseCount == null) {
+    return local.exercises.length === 0 || localSets === 0
+  }
   return false
 }
 

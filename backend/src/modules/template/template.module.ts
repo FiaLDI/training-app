@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 
+import { StatsCacheService } from '../../shared/stats/stats-cache.service'
 import { AuthModule } from '../auth/auth.module'
 import { ExerciseModule } from '../exercise/exercise.module'
 import { EXERCISE_REPOSITORY_PORT, ExerciseRepositoryPort } from '../exercise/core/ports/exercise-repository.port'
@@ -35,6 +36,7 @@ import { WorkoutTemplateEntity } from './core/entity/workout-template.entity'
   ],
   controllers: [TemplateHttpController],
   providers: [
+    StatsCacheService,
     TemplateTypeormRepository,
     {
       provide: TEMPLATE_REPOSITORY_PORT,

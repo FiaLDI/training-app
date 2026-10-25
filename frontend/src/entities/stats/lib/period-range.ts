@@ -18,6 +18,13 @@ export function statsPeriodRange(period: StatsPeriod): { from: string; to: strin
   return { from: from.toISOString(), to: to.toISOString() }
 }
 
+export function isStatsRangeClosed(range: { to: string }, now = new Date()): boolean {
+  const end = new Date(range.to)
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+  return end < today
+}
+
 export const STATS_PERIOD_LABELS: Record<StatsPeriod, string> = {
   week: 'Неделя',
   month: 'Месяц',

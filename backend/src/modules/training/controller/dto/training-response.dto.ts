@@ -142,6 +142,12 @@ export class TrainingResponseDto {
   @ApiProperty()
   createdAt!: string
 
+  @ApiPropertyOptional({ description: 'Total sets in the session (list payload)' })
+  setCount?: number
+
+  @ApiPropertyOptional({ description: 'Exercise rows in the session (list payload)' })
+  exerciseCount?: number
+
   @ApiPropertyOptional({ type: [TrainingExerciseResponseDto] })
   exercises?: TrainingExerciseResponseDto[]
 

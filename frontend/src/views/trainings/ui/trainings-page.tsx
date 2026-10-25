@@ -4,9 +4,11 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 
 import { StartTrainingButton } from '@/features/start-training/ui/start-training-button'
+import { statsPeriodRange } from '@/entities/stats/lib/period-range'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { useTemplateStore } from '@/entities/template/model/store'
+import { setVisibleTrainingWindow } from '@/shared/lib/cloud-sync-state'
 import { isTrainingPendingSync } from '@/shared/lib/training-sync-meta'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -20,7 +22,9 @@ export function TrainingsPage() {
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
 
   useEffect(() => {
-    void fetchList()
+    const range = statsPeriodRange('month')
+    setVisibleTrainingWindow(range.from, range.to)
+    void fetchList({ from: range.from, to: range.to, limit: 100 })
     void fetchTemplates()
   }, [fetchList, fetchTemplates])
 

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
+import { StatsCacheService } from '../../../shared/stats/stats-cache.service'
+
 import {
   CreateProgramDayRepositoryInput,
   CreateProgramRepositoryInput,
@@ -22,7 +24,13 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
     private readonly programs: Repository<ProgramEntity>,
     @InjectRepository(ProgramDayEntity)
     private readonly programDays: Repository<ProgramDayEntity>,
+    private readonly statsCache?: StatsCacheService,
   ) {}
+
+  private async bumpPrograms(userId: string | null | undefined): Promise<void> {
+    if (!userId || !this.statsCache) return
+    await this.statsCache.bumpCollection(userId, 'programs')
+  }
 
   private mapProgram(entity: ProgramEntity, dayCount?: number): Program {
     return {
@@ -132,7 +140,9 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
       description: input.description ?? null,
       metadata: input.metadata ?? {},
     })
-    return this.mapProgram(await this.programs.save(entity))
+    const saved = this.mapProgram(await this.programs.save(entity))
+    await this.bumpPrograms(input.userId)
+    return saved
   }
 
   async update(input: UpdateProgramRepositoryInput): Promise<Program | null> {
@@ -145,12 +155,16 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
     if (input.description !== undefined) entity.description = input.description
     if (input.metadata !== undefined) entity.metadata = input.metadata
 
-    return this.mapProgram(await this.programs.save(entity))
+    const saved = this.mapProgram(await this.programs.save(entity))
+    await this.bumpPrograms(input.userId)
+    return saved
   }
 
   async delete(id: string, userId: string): Promise<boolean> {
     const result = await this.programs.delete({ id, userId, isSystem: false })
-    return (result.affected ?? 0) > 0
+    const deleted = (result.affected ?? 0) > 0
+    if (deleted) await this.bumpPrograms(userId)
+    return deleted
   }
 
   async listDays(programId: string): Promise<ProgramDay[]> {
@@ -171,7 +185,9 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
       templateId: input.templateId ?? null,
       notes: input.notes ?? null,
     })
-    return this.mapDay(await this.programDays.save(entity))
+    const saved = this.mapDay(await this.programDays.save(entity))
+    await this.bumpPrograms(input.userId)
+    return saved
   }
 
   async updateDay(input: UpdateProgramDayRepositoryInput): Promise<ProgramDay | null> {
@@ -183,13 +199,17 @@ export class ProgramTypeormRepository implements ProgramRepositoryPort {
     if (input.templateId !== undefined) entity.templateId = input.templateId
     if (input.notes !== undefined) entity.notes = input.notes
 
-    return this.mapDay(await this.programDays.save(entity))
+    const saved = this.mapDay(await this.programDays.save(entity))
+    await this.bumpPrograms(input.userId)
+    return saved
   }
 
   async deleteDay(id: string, userId: string): Promise<boolean> {
     const entity = await this.findOwnedDay(id, userId)
     if (!entity) return false
     const result = await this.programDays.delete(id)
-    return (result.affected ?? 0) > 0
+    const deleted = (result.affected ?? 0) > 0
+    if (deleted) await this.bumpPrograms(userId)
+    return deleted
   }
 }

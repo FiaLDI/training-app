@@ -4,6 +4,11 @@ import { create } from 'zustand'
 
 import { ensureTemplateWithExercises } from '@/entities/training/lib/hydrate-from-template'
 import { useSessionStore } from '@/entities/session/model/store'
+import {
+  collectionNeedsFetch,
+  fetchCloudSyncState,
+  persistSyncCollections,
+} from '@/shared/lib/cloud-sync-state'
 import { coalesceFetch, markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
 import { localData } from '@/shared/lib/local-data'
 
@@ -62,7 +67,6 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
     const prevItems = get().items
     const localItems = programsFromLocal()
     const hasCachedItems = prevItems.length > 0 || localItems.length > 0
-    if (skipFreshFetch(key, hasCachedItems)) return
     const items = localItems.length > 0 ? localItems : prevItems
     if (isLocalMode()) {
       set({ items, loading: false, listReady: true, error: null })
@@ -77,6 +81,14 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
         listReady: hasCachedItems || get().listReady,
         error: null,
       })
+      if (hasCachedItems) {
+        const live = await fetchCloudSyncState()
+        if (live && !collectionNeedsFetch('programs', live)) {
+          persistSyncCollections(live, ['programs'])
+          set({ items: localItems, loading: false, listReady: true, error: null })
+          return
+        }
+      }
       try {
         const result = await programApi.list({ limit: 100 })
         for (const item of result.items) {
@@ -84,6 +96,8 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
         }
         set({ items: result.items, loading: false, listReady: true, error: null })
         markFetched(key)
+        const live = await fetchCloudSyncState()
+        if (live) persistSyncCollections(live, ['programs'])
       } catch (error) {
         set({
           items: programsFromLocal().length > 0 ? programsFromLocal() : get().items,

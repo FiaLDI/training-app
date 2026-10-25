@@ -4,7 +4,6 @@ import { create } from 'zustand'
 
 import { useSessionStore } from '@/entities/session/model/store'
 import { statsApi } from '@/entities/stats/api/stats-api'
-import { markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
 import { localData } from '@/shared/lib/local-data'
 
 import type {
@@ -34,17 +33,33 @@ type StatsStore = {
   loadOverview: (
     key: string,
     range: { from: string; to: string },
-    yearRange: { from: string; to: string },
   ) => Promise<void>
+  hydrateOverviewFromLocal: (key: string, range: { from: string; to: string }) => void
   loadProgress: (
     key: string,
     exerciseId: string,
     range: { from: string; to: string },
   ) => Promise<void>
+  hydrateProgressFromLocal: (
+    key: string,
+    exerciseId: string,
+    range: { from: string; to: string },
+  ) => void
 }
 
 function isLocalMode() {
   return useSessionStore.getState().mode === 'local'
+}
+
+function overviewFromLocal(range: { from: string; to: string }): StatsOverview {
+  return {
+    volume: localData.stats.volume(range.from, range.to).map((p) => ({
+      date: p.date,
+      volume: Number(p.volume) || 0,
+    })),
+    muscleGroups: localData.stats.muscleGroups(range.from, range.to),
+    activity: localData.stats.activity(range.from, range.to),
+  }
 }
 
 export const useStatsStore = create<StatsStore>((set, get) => ({
@@ -53,30 +68,17 @@ export const useStatsStore = create<StatsStore>((set, get) => ({
   overviewError: null,
   progressError: null,
 
-  async loadOverview(key, range, yearRange) {
-    if (skipFreshFetch(`stats-overview:${key}`, Boolean(get().overviewByKey[key]))) return
+  async loadOverview(key, range) {
     try {
       if (isLocalMode()) {
-        const overview: StatsOverview = {
-          volume: localData.stats.volume(range.from, range.to).map((p) => ({
-            date: p.date,
-            volume: Number(p.volume) || 0,
-          })),
-          muscleGroups: localData.stats.muscleGroups(range.from, range.to),
-          activity: localData.stats.activity(yearRange.from, yearRange.to),
-        }
-        set((state) => ({
-          overviewByKey: { ...state.overviewByKey, [key]: overview },
-          overviewError: null,
-        }))
-        markFetched(`stats-overview:${key}`)
+        get().hydrateOverviewFromLocal(key, range)
         return
       }
 
       const [volumeRes, groupsRes, activityRes] = await Promise.all([
         statsApi.volume(range),
         statsApi.muscleGroups(range),
-        statsApi.activity(yearRange),
+        statsApi.activity(range),
       ])
       set((state) => ({
         overviewByKey: {
@@ -92,7 +94,6 @@ export const useStatsStore = create<StatsStore>((set, get) => ({
         },
         overviewError: null,
       }))
-      markFetched(`stats-overview:${key}`)
     } catch (error) {
       if (get().overviewByKey[key]) {
         set({ overviewError: null })
@@ -104,25 +105,36 @@ export const useStatsStore = create<StatsStore>((set, get) => ({
     }
   },
 
+  hydrateOverviewFromLocal(key, range) {
+    set((state) => ({
+      overviewByKey: { ...state.overviewByKey, [key]: overviewFromLocal(range) },
+      overviewError: null,
+    }))
+  },
+
+  hydrateProgressFromLocal(key, exerciseId, range) {
+    const progress = localData.stats.exerciseProgress(exerciseId, range.from, range.to)
+    const correlation = localData.stats.strengthCorrelation(exerciseId, range.from, range.to)
+    set((state) => ({
+      progressByKey: {
+        ...state.progressByKey,
+        [key]: {
+          progress: progress.map((p) => ({
+            date: p.date,
+            maxWeight: p.maxWeight == null ? null : Number(p.maxWeight),
+            bestVolume: Number(p.bestVolume) || 0,
+          })),
+          correlation,
+        },
+      },
+      progressError: null,
+    }))
+  },
+
   async loadProgress(key, exerciseId, range) {
     try {
       if (isLocalMode()) {
-        const progress = localData.stats.exerciseProgress(exerciseId, range.from, range.to)
-        const correlation = localData.stats.strengthCorrelation(exerciseId, range.from, range.to)
-        set((state) => ({
-          progressByKey: {
-            ...state.progressByKey,
-            [key]: {
-              progress: progress.map((p) => ({
-                date: p.date,
-                maxWeight: p.maxWeight == null ? null : Number(p.maxWeight),
-                bestVolume: Number(p.bestVolume) || 0,
-              })),
-              correlation,
-            },
-          },
-          progressError: null,
-        }))
+        get().hydrateProgressFromLocal(key, exerciseId, range)
         return
       }
 

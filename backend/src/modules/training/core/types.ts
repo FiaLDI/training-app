@@ -26,6 +26,8 @@ export interface Training {
   notes: string | null
   metadata: Record<string, unknown>
   createdAt: string
+  setCount?: number
+  exerciseCount?: number
 }
 
 export interface TrainingExercise {

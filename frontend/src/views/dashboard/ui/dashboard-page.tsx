@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { ArrowRight, CalendarDays, Play } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -10,7 +10,11 @@ import { useLastFinishedTraining } from '@/entities/stats/model/use-last-finishe
 import { LastTrainingSummary } from '@/entities/stats/ui/last-training-summary'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
-import { toDateKey } from '@/entities/training/lib/activity-calendar'
+import { calendarDayRange, toDateKey } from '@/entities/training/lib/activity-calendar'
+import { pullCloudTrainingDetails } from '@/entities/training/lib/pull-cloud-training'
+import { useSessionStore } from '@/entities/session/model/store'
+import { setVisibleTrainingWindow } from '@/shared/lib/cloud-sync-state'
+import { localData } from '@/shared/lib/local-data'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { Button } from '@/shared/ui/button'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -18,7 +22,8 @@ import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
 
 export function DashboardPage() {
   const router = useRouter()
-  const trainings = useTrainingStore((s) => s.items)
+  const mode = useSessionStore((s) => s.mode)
+  const storeTrainings = useTrainingStore((s) => s.items)
   const trainingLoading = useTrainingStore((s) => s.loading)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
   const start = useTrainingStore((s) => s.start)
@@ -31,11 +36,29 @@ export function DashboardPage() {
   const { training: lastFinishedTraining, details: lastTrainingDetails } =
     useLastFinishedTraining()
 
+  const trainings = useMemo(() => {
+    const activeLocal = localData.trainings.list().filter((item) => item.status === 'in_progress')
+    if (activeLocal.length === 0) return storeTrainings
+    const byId = new Map(storeTrainings.map((item) => [item.id, item]))
+    for (const item of activeLocal) byId.set(item.id, item)
+    return [...byId.values()]
+  }, [storeTrainings])
+
   useEffect(() => {
-    void fetchTrainings({ limit: 50 })
+    const day = calendarDayRange()
+    setVisibleTrainingWindow(day.from, day.to)
+    void fetchTrainings({ from: day.from, to: day.to, limit: 20 })
     void fetchTemplates()
     void fetchExercises()
   }, [fetchTrainings, fetchTemplates, fetchExercises])
+
+  useEffect(() => {
+    if (mode !== 'cloud') return
+    const active = localData.trainings.list().find((item) => item.status === 'in_progress')
+    if (!active) return
+    if (storeTrainings.some((item) => item.id === active.id)) return
+    void pullCloudTrainingDetails(active.id, 4000)
+  }, [mode, storeTrainings])
 
   const initialLoading =
     (trainingLoading || templateLoading) && trainings.length === 0 && templates.length === 0

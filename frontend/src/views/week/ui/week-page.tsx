@@ -9,8 +9,15 @@ import { useTemplateStore } from '@/entities/template/model/store'
 import type { WorkoutTemplate } from '@/entities/template/model/types'
 import { CreateProgramForm } from '@/features/create-program/ui/create-program-form'
 import { ShareResourceButton } from '@/features/share-resource/ui/share-resource-button'
+import { useSessionStore } from '@/entities/session/model/store'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
 import { useTrainingStore } from '@/entities/training/model/store'
+import {
+  fetchCloudSyncState,
+  getSyncSnapshot,
+  setVisibleTrainingWindow,
+  trainingWindowNeedsFetch,
+} from '@/shared/lib/cloud-sync-state'
 import type { TrainingStatus } from '@/entities/training/model/types'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { cn } from '@/shared/lib/cn'
@@ -320,9 +327,11 @@ export function WeekPage() {
   const [weekStart, setWeekStart] = useState(() => todayWeek)
   const [selectedDayIndex, setSelectedDayIndex] = useState(() => weekdayIndexMonday(new Date()))
   const [pickerOpen, setPickerOpen] = useState(false)
+  const mode = useSessionStore((s) => s.mode)
   const trainings = useTrainingStore((s) => s.items)
   const loading = useTrainingStore((s) => s.loading)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
+  const showLocalWindow = useTrainingStore((s) => s.showLocalWindow)
   const create = useTrainingStore((s) => s.create)
   const update = useTrainingStore((s) => s.update)
   const programs = useProgramStore((s) => s.items)
@@ -365,10 +374,28 @@ export function WeekPage() {
   const isCurrentWeek = sameDay(weekStart, todayWeek)
 
   useEffect(() => {
-    void fetchTrainings({ from, to, limit: 100 })
+    setVisibleTrainingWindow(from, to)
     void fetchPrograms()
     void fetchTemplates()
-  }, [from, to, fetchTrainings, fetchPrograms, fetchTemplates])
+    if (mode === 'local') {
+      void fetchTrainings({ from, to, limit: 100 })
+      return
+    }
+    showLocalWindow({ from, to })
+    const snap = getSyncSnapshot()
+    void (async () => {
+      if (!snap) {
+        await fetchTrainings({ from, to, limit: 100 })
+        return
+      }
+      const live = await fetchCloudSyncState()
+      if (trainingWindowNeedsFetch(from, to, live)) {
+        await fetchTrainings({ from, to, limit: 100 })
+        return
+      }
+      showLocalWindow({ from, to })
+    })()
+  }, [from, to, mode, fetchTrainings, fetchPrograms, fetchTemplates, showLocalWindow])
 
   useEffect(() => {
     if (!listReady) return

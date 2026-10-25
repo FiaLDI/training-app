@@ -7,7 +7,12 @@ import { deleteOutbox } from '@/features/sync-trainings/model/delete-outbox'
 import { useSessionStore } from '@/entities/session/model/store'
 import { ApiError } from '@/shared/api/client'
 import { createLocalId } from '@/shared/lib/local-id'
-import { coalesceFetch, markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
+import {
+  collectionNeedsFetch,
+  fetchCloudSyncState,
+  persistSyncCollections,
+} from '@/shared/lib/cloud-sync-state'
+import { coalesceFetch, markFetched } from '@/shared/lib/fresh-fetch'
 import { localData } from '@/shared/lib/local-data'
 import {
   isTemplatePendingSync,
@@ -105,7 +110,6 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
     const localItems = mergeCloudWithPending(q ? localData.templates.list(q) : headers)
     const catalogKnown = headers.length > 0
     const hasCachedItems = prevItems.length > 0 || catalogKnown
-    if (skipFreshFetch(key, hasCachedItems)) return
     const items =
       localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems
     if (isLocalMode()) {
@@ -120,6 +124,15 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
         loading: !hasCachedItems,
         error: null,
       })
+
+      if (!q && hasCachedItems) {
+        const live = await fetchCloudSyncState()
+        if (live && !collectionNeedsFetch('templates', live)) {
+          persistSyncCollections(live, ['templates'])
+          set({ items: localItems, loading: false, error: null })
+          return
+        }
+      }
 
       try {
         const result = await templateApi.list({
@@ -143,6 +156,8 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
         }
         set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
         markFetched(key)
+        const live = await fetchCloudSyncState()
+        if (live) persistSyncCollections(live, ['templates'])
       } catch (error) {
         set({
           items: mergeCloudWithPending(localData.templates.list(q)),

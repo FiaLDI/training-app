@@ -7,7 +7,13 @@ import { deleteOutbox } from '@/features/sync-trainings/model/delete-outbox'
 import { useSessionStore } from '@/entities/session/model/store'
 import { ApiError } from '@/shared/api/client'
 import { createLocalId } from '@/shared/lib/local-id'
-import { coalesceFetch, markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
+import { coalesceFetch } from '@/shared/lib/fresh-fetch'
+import {
+  fetchCloudSyncState,
+  persistSyncCollections,
+  rememberTrainingWindow,
+  trainingWindowNeedsFetch,
+} from '@/shared/lib/cloud-sync-state'
 import { localData } from '@/shared/lib/local-data'
 import {
   isTrainingPendingSync,
@@ -23,10 +29,11 @@ import {
 import {
   ingestCloudTrainingHeaders,
   pullCloudTrainingDetails,
-  pullCloudTrainingDetailsForList,
+  trainingNeedsCloudDetails,
   unionTrainingLists,
   type PullCloudResult,
 } from '../lib/pull-cloud-training'
+import { calendarDayRange } from '../lib/activity-calendar'
 import { trainingApi } from '../api/training-api'
 import type {
   CreateTrainingExerciseInput,
@@ -113,7 +120,13 @@ type TrainingStore = {
   current: TrainingWithDetails | null
   loading: boolean
   error: string | null
-  fetchList: (params?: { limit?: number; from?: string; to?: string }) => Promise<void>
+  fetchList: (params?: {
+    limit?: number
+    from?: string
+    to?: string
+    merge?: 'replace' | 'union'
+  }) => Promise<void>
+  showLocalWindow: (params?: { from?: string; to?: string }) => void
   pullLatestFromCloud: () => Promise<void>
   fetchOne: (id: string) => Promise<void>
   create: (input: CreateTrainingInput) => Promise<Training>
@@ -154,18 +167,21 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
   loading: false,
   error: null,
 
+  showLocalWindow(params) {
+    const items = mergeCloudWithPending(localData.trainings.list({ from: params?.from, to: params?.to }))
+    set({ items, loading: false, error: null })
+  },
+
   async fetchList(params) {
     const key = `trainings:${params?.limit ?? 100}:${params?.from ?? ''}:${params?.to ?? ''}`
     const prevItems = get().items
     const localItems = localData.trainings.list({ from: params?.from, to: params?.to })
     const catalogKnown = localData.trainings.list().length > 0
-    const hasCachedItems = prevItems.length > 0 || catalogKnown
-    if (skipFreshFetch(key, hasCachedItems)) return
-    const items =
-      localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems
+    const hasCachedItems = prevItems.length > 0 || catalogKnown || localItems.length > 0
+    const items = localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems
+    const merge = params?.merge ?? 'replace'
     if (isLocalMode()) {
       set({ items, loading: false, error: null })
-      markFetched(key)
       return
     }
 
@@ -184,14 +200,32 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
           timeoutMs: READ_TIMEOUT_MS,
         })
         set({
-          items: mergeFetchedCloudList(result.items, prevItems, 'replace'),
+          items: mergeFetchedCloudList(result.items, prevItems, merge),
           loading: false,
           error: null,
         })
-        markFetched(key)
-        void pullCloudTrainingDetailsForList(result.items, BACKGROUND_READ_TIMEOUT_MS).then(() => {
-          set({ items: mergeCloudWithPending(result.items), loading: false, error: null })
+        void fetchCloudSyncState().then((live) => {
+          if (!live) return
+          persistSyncCollections(live, ['trainings'])
+          if (params?.from && params?.to) {
+            rememberTrainingWindow(params.from, params.to, live.trainings)
+          }
         })
+        const detailItems = result.items.filter(trainingNeedsCloudDetails)
+        if (detailItems.length === 0) return
+        void (async () => {
+          for (const item of detailItems) {
+            await pullCloudTrainingDetails(item.id, BACKGROUND_READ_TIMEOUT_MS)
+          }
+          set({
+            items:
+              merge === 'union'
+                ? unionTrainingLists(get().items, mergeCloudWithPending(result.items))
+                : mergeCloudWithPending(result.items),
+            loading: false,
+            error: null,
+          })
+        })()
       } catch (error) {
         const fallback = localData.trainings.list({ from: params?.from, to: params?.to })
         set({
@@ -209,19 +243,11 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
 
   async pullLatestFromCloud() {
     if (!isCloudMode()) return
+    const day = calendarDayRange()
     try {
-      const result = await trainingApi.list({
-        limit: 50,
-        timeoutMs: READ_TIMEOUT_MS,
-      })
-      set({
-        items: mergeFetchedCloudList(result.items, get().items, 'union'),
-        error: null,
-      })
-      await pullCloudTrainingDetailsForList(result.items, BACKGROUND_READ_TIMEOUT_MS)
-      set({
-        items: unionTrainingLists(get().items, mergeCloudWithPending(result.items)),
-      })
+      const live = await fetchCloudSyncState({ refresh: true })
+      if (live && !trainingWindowNeedsFetch(day.from, day.to, live)) return
+      await get().fetchList({ from: day.from, to: day.to, limit: 20, merge: 'union' })
     } catch {
       // offline / slow — keep the current list
     }

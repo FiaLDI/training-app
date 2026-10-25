@@ -33,7 +33,7 @@ describe('stats store cache', () => {
     vi.spyOn(statsApi, 'activity').mockResolvedValue({ points: [] })
 
     const range = { from: '2026-09-01T00:00:00.000Z', to: '2026-09-30T23:59:59.999Z' }
-    await useStatsStore.getState().loadOverview('day:month', range, range)
+    await useStatsStore.getState().loadOverview('day:month', range)
 
     expect(useStatsStore.getState().overviewByKey['day:month']?.volume[0]?.volume).toBe(1000)
 
@@ -45,7 +45,7 @@ describe('stats store cache', () => {
         }),
     )
 
-    const pending = useStatsStore.getState().loadOverview('day:month', range, range)
+    const pending = useStatsStore.getState().loadOverview('day:month', range)
     expect(useStatsStore.getState().overviewByKey['day:month']?.volume[0]?.volume).toBe(1000)
 
     resolveVolume({ points: [{ date: '2026-09-01', volume: 2000 }] })

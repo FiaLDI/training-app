@@ -9,13 +9,29 @@ import { ExerciseCombobox } from '@/entities/exercise/ui/exercise-combobox'
 import { useSessionStore } from '@/entities/session/model/store'
 import { useStatsStore } from '@/entities/stats/model/store'
 import { muscleStatsToDiagram } from '@/entities/stats/lib/muscle-diagram-stats'
-import { STATS_PERIOD_LABELS, statsPeriodRange, type StatsPeriod } from '@/entities/stats/lib/period-range'
+import {
+  STATS_PERIOD_LABELS,
+  isStatsRangeClosed,
+  statsPeriodRange,
+  type StatsPeriod,
+} from '@/entities/stats/lib/period-range'
 import { DualSeriesChart } from '@/entities/stats/ui/dual-series-chart'
 import { MuscleGroupChart } from '@/entities/stats/ui/muscle-group-chart'
 import { SimpleBarChart } from '@/entities/stats/ui/simple-bar-chart'
 import type { Training } from '@/entities/training/model/types'
 import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
+import {
+  fetchCloudSyncState,
+  getSyncSnapshot,
+  persistSyncCollections,
+  registerStatsReloader,
+  rememberStatsKey,
+  setStatsScreenVisible,
+  setVisibleTrainingWindow,
+  statsKeyNeedsFetch,
+  trainingWindowNeedsFetch,
+} from '@/shared/lib/cloud-sync-state'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { ActivityHeatmap } from '@/entities/training/ui/activity-heatmap'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
@@ -131,6 +147,7 @@ export function StatsPage() {
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const trainings = useTrainingStore((s) => s.items)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
+  const showLocalWindow = useTrainingStore((s) => s.showLocalWindow)
   const [tab, setTab] = useState<StatsTab>('overview')
   const [period, setPeriod] = useState<StatsPeriod>('month')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -143,7 +160,9 @@ export function StatsPage() {
   const overviewError = useStatsStore((s) => s.overviewError)
   const progressError = useStatsStore((s) => s.progressError)
   const loadOverview = useStatsStore((s) => s.loadOverview)
+  const hydrateOverviewFromLocal = useStatsStore((s) => s.hydrateOverviewFromLocal)
   const loadProgress = useStatsStore((s) => s.loadProgress)
+  const hydrateProgressFromLocal = useStatsStore((s) => s.hydrateProgressFromLocal)
   const volume = overviewCache?.volume ?? []
   const muscleGroups = overviewCache?.muscleGroups ?? []
   const activity = overviewCache?.activity ?? []
@@ -152,13 +171,39 @@ export function StatsPage() {
   const error = tab === 'progress' ? progressError : overviewError
 
   const range = useMemo(() => statsPeriodRange(period), [period])
-  const yearRange = useMemo(() => statsPeriodRange('year'), [])
+
+  useEffect(() => {
+    setStatsScreenVisible(true)
+    return () => {
+      setStatsScreenVisible(false)
+      registerStatsReloader(null)
+    }
+  }, [])
 
   useEffect(() => {
     void fetchExercises()
     void fetchTemplates()
-    void fetchTrainings({ limit: 100 })
-  }, [fetchExercises, fetchTemplates, fetchTrainings])
+  }, [fetchExercises, fetchTemplates])
+
+  useEffect(() => {
+    setVisibleTrainingWindow(range.from, range.to)
+    if (mode === 'local') {
+      void fetchTrainings({ from: range.from, to: range.to, limit: 100 })
+      return
+    }
+    showLocalWindow({ from: range.from, to: range.to })
+    const snap = getSyncSnapshot()
+    void (async () => {
+      if (!snap) {
+        await fetchTrainings({ from: range.from, to: range.to, limit: 100 })
+        return
+      }
+      const live = await fetchCloudSyncState()
+      if (trainingWindowNeedsFetch(range.from, range.to, live)) {
+        await fetchTrainings({ from: range.from, to: range.to, limit: 100 })
+      }
+    })()
+  }, [mode, range.from, range.to, fetchTrainings, showLocalWindow])
 
   useEffect(() => {
     if (!exerciseId && exercises.length > 0) {
@@ -168,14 +213,97 @@ export function StatsPage() {
 
   useEffect(() => {
     if (tab !== 'overview') return
-    void loadOverview(overviewKey, range, yearRange)
-  }, [mode, range, yearRange, tab, overviewKey, loadOverview])
+    void (async () => {
+      if (mode === 'local') {
+        await loadOverview(overviewKey, range)
+        return
+      }
+      const snap = getSyncSnapshot()
+      if (!snap?.known.stats) {
+        await loadOverview(overviewKey, range)
+        const live = await fetchCloudSyncState()
+        if (live) {
+          persistSyncCollections(live, ['stats'])
+          rememberStatsKey(overviewKey, live.stats)
+        }
+        return
+      }
+      const live = await fetchCloudSyncState()
+      if (!statsKeyNeedsFetch(overviewKey, live)) {
+        if (useStatsStore.getState().overviewByKey[overviewKey]) return
+        if (isStatsRangeClosed(range)) {
+          hydrateOverviewFromLocal(overviewKey, range)
+          return
+        }
+      }
+      await loadOverview(overviewKey, range)
+      if (live) {
+        persistSyncCollections(live, ['stats'])
+        rememberStatsKey(overviewKey, live.stats)
+      }
+    })()
+  }, [mode, range, tab, overviewKey, loadOverview, hydrateOverviewFromLocal])
 
   useEffect(() => {
     if (tab !== 'progress') return
     if (!exerciseId) return
-    void loadProgress(progressKey, exerciseId, range)
-  }, [mode, range, exerciseId, tab, progressKey, loadProgress])
+    void (async () => {
+      if (mode === 'local') {
+        await loadProgress(progressKey, exerciseId, range)
+        return
+      }
+      const snap = getSyncSnapshot()
+      if (!snap?.known.stats) {
+        await loadProgress(progressKey, exerciseId, range)
+        const live = await fetchCloudSyncState()
+        if (live) {
+          persistSyncCollections(live, ['stats'])
+          rememberStatsKey(progressKey, live.stats)
+        }
+        return
+      }
+      const live = await fetchCloudSyncState()
+      if (!statsKeyNeedsFetch(progressKey, live)) {
+        if (useStatsStore.getState().progressByKey[progressKey]) return
+        if (isStatsRangeClosed(range)) {
+          hydrateProgressFromLocal(progressKey, exerciseId, range)
+          return
+        }
+      }
+      await loadProgress(progressKey, exerciseId, range)
+      if (live) {
+        persistSyncCollections(live, ['stats'])
+        rememberStatsKey(progressKey, live.stats)
+      }
+    })()
+  }, [mode, range, exerciseId, tab, progressKey, loadProgress, hydrateProgressFromLocal])
+
+  useEffect(() => {
+    if (mode === 'local') {
+      registerStatsReloader(null)
+      return
+    }
+    registerStatsReloader(async () => {
+      if (tab === 'overview') {
+        await loadOverview(overviewKey, range)
+        const live = await fetchCloudSyncState()
+        if (live) {
+          persistSyncCollections(live, ['stats'])
+          rememberStatsKey(overviewKey, live.stats)
+        }
+        return
+      }
+      if (tab === 'progress' && exerciseId) {
+        await loadProgress(progressKey, exerciseId, range)
+        const live = await fetchCloudSyncState()
+        if (live) {
+          persistSyncCollections(live, ['stats'])
+          rememberStatsKey(progressKey, live.stats)
+        }
+      }
+    })
+    return () => registerStatsReloader(null)
+  }, [mode, tab, overviewKey, progressKey, exerciseId, range, loadOverview, loadProgress])
 
   const sessions = useMemo(() => {
     const fromMs = new Date(range.from).getTime()

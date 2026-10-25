@@ -13,6 +13,7 @@ import { ProgramModule } from './modules/program/program.module'
 import { ShareModule } from './modules/share/share.module'
 import { SourceModule } from './modules/source/source.module'
 import { StatsModule } from './modules/stats/stats.module'
+import { SyncModule } from './modules/sync/sync.module'
 import { TemplateModule } from './modules/template/template.module'
 import { TrainingModule } from './modules/training/training.module'
 import { CacheModule } from './shared/cache/cache.module'
@@ -37,6 +38,7 @@ import { LoggerModule } from './shared/logger/logger.module'
     ExerciseModule,
     ExerciseSeedModule,
     SourceModule,
+    SyncModule,
     TemplateModule,
     TrainingModule,
     ProgramModule,
