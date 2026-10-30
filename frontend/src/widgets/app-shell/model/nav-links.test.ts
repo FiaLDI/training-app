@@ -3,6 +3,7 @@ import { isTabRoute } from './nav-links'
 describe('isTabRoute', () => {
   it('matches primary tab routes', () => {
     expect(isTabRoute('/')).toBe(true)
+    expect(isTabRoute('/trainings')).toBe(true)
     expect(isTabRoute('/week')).toBe(true)
     expect(isTabRoute('/stats')).toBe(true)
   })

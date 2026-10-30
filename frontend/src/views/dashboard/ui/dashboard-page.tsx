@@ -186,7 +186,6 @@ export function DashboardPage() {
             className="mb-0"
             training={lastFinishedTraining}
             details={lastTrainingDetails}
-            title={labelFor(lastFinishedTraining.templateId)}
             resolveExerciseName={resolveExerciseName}
           />
         </div>

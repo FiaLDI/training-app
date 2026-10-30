@@ -8,6 +8,7 @@ import {
   Home,
   LayoutTemplate,
   Library,
+  ListChecks,
   Newspaper,
   Settings,
   Users,
@@ -21,6 +22,7 @@ export type NavLink = {
 
 export const primaryLinks: NavLink[] = [
   { href: '/', label: 'Сегодня', icon: Home },
+  { href: '/trainings', label: 'Тренировки', icon: Dumbbell },
   { href: '/week', label: 'Неделя', icon: CalendarDays },
   { href: '/stats', label: 'Статистика', icon: BarChart3 },
 ]
@@ -28,7 +30,7 @@ export const primaryLinks: NavLink[] = [
 export const moreLinks: NavLink[] = [
   { href: '/plans', label: 'Планы', icon: LayoutTemplate },
   { href: '/catalog', label: 'Программы', icon: BookOpen },
-  { href: '/exercises', label: 'Упражнения', icon: Dumbbell },
+  { href: '/exercises', label: 'Упражнения', icon: ListChecks },
   { href: '/coach', label: 'Тренер', icon: Users },
   { href: '/settings', label: 'Профиль', icon: Settings },
   { href: '/news', label: 'Новости', icon: Newspaper },

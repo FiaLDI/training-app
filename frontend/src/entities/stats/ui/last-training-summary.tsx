@@ -1,9 +1,10 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Dumbbell, Layers, Timer } from 'lucide-react'
 
-import { formatSetLine, summarizeTraining } from '@/entities/stats/lib/summarize-training'
+import { summarizeTraining } from '@/entities/stats/lib/summarize-training'
 import type { Training, TrainingWithDetails } from '@/entities/training/model/types'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { cn } from '@/shared/lib/cn'
@@ -13,15 +14,43 @@ import { EmptyState } from '@/shared/ui/empty-state'
 type Props = {
   training: Training | null
   details: TrainingWithDetails | null
-  title: string
   resolveExerciseName: (exerciseId: string) => string
   className?: string
+}
+
+function pluralRu(n: number, one: string, few: string, many: string) {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return one
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few
+  return many
+}
+
+function StatCell({
+  icon,
+  value,
+  label,
+}: {
+  icon: ReactNode
+  value: string
+  label: string
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-2)] text-[var(--accent)]">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-lg font-semibold tabular-nums text-[var(--foreground)]">{value}</p>
+        <p className="text-sm text-[var(--muted)]">{label}</p>
+      </div>
+    </div>
+  )
 }
 
 export function LastTrainingSummary({
   training,
   details,
-  title,
   resolveExerciseName,
   className,
 }: Props) {
@@ -45,6 +74,10 @@ export function LastTrainingSummary({
   const duration = formatDuration(training.startedAt, training.finishedAt)
   const summary = details ? summarizeTraining(details, resolveExerciseName) : null
 
+  const exerciseCount = summary?.exerciseCount ?? null
+  const setCount = summary?.setCount ?? null
+  const volume = summary?.volume ?? null
+
   return (
     <section
       className={cn(
@@ -52,72 +85,54 @@ export function LastTrainingSummary({
         className,
       )}
     >
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-xl">Последняя тренировка</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
             {new Date(when).toLocaleString('ru-RU')}
-            {duration ? ` · ${duration}` : ''}
           </p>
         </div>
-        <TrainingStatusBadge status={training.status} />
+        <TrainingStatusBadge status={training.status} className="rounded-full" />
       </div>
 
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-4">
-        <p className="text-sm font-medium text-[var(--foreground)]">{title}</p>
-
-        {summary ? (
-          <>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              {summary.exerciseCount}{' '}
-              {summary.exerciseCount === 1
-                ? 'упражнение'
-                : summary.exerciseCount < 5
-                  ? 'упражнения'
-                  : 'упражнений'}
-              {' · '}
-              {summary.setCount}{' '}
-              {summary.setCount === 1 ? 'подход' : summary.setCount < 5 ? 'подхода' : 'подходов'}
-              {summary.volume > 0 ? (
-                <>
-                  {' · '}
-                  {formatNumber(Math.round(summary.volume))} кг×повт.
-                </>
-              ) : null}
-            </p>
-
-            {summary.exercises.length > 0 ? (
-              <ul className="mt-4 space-y-3">
-                {summary.exercises.map((exercise) => (
-                  <li
-                    key={exercise.id}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5"
-                  >
-                    <p className="text-sm font-medium text-[var(--foreground)]">
-                      {exercise.name}
-                    </p>
-                    <p className="mt-1 text-sm tabular-nums text-[var(--muted)]">
-                      {formatSetLine(exercise.sets)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-3 text-sm text-[var(--muted)]">Подходы не записаны.</p>
-            )}
-          </>
-        ) : (
-          <p className="mt-2 text-sm text-[var(--muted)]">Загрузка деталей…</p>
-        )}
-
-        <Link
-          href={`/trainings/${training.id}`}
-          className="mt-4 inline-flex items-center gap-1 text-sm text-[var(--accent)] hover:underline"
-        >
-          Открыть тренировку
-          <ArrowRight className="size-4" />
-        </Link>
+      <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-5">
+        <StatCell
+          icon={<Dumbbell className="size-5" />}
+          value={exerciseCount == null ? '—' : String(exerciseCount)}
+          label={
+            exerciseCount == null
+              ? 'упражнений'
+              : pluralRu(exerciseCount, 'упражнение', 'упражнения', 'упражнений')
+          }
+        />
+        <StatCell
+          icon={<Layers className="size-5" />}
+          value={setCount == null ? '—' : String(setCount)}
+          label={
+            setCount == null ? 'подходов' : pluralRu(setCount, 'подход', 'подхода', 'подходов')
+          }
+        />
+        <StatCell
+          icon={<Layers className="size-5" />}
+          value={
+            volume == null || volume <= 0 ? '—' : `${formatNumber(Math.round(volume))} кг`
+          }
+          label="общий объём"
+        />
+        <StatCell
+          icon={<Timer className="size-5" />}
+          value={duration ?? '—'}
+          label="длительность"
+        />
       </div>
+
+      <Link
+        href={`/trainings/${training.id}`}
+        className="mt-5 flex w-full items-center justify-center gap-1.5 border-t border-[var(--border)] pt-4 text-sm text-[var(--foreground)] transition hover:text-[var(--accent)]"
+      >
+        Посмотреть детали
+        <ArrowRight className="size-4" />
+      </Link>
     </section>
   )
 }
