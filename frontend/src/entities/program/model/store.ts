@@ -11,6 +11,7 @@ import {
 } from '@/shared/lib/cloud-sync-state'
 import { coalesceFetch, markFetched, skipFreshFetch } from '@/shared/lib/fresh-fetch'
 import { localData } from '@/shared/lib/local-data'
+import { scopedStorageKey } from '@/shared/lib/storage-scope'
 
 import { extraDefaultProgramIds } from '../lib/prune-default-programs'
 import { programApi } from '../api/program-api'
@@ -22,8 +23,30 @@ import type {
   UpdateProgramDayInput,
 } from './types'
 
+const SELECTED_PROGRAM_SUFFIX = 'selected-program'
+
 function isLocalMode() {
   return useSessionStore.getState().mode === 'local'
+}
+
+function readSelectedProgramId(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    return localStorage.getItem(scopedStorageKey(SELECTED_PROGRAM_SUFFIX))?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function writeSelectedProgramId(id: string) {
+  if (typeof window === 'undefined') return
+  try {
+    const key = scopedStorageKey(SELECTED_PROGRAM_SUFFIX)
+    if (id) localStorage.setItem(key, id)
+    else localStorage.removeItem(key)
+  } catch {
+    // ignore quota / privacy errors
+  }
 }
 
 function programsFromLocal(): Program[] {
@@ -36,9 +59,11 @@ function programsFromLocal(): Program[] {
 type ProgramStore = {
   items: Program[]
   current: ProgramWithDays | null
+  selectedId: string
   loading: boolean
   listReady: boolean
   error: string | null
+  setSelectedId: (id: string) => void
   fetchList: () => Promise<void>
   fetchOne: (id: string) => Promise<void>
   create: (input: CreateProgramInput) => Promise<Program>
@@ -58,9 +83,15 @@ type ProgramStore = {
 export const useProgramStore = create<ProgramStore>((set, get) => ({
   items: [],
   current: null,
+  selectedId: '',
   loading: false,
   listReady: false,
   error: null,
+
+  setSelectedId(id) {
+    writeSelectedProgramId(id)
+    set({ selectedId: id })
+  },
 
   async fetchList() {
     const key = 'programs'
@@ -68,8 +99,9 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
     const localItems = programsFromLocal()
     const hasCachedItems = prevItems.length > 0 || localItems.length > 0
     const items = localItems.length > 0 ? localItems : prevItems
+    const selectedId = get().selectedId || readSelectedProgramId()
     if (isLocalMode()) {
-      set({ items, loading: false, listReady: true, error: null })
+      set({ items, selectedId, loading: false, listReady: true, error: null })
       markFetched(key)
       return
     }
@@ -77,6 +109,7 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
     return coalesceFetch(key, async () => {
       set({
         items,
+        selectedId,
         loading: !hasCachedItems,
         listReady: hasCachedItems || get().listReady,
         error: null,
@@ -85,7 +118,13 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
         const live = await fetchCloudSyncState()
         if (live && !collectionNeedsFetch('programs', live)) {
           persistSyncCollections(live, ['programs'])
-          set({ items: localItems, loading: false, listReady: true, error: null })
+          set({
+            items: localItems,
+            selectedId: get().selectedId || readSelectedProgramId(),
+            loading: false,
+            listReady: true,
+            error: null,
+          })
           return
         }
       }
@@ -94,13 +133,20 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
         for (const item of result.items) {
           localData.programs.upsertHeader(item)
         }
-        set({ items: result.items, loading: false, listReady: true, error: null })
+        set({
+          items: result.items,
+          selectedId: get().selectedId || readSelectedProgramId(),
+          loading: false,
+          listReady: true,
+          error: null,
+        })
         markFetched(key)
         const live = await fetchCloudSyncState()
         if (live) persistSyncCollections(live, ['programs'])
       } catch (error) {
         set({
           items: programsFromLocal().length > 0 ? programsFromLocal() : get().items,
+          selectedId: get().selectedId || readSelectedProgramId(),
           loading: false,
           listReady: true,
           error: hasCachedItems
@@ -166,9 +212,12 @@ export const useProgramStore = create<ProgramStore>((set, get) => ({
     } else {
       await programApi.remove(id)
     }
+    const clearSelected = get().selectedId === id
+    if (clearSelected) writeSelectedProgramId('')
     set((state) => ({
       items: state.items.filter((item) => item.id !== id),
       current: state.current?.id === id ? null : state.current,
+      selectedId: clearSelected ? '' : state.selectedId,
     }))
   },
 

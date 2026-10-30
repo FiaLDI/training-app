@@ -14,6 +14,7 @@ import { QrCode } from '@/shared/ui/qr-code'
 type Props = {
   resourceType: 'template' | 'program'
   resourceId: string
+  /** Empty string — только иконка. */
   label?: string
 }
 
@@ -78,11 +79,19 @@ export function ShareResourceButton({ resourceType, resourceId, label = 'Под�
     }
   }
 
+  const iconOnly = !label
+
   return (
     <>
-      <Button variant="secondary" type="button" onClick={() => setOpen(true)}>
+      <Button
+        variant="secondary"
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={iconOnly ? 'Поделиться' : undefined}
+        className={iconOnly ? 'px-2.5' : undefined}
+      >
         <Share2 className="size-4" />
-        {label}
+        {label || null}
       </Button>
       <Modal
         open={open}
@@ -104,26 +113,30 @@ export function ShareResourceButton({ resourceType, resourceId, label = 'Под�
           <p className="text-sm text-[var(--muted)]">Готовим ссылку…</p>
         ) : token ? (
           <div className="space-y-4">
-            <div className="flex justify-center">
-              <QrCode value={url} />
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="min-w-0 flex-1 space-y-3">
+                <div className="flex gap-2">
+                  <Input readOnly value={url} aria-label="Ссылка" />
+                  <Button variant="secondary" type="button" onClick={() => void copy()}>
+                    {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                  </Button>
+                </div>
+                <p className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                  <QrIcon className="size-3.5 shrink-0" />
+                  Откройте камерой телефона — попадёте на страницу программы.
+                </p>
+              </div>
+              <QrCode value={url} size={148} />
             </div>
-            <div className="flex gap-2">
-              <Input readOnly value={url} aria-label="Ссылка" />
-              <Button variant="secondary" type="button" onClick={() => void copy()}>
-                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+            <div className="flex justify-end">
+              <Button variant="danger" type="button" disabled={busy} onClick={() => void revoke()}>
+                Отозвать ссылку
               </Button>
             </div>
-            <Button variant="danger" type="button" disabled={busy} onClick={() => void revoke()}>
-              Отозвать ссылку
-            </Button>
           </div>
         ) : (
           <p className="text-sm text-[var(--muted)]">Ссылка не создана.</p>
         )}
-        <p className="mt-3 flex items-center gap-2 text-xs text-[var(--muted)]">
-          <QrIcon className="size-3.5" />
-          Откройте камерой телефона — попадёте на страницу программы.
-        </p>
       </Modal>
     </>
   )

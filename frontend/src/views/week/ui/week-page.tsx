@@ -2,12 +2,24 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
+import {
+  ChartNoAxesColumn,
+  ChevronLeft,
+  ChevronRight,
+  Dumbbell,
+  Layers,
+  MoreHorizontal,
+  Pencil,
+  Play,
+  Plus,
+  Moon,
+  Search,
+  Timer,
+} from 'lucide-react'
 
 import { useProgramStore } from '@/entities/program/model/store'
 import { useTemplateStore } from '@/entities/template/model/store'
-import type { WorkoutTemplate } from '@/entities/template/model/types'
-import { CreateProgramForm } from '@/features/create-program/ui/create-program-form'
+import type { TemplateExercise, WorkoutTemplate } from '@/entities/template/model/types'
 import { ShareResourceButton } from '@/features/share-resource/ui/share-resource-button'
 import { useSessionStore } from '@/entities/session/model/store'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
@@ -18,14 +30,16 @@ import {
   setVisibleTrainingWindow,
   trainingWindowNeedsFetch,
 } from '@/shared/lib/cloud-sync-state'
-import type { TrainingStatus } from '@/entities/training/model/types'
+import type { TrainingExercise, TrainingStatus } from '@/entities/training/model/types'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { cn } from '@/shared/lib/cn'
+import { formatDuration, formatNumber } from '@/shared/lib/format'
+import { localData } from '@/shared/lib/local-data'
 import { Button } from '@/shared/ui/button'
+import { DropdownItem, DropdownMenu } from '@/shared/ui/dropdown-menu'
 import { Input } from '@/shared/ui/input'
 import { Modal } from '@/shared/ui/modal'
 import { PageHeader } from '@/shared/ui/page-header'
-import { Select } from '@/shared/ui/select'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
 
@@ -94,20 +108,6 @@ function formatWeekRange(weekStart: Date) {
     year: 'numeric',
   })
   return `${startLabel} — ${endLabel}`
-}
-
-function weekOffsetFromCurrent(weekStart: Date) {
-  const current = startOfWeekMonday(new Date())
-  return Math.round((weekStart.getTime() - current.getTime()) / (7 * 24 * 60 * 60 * 1000))
-}
-
-function weekTitle(weekStart: Date) {
-  const offset = weekOffsetFromCurrent(weekStart)
-  if (offset === 0) return 'Текущая неделя'
-  if (offset === 1) return 'Следующая неделя'
-  if (offset === -1) return 'Прошлая неделя'
-  if (offset > 1) return `Через ${offset} нед.`
-  return `${Math.abs(offset)} нед. назад`
 }
 
 function scheduledAtNoonUtc(date: Date) {
@@ -237,78 +237,242 @@ function TemplatePickerModal({
   )
 }
 
+function pluralRu(n: number, one: string, few: string, many: string) {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return one
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few
+  return many
+}
+
+function targetWeightOf(exercise: TemplateExercise | TrainingExercise): number | null {
+  if ('targetWeight' in exercise && typeof exercise.targetWeight === 'number') {
+    return exercise.targetWeight
+  }
+  const raw = exercise.metadata?.targetWeight
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null
+}
+
+function plannedVolumeKg(
+  exercises: Array<TemplateExercise | TrainingExercise>,
+): number | null {
+  let volume = 0
+  let hasWeighted = false
+  for (const exercise of exercises) {
+    if (exercise.isWarmup) continue
+    const weight = targetWeightOf(exercise)
+    const reps = exercise.maxReps ?? exercise.minReps
+    if (weight == null || weight <= 0 || reps == null || reps <= 0) continue
+    volume += exercise.targetSets * weight * reps
+    hasWeighted = true
+  }
+  return hasWeighted ? Math.round(volume) : null
+}
+
+function planCardStats(templateId: string | null | undefined, trainingId?: string) {
+  if (trainingId) {
+    const details = localData.trainings.get(trainingId)
+    if (details && details.exercises.length > 0) {
+      return {
+        exerciseCount: details.exercises.length,
+        volumeKg: plannedVolumeKg(details.exercises),
+      }
+    }
+  }
+  if (!templateId) return { exerciseCount: null as number | null, volumeKg: null as number | null }
+  const template = localData.templates.get(templateId)
+  if (!template || template.exercises.length === 0) {
+    return { exerciseCount: null as number | null, volumeKg: null as number | null }
+  }
+  return {
+    exerciseCount: template.exercises.length,
+    volumeKg: plannedVolumeKg(template.exercises),
+  }
+}
+
+function previousPlanDurationLabel(templateId: string | null | undefined, excludeId?: string) {
+  if (!templateId) return null
+  const previous = localData.trainings
+    .list()
+    .filter(
+      (item) =>
+        item.templateId === templateId &&
+        item.status === 'finished' &&
+        item.id !== excludeId &&
+        item.startedAt &&
+        item.finishedAt,
+    )
+    .sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''))[0]
+  if (!previous) return null
+  const label = formatDuration(previous.startedAt, previous.finishedAt)
+  return label ? `~ ${label}` : null
+}
+
 function DayTrainingCard({
   title,
   status,
   href,
-  subtitle,
+  templateId,
+  trainingId,
   busy,
+  highlight,
   onChangePlan,
   onMakeRest,
 }: {
   title: string
   status: TrainingStatus
   href?: string
-  subtitle?: string
+  templateId?: string | null
+  trainingId?: string
   busy?: boolean
+  highlight?: boolean
   onChangePlan?: () => void
   onMakeRest?: () => void
 }) {
-  const body = (
-    <div
-      className={cn(
-        'flex items-center justify-between gap-3 rounded-2xl border px-4 py-4 transition',
-        status === 'in_progress'
-          ? 'border-[var(--accent)]/40 bg-[var(--accent)]/10'
-          : 'border-[var(--border)] bg-[var(--surface-2)]/40',
-        href && 'hover:border-[var(--accent)]/30',
-      )}
-    >
-      <div className="min-w-0">
-        <p className="font-[family-name:var(--font-display)] text-lg text-[var(--foreground)]">
-          {title}
-        </p>
-        {subtitle ? <p className="mt-0.5 text-xs text-[var(--muted)]">{subtitle}</p> : null}
-        <div className="mt-2">
-          <TrainingStatusBadge status={status} />
-        </div>
-      </div>
-      {href ? <ArrowRight className="size-4 shrink-0 text-[var(--muted)]" /> : null}
-    </div>
-  )
+  const stats = planCardStats(templateId, trainingId)
+  const durationLabel =
+    status === 'finished' && trainingId
+      ? (() => {
+          const training = localData.trainings.get(trainingId)
+          return training ? formatDuration(training.startedAt, training.finishedAt) : null
+        })()
+      : previousPlanDurationLabel(templateId, trainingId)
+
+  const exerciseLabel =
+    stats.exerciseCount == null
+      ? 'упражнений'
+      : pluralRu(stats.exerciseCount, 'упражнение', 'упражнения', 'упражнений')
+  const subtitleParts = [
+    stats.exerciseCount != null ? `${stats.exerciseCount} ${exerciseLabel}` : null,
+    durationLabel,
+  ].filter(Boolean)
+
+  const hasMenu = Boolean(onChangePlan || onMakeRest)
 
   return (
-    <div className="space-y-2">
-      {href ? (
-        <Link href={href} className="block">
-          {body}
-        </Link>
-      ) : (
-        body
+    <div
+      className={cn(
+        'rounded-2xl border px-4 py-4 sm:px-5',
+        status === 'in_progress'
+          ? 'border-[var(--accent)]/40 bg-[var(--accent)]/10'
+          : highlight
+            ? 'border-[var(--accent)]/45 bg-[var(--accent)]/5'
+            : 'border-[var(--border)] bg-[var(--surface)]',
       )}
-      {onChangePlan || onMakeRest ? (
-        <div className="flex flex-wrap gap-2 px-1">
-          {onChangePlan ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onChangePlan}
-              className="text-xs text-[var(--muted)] transition hover:text-[var(--foreground)] disabled:opacity-50"
-            >
-              Изменить
-            </button>
-          ) : null}
-          {onMakeRest ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onMakeRest}
-              className="text-xs text-[var(--muted)] transition hover:text-[var(--foreground)] disabled:opacity-50"
-            >
-              Сделать отдыхом
-            </button>
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-fg)]">
+          <Dumbbell className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-[family-name:var(--font-display)] text-lg leading-tight text-[var(--foreground)]">
+            {title}
+          </p>
+          {subtitleParts.length > 0 ? (
+            <p className="mt-1 text-sm text-[var(--muted)]">{subtitleParts.join(' · ')}</p>
           ) : null}
         </div>
+        <TrainingStatusBadge status={status} className="shrink-0 rounded-full" />
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="rounded-xl bg-[var(--surface-2)] px-2.5 py-3">
+          <Layers className="mb-2 size-4 text-[var(--accent)]" />
+          <p className="text-sm font-semibold tabular-nums text-[var(--foreground)] sm:text-base">
+            {stats.exerciseCount ?? '—'}
+          </p>
+          <p className="mt-0.5 text-[10px] leading-tight text-[var(--muted)] sm:text-xs">
+            {exerciseLabel}
+          </p>
+        </div>
+        <div className="rounded-xl bg-[var(--surface-2)] px-2.5 py-3">
+          <Timer className="mb-2 size-4 text-[var(--accent)]" />
+          <p className="text-sm font-semibold tabular-nums text-[var(--foreground)] sm:text-base">
+            {durationLabel ?? '—'}
+          </p>
+          <p className="mt-0.5 text-[10px] leading-tight text-[var(--muted)] sm:text-xs">
+            длительность
+          </p>
+        </div>
+        <div className="rounded-xl bg-[var(--surface-2)] px-2.5 py-3">
+          <ChartNoAxesColumn className="mb-2 size-4 text-[var(--accent)]" />
+          <p className="text-sm font-semibold tabular-nums text-[var(--foreground)] sm:text-base">
+            {stats.volumeKg == null ? '—' : `${formatNumber(stats.volumeKg)} кг`}
+          </p>
+          <p className="mt-0.5 text-[10px] leading-tight text-[var(--muted)] sm:text-xs">
+            план. объём
+          </p>
+        </div>
+      </div>
+
+      {status === 'planned' && (href || hasMenu) ? (
+        <div className="mt-4 flex items-center gap-2">
+          {href ? (
+            <Link
+              href={href}
+              className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--accent)] text-sm font-medium text-[var(--accent-fg)] transition hover:brightness-110"
+            >
+              <Play className="size-4 fill-current" />
+              Начать тренировку
+            </Link>
+          ) : null}
+          {hasMenu ? (
+            <DropdownMenu
+              ariaLabel="Действия с тренировкой"
+              align="right"
+              trigger={<MoreHorizontal className="size-5" />}
+              triggerClassName="inline-flex size-12 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] transition hover:border-[var(--accent)]/40 hover:text-[var(--foreground)] disabled:opacity-50"
+            >
+              {(close) => (
+                <>
+                  {onChangePlan ? (
+                    <DropdownItem
+                      icon={<Pencil className="size-4" />}
+                      disabled={busy}
+                      onClick={() => {
+                        close()
+                        onChangePlan()
+                      }}
+                    >
+                      Изменить
+                    </DropdownItem>
+                  ) : null}
+                  {onMakeRest ? (
+                    <DropdownItem
+                      icon={<Moon className="size-4" />}
+                      disabled={busy}
+                      onClick={() => {
+                        close()
+                        onMakeRest()
+                      }}
+                    >
+                      Сделать отдыхом
+                    </DropdownItem>
+                  ) : null}
+                </>
+              )}
+            </DropdownMenu>
+          ) : null}
+        </div>
+      ) : null}
+
+      {status === 'in_progress' && href ? (
+        <Link
+          href={href}
+          className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] text-sm font-medium text-[var(--accent-fg)] transition hover:brightness-110"
+        >
+          <Play className="size-4 fill-current" />
+          Продолжить тренировку
+        </Link>
+      ) : null}
+
+      {status === 'finished' && href ? (
+        <Link
+          href={href}
+          className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)]/40"
+        >
+          Открыть тренировку
+        </Link>
       ) : null}
     </div>
   )
@@ -338,15 +502,13 @@ export function WeekPage() {
   const listReady = useProgramStore((s) => s.listReady)
   const programError = useProgramStore((s) => s.error)
   const currentProgram = useProgramStore((s) => s.current)
+  const selectedProgramId = useProgramStore((s) => s.selectedId)
   const fetchPrograms = useProgramStore((s) => s.fetchList)
   const fetchProgram = useProgramStore((s) => s.fetchOne)
   const createProgram = useProgramStore((s) => s.create)
+  const setSelectedProgramId = useProgramStore((s) => s.setSelectedId)
   const pruneDefaultDuplicates = useProgramStore((s) => s.pruneDefaultDuplicates)
-  const addDay = useProgramStore((s) => s.addDay)
-  const updateDay = useProgramStore((s) => s.updateDay)
-  const removeDay = useProgramStore((s) => s.removeDay)
   const applyProgram = useProgramStore((s) => s.apply)
-  const forkProgram = useProgramStore((s) => s.fork)
   const templates = useTemplateStore((s) => s.items)
   const templateLoading = useTemplateStore((s) => s.loading)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
@@ -404,15 +566,23 @@ export function WeekPage() {
     void (async () => {
       const pickProgram = (items: typeof programs) => {
         if (items.length === 0) return
+        const choose = (id: string) => {
+          setProgramId((current) => (current === id ? current : id))
+          if (useProgramStore.getState().selectedId !== id) {
+            setSelectedProgramId(id)
+          }
+        }
         if (requestedProgram && items.some((item) => item.id === requestedProgram)) {
-          setProgramId((current) => (current === requestedProgram ? current : requestedProgram))
+          choose(requestedProgram)
           return
         }
-        setProgramId((current) =>
-          current && items.some((item) => item.id === current)
-            ? current
-            : (items.find((item) => !item.isSystem) ?? items[0]).id,
-        )
+        const selected = useProgramStore.getState().selectedId
+        if (selected && items.some((item) => item.id === selected)) {
+          choose(selected)
+          return
+        }
+        const fallback = (items.find((item) => !item.isSystem) ?? items[0]).id
+        choose(fallback)
       }
 
       pickProgram(useProgramStore.getState().items)
@@ -432,7 +602,10 @@ export function WeekPage() {
       ensuringProgram.current = true
       try {
         const program = await createProgram({ name: 'Моя неделя' })
-        if (!cancelled) setProgramId(program.id)
+        if (!cancelled) {
+          setProgramId(program.id)
+          setSelectedProgramId(program.id)
+        }
         await fetchPrograms()
       } finally {
         ensuringProgram.current = false
@@ -447,9 +620,11 @@ export function WeekPage() {
     programs,
     programError,
     requestedProgram,
+    selectedProgramId,
     createProgram,
     fetchPrograms,
     pruneDefaultDuplicates,
+    setSelectedProgramId,
   ])
 
   useEffect(() => {
@@ -522,14 +697,6 @@ export function WeekPage() {
     })
   }
 
-  function programDayTemplateId(dayOfWeek: number) {
-    if (!currentProgram || currentProgram.id !== programId) return ''
-    const primary = currentProgram.days
-      .filter((d) => d.dayOfWeek === dayOfWeek)
-      .sort((a, b) => a.slotOrder - b.slotOrder)[0]
-    return primary?.templateId ?? ''
-  }
-
   function primaryProgramDay(dayOfWeek: number) {
     const program = useProgramStore.getState().current
     if (!program || program.id !== programId) return null
@@ -538,33 +705,6 @@ export function WeekPage() {
         .filter((d) => d.dayOfWeek === dayOfWeek)
         .sort((a, b) => a.slotOrder - b.slotOrder)[0] ?? null
     )
-  }
-
-  async function upsertScheduleDay(targetProgramId: string, dayOfWeek: number, templateId: string) {
-    const program = useProgramStore.getState().current
-    if (!program || program.id !== targetProgramId) return
-    const primary = program.days
-      .filter((d) => d.dayOfWeek === dayOfWeek)
-      .sort((a, b) => a.slotOrder - b.slotOrder)[0]
-    const extras = program.days
-      .filter((d) => d.dayOfWeek === dayOfWeek)
-      .sort((a, b) => a.slotOrder - b.slotOrder)
-      .slice(1)
-
-    for (const extra of extras) {
-      await removeDay(targetProgramId, extra.id)
-    }
-
-    if (!templateId) {
-      if (primary) await removeDay(targetProgramId, primary.id)
-      return
-    }
-
-    if (primary) {
-      await updateDay(targetProgramId, primary.id, { templateId, slotOrder: 0 })
-    } else {
-      await addDay(targetProgramId, { dayOfWeek, slotOrder: 0, templateId })
-    }
   }
 
   async function refreshWeekTrainings() {
@@ -643,50 +783,6 @@ export function WeekPage() {
     }
   }
 
-  async function saveDayToProgram(dayOfWeek: number, date: Date) {
-    if (!programId) return
-    setSavingDay(dayOfWeek)
-    try {
-      let targetProgramId = programId
-      if (currentProgram?.isSystem) {
-        const forked = await forkProgram(programId)
-        targetProgramId = forked.id
-        appliedProgramWeeks.add(`${forked.id}:${toDateKey(weekStart)}`)
-        setProgramId(forked.id)
-      }
-
-      const dateKey = toDateKey(date)
-      const templateId = weekDayTemplateId(date)
-      await upsertScheduleDay(targetProgramId, dayOfWeek, templateId)
-
-      const program = useProgramStore.getState().current
-      const programDay =
-        program?.id === targetProgramId
-          ? (program.days
-              .filter((d) => d.dayOfWeek === dayOfWeek)
-              .sort((a, b) => a.slotOrder - b.slotOrder)[0] ?? null)
-          : null
-      const primaryPlanned = useTrainingStore
-        .getState()
-        .items.filter((t) => {
-          if (t.status !== 'planned') return false
-          const when = t.scheduledAt ?? t.startedAt ?? t.createdAt
-          return toDateKey(new Date(when)) === dateKey
-        })
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]
-
-      if (programDay && primaryPlanned) {
-        await update(primaryPlanned.id, {
-          programId: targetProgramId,
-          programDayId: programDay.id,
-          templateId: primaryPlanned.templateId,
-        })
-      }
-    } finally {
-      setSavingDay(null)
-    }
-  }
-
   function dayDotStatus(date: Date): DayDotStatus {
     const key = toDateKey(date)
     const items = trainingsForDay(date)
@@ -706,7 +802,6 @@ export function WeekPage() {
   const selectedKey = toDateKey(selected.date)
   const selectedTrainings = trainingsForDay(selected.date)
   const selectedPlan = weekDayTemplateId(selected.date)
-  const programPlan = programDayTemplateId(selected.dayOfWeek)
   const overrideRest =
     Object.prototype.hasOwnProperty.call(dayOverrides, selectedKey) && dayOverrides[selectedKey] === ''
   const inProgressItems = selectedTrainings.filter((t) => t.status === 'in_progress')
@@ -723,10 +818,10 @@ export function WeekPage() {
     !plannedItems.some((t) => t.templateId === selectedPlan)
   const hasEditable = hasInProgress || hasPlanned || showOptimisticPlanned
   const isRestDay = !hasEditable && finishedItems.length === 0
-  const differsFromProgram = (hasEditable || isRestDay) && selectedPlan !== programPlan
   const dayError = dayErrors[selectedKey]
   const dayBusy = savingDay === selected.dayOfWeek
   const canAssign = scheduleReady && !hasInProgress && templates.length > 0
+  const isSelectedToday = sameDay(selected.date, new Date())
 
   function pickTemplate(templateId: string) {
     setPickerOpen(false)
@@ -741,97 +836,49 @@ export function WeekPage() {
   }
 
   return (
-    <div>
+    <div className="max-w-xl mx-auto">
       <PageHeader
-        title={weekTitle(weekStart)}
-        description={formatWeekRange(weekStart)}
+        title="Неделя"
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            {programId && !currentProgram?.isSystem ? (
-              <ShareResourceButton resourceType="program" resourceId={programId} label="Ссылка" />
-            ) : null}
-            <Link href="/catalog" className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]">
-              Каталог
-            </Link>
-            <Link href="/plans" className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]">
-              Планы
-            </Link>
-          </div>
+          programId && !currentProgram?.isSystem ? (
+            <ShareResourceButton resourceType="program" resourceId={programId} label="" />
+          ) : null
         }
       />
 
-      {programs.length > 0 ? (
-        <div className="mb-4 flex max-w-xl flex-wrap items-end gap-3">
-          <label className="min-w-[12rem] flex-1 text-sm">
-            <span className="mb-1.5 block text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
-              Расписание
-            </span>
-            <Select
-              value={programId}
-              onChange={(event) => {
-                replaceOnNextApply.current = true
-                setProgramId(event.target.value)
-              }}
-              aria-label="Расписание недели"
-            >
-              {programs.map((program) => (
-                <option key={program.id} value={program.id}>
-                  {program.isSystem ? `${program.name} · каталог` : program.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <CreateProgramForm
-            onCreated={(program) => {
-              replaceOnNextApply.current = true
-              setProgramId(program.id)
-            }}
-          />
-        </div>
-      ) : null}
-
-      {!isCurrentWeek ? (
-        <p className="mb-4 text-xs text-[var(--muted)]">
-          Готовая неделя подставляется только в текущую. Завершённые тренировки не трогаем.
-        </p>
-      ) : null}
-
-      <div className="mb-4 inline-flex items-center gap-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1">
+      <div className="mb-4 flex items-center justify-center gap-2">
         <button
           type="button"
           onClick={() => goToWeek(addDays(weekStart, -7))}
-          className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+          aria-label="Предыдущая неделя"
+          className="inline-flex size-9 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
         >
-          <ChevronLeft className="size-4" />
-          <span className="hidden sm:inline">Предыдущая</span>
+          <ChevronLeft className="size-5" />
         </button>
         <button
           type="button"
-          onClick={() => goToWeek(todayWeek)}
+          onClick={() => {
+            if (!isCurrentWeek) goToWeek(todayWeek)
+          }}
           className={cn(
-            'rounded-xl px-3 py-2 text-sm transition',
-            isCurrentWeek
-              ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-              : 'text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
+            'min-w-0 px-1 text-center text-sm text-[var(--foreground)]',
+            !isCurrentWeek && 'hover:text-[var(--accent)]',
           )}
+          aria-label={isCurrentWeek ? formatWeekRange(weekStart) : 'К текущей неделе'}
         >
-          Текущая
+          {formatWeekRange(weekStart)}
         </button>
         <button
           type="button"
           onClick={() => goToWeek(addDays(weekStart, 7))}
-          className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+          aria-label="Следующая неделя"
+          className="inline-flex size-9 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
         >
-          <span className="hidden sm:inline">Следующая</span>
-          <ChevronRight className="size-4" />
+          <ChevronRight className="size-5" />
         </button>
       </div>
 
-      <div
-        role="tablist"
-        aria-label="Дни недели"
-        className="mb-5 grid grid-cols-7 gap-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1"
-      >
+      <div role="tablist" aria-label="Дни недели" className="mb-5 grid grid-cols-7 gap-1.5">
         {days.map((day, index) => {
           const isToday = sameDay(day.date, new Date())
           const selectedDay = index === selectedDayIndex
@@ -848,24 +895,33 @@ export function WeekPage() {
                 setPickerOpen(false)
               }}
               className={cn(
-                'flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-0.5 py-2 text-center transition sm:px-1',
+                'flex min-w-0 flex-col items-center gap-1 rounded-2xl px-0.5 py-2.5 text-center transition sm:px-1',
                 selectedDay
-                  ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                  : isToday
-                    ? 'text-[var(--accent)] hover:bg-[var(--surface-2)]'
-                    : 'text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
+                  ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
+                  : 'bg-[var(--surface)] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]',
+                !selectedDay && isToday && 'text-[var(--accent)]',
               )}
             >
               <span className="text-[10px] font-medium tracking-wide sm:text-xs">{day.label}</span>
               <span
                 className={cn(
                   'font-[family-name:var(--font-display)] text-base leading-none sm:text-lg',
-                  !selectedDay && !isToday && 'text-[var(--foreground)]',
+                  !selectedDay && 'text-[var(--foreground)]',
+                  !selectedDay && isToday && 'text-[var(--accent)]',
                 )}
               >
                 {day.date.getDate()}
               </span>
-              <span className={cn('mt-0.5 size-1.5 rounded-full', DOT_CLASS[status])} />
+              <span
+                className={cn(
+                  'mt-0.5 size-1.5 rounded-full',
+                  selectedDay
+                    ? status === 'rest' || status === 'cancelled'
+                      ? 'bg-transparent'
+                      : 'bg-[var(--accent-fg)]'
+                    : DOT_CLASS[status],
+                )}
+              />
             </button>
           )
         })}
@@ -881,28 +937,7 @@ export function WeekPage() {
         </p>
       ) : null}
 
-      <section
-        role="tabpanel"
-        className={cn(
-          'rounded-2xl border px-4 py-5 sm:px-5',
-          sameDay(selected.date, new Date())
-            ? 'border-[var(--accent)]/45 bg-[var(--accent)]/5'
-            : 'border-[var(--border)] bg-[var(--surface)]',
-        )}
-      >
-        <header className="mb-5">
-          <p
-            className={cn(
-              'font-[family-name:var(--font-display)] text-xl text-[var(--foreground)]',
-              sameDay(selected.date, new Date()) && 'text-[var(--accent)]',
-            )}
-          >
-            {selected.fullLabel}
-            {sameDay(selected.date, new Date()) ? ' · сегодня' : ''}
-          </p>
-          <p className="mt-1 text-sm capitalize text-[var(--muted)]">{formatDayHeading(selected.date)}</p>
-        </header>
-
+      <section role="tabpanel">
         {loading && trainings.length === 0 ? (
           <div className="space-y-3" aria-busy="true" aria-label="Загрузка">
             <Skeleton className="h-24 w-full rounded-2xl" />
@@ -916,7 +951,9 @@ export function WeekPage() {
                 title={templateLabel(templates, training.templateId)}
                 status="in_progress"
                 href={`/trainings/${training.id}`}
-                subtitle="Сессия уже идёт"
+                templateId={training.templateId}
+                trainingId={training.id}
+                highlight={isSelectedToday}
               />
             ))}
 
@@ -926,7 +963,10 @@ export function WeekPage() {
                 title={templateLabel(templates, training.templateId)}
                 status="planned"
                 href={`/trainings/${training.id}`}
+                templateId={training.templateId}
+                trainingId={training.id}
                 busy={dayBusy}
+                highlight={isSelectedToday}
                 onChangePlan={canAssign ? () => setPickerOpen(true) : undefined}
                 onMakeRest={
                   canAssign
@@ -940,7 +980,15 @@ export function WeekPage() {
               <DayTrainingCard
                 title={templateLabel(templates, selectedPlan)}
                 status="planned"
+                templateId={selectedPlan || null}
                 busy={dayBusy}
+                highlight={isSelectedToday}
+                onChangePlan={canAssign ? () => setPickerOpen(true) : undefined}
+                onMakeRest={
+                  canAssign
+                    ? () => void onDayPlanChange(selected.dayOfWeek, selected.date, '')
+                    : undefined
+                }
               />
             ) : null}
 
@@ -950,19 +998,21 @@ export function WeekPage() {
                 title={templateLabel(templates, training.templateId)}
                 status="finished"
                 href={`/trainings/${training.id}`}
-                subtitle={
-                  training.finishedAt
-                    ? `Завершена ${new Date(training.finishedAt).toLocaleTimeString('ru-RU', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}`
-                    : undefined
-                }
+                templateId={training.templateId}
+                trainingId={training.id}
+                highlight={isSelectedToday}
               />
             ))}
 
             {isRestDay ? (
-              <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)]/40 px-5 py-8 text-center">
+              <div
+                className={cn(
+                  'rounded-2xl border border-dashed px-5 py-8 text-center',
+                  isSelectedToday
+                    ? 'border-[var(--accent)]/45 bg-[var(--accent)]/5'
+                    : 'border-[var(--border)] bg-[var(--surface)]/40',
+                )}
+              >
                 <p className="font-[family-name:var(--font-display)] text-xl text-[var(--foreground)]">
                   Отдых
                 </p>
@@ -982,30 +1032,24 @@ export function WeekPage() {
               </div>
             ) : null}
 
+            <div className="flex justify-center">
             {!isRestDay && !hasInProgress && !hasPlanned && !showOptimisticPlanned && canAssign ? (
               <Button
                 type="button"
                 variant="secondary"
                 disabled={dayBusy}
                 onClick={() => setPickerOpen(true)}
+                className={cn(
+                  'w-full ',
+                  isSelectedToday && 'bg-[var(--accent)] text-[var(--accent-fg)] hover:border-[var(--accent)]/60 cursor-pointer',
+                )}
               >
                 <Plus className="size-4" />
                 Назначить тренировку
               </Button>
             ) : null}
-
+            </div>
             {dayError ? <p className="text-[11px] text-red-300">{dayError}</p> : null}
-
-            {differsFromProgram && scheduleReady ? (
-              <button
-                type="button"
-                disabled={dayBusy || hasInProgress}
-                onClick={() => void saveDayToProgram(selected.dayOfWeek, selected.date)}
-                className="text-xs text-[var(--accent)] hover:underline disabled:opacity-50"
-              >
-                Как каждую неделю
-              </button>
-            ) : null}
           </div>
         )}
       </section>

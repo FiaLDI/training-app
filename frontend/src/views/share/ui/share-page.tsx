@@ -23,6 +23,7 @@ export function SharePage({ token }: Props) {
   const router = useRouter()
   const mode = useSessionStore((s) => s.mode)
   const fetchPrograms = useProgramStore((s) => s.fetchList)
+  const setSelectedId = useProgramStore((s) => s.setSelectedId)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const [data, setData] = useState<PublicShare | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +56,10 @@ export function SharePage({ token }: Props) {
     try {
       const result = await shareApi.importShare(token)
       await Promise.all([fetchPrograms(), fetchTemplates()])
-      if (result.programId) router.push(`/week?program=${result.programId}`)
+      if (result.programId) {
+        setSelectedId(result.programId)
+        router.push(`/week?program=${result.programId}`)
+      }
       else if (result.templateId) router.push(`/plans/${result.templateId}`)
       else router.push('/plans')
     } catch (err) {

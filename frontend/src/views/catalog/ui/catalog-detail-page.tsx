@@ -24,6 +24,7 @@ export function CatalogDetailPage({ slug }: Props) {
   const router = useRouter()
   const mode = useSessionStore((s) => s.mode)
   const fetchPrograms = useProgramStore((s) => s.fetchList)
+  const setSelectedId = useProgramStore((s) => s.setSelectedId)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const [item, setItem] = useState<CatalogProgramDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -60,6 +61,7 @@ export function CatalogDetailPage({ slug }: Props) {
       setSkipped(result.skippedExercises)
       await Promise.all([fetchPrograms(), fetchTemplates()])
       if (result.programId) {
+        setSelectedId(result.programId)
         router.push(`/week?program=${result.programId}`)
       }
     } catch (err) {
