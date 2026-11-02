@@ -1,23 +1,24 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
 import { StartTrainingButton } from '@/features/start-training/ui/start-training-button'
-import { statsPeriodRange } from '@/entities/stats/lib/period-range'
-import type { Training } from '@/entities/training/model/types'
+import type { Training, TrainingStatus } from '@/entities/training/model/types'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { useTemplateStore } from '@/entities/template/model/store'
-import { setVisibleTrainingWindow } from '@/shared/lib/cloud-sync-state'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration } from '@/shared/lib/format'
 import { isTrainingPendingSync } from '@/shared/lib/training-sync-meta'
+import { Button } from '@/shared/ui/button'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
 import { ListSkeleton } from '@/shared/ui/skeleton'
 
 type StatusFilter = 'all' | 'finished' | 'planned' | 'cancelled'
+
+const PAGE_SIZE = 10
 
 const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: 'all', label: 'Все' },
@@ -43,29 +44,41 @@ function trainingWhen(training: Training) {
 
 export function TrainingsPage() {
   const items = useTrainingStore((s) => s.items)
+  const total = useTrainingStore((s) => s.total)
   const loading = useTrainingStore((s) => s.loading)
   const error = useTrainingStore((s) => s.error)
   const fetchList = useTrainingStore((s) => s.fetchList)
   const templates = useTemplateStore((s) => s.items)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
-    const range = statsPeriodRange('year')
-    setVisibleTrainingWindow(range.from, range.to)
-    void fetchList({ from: range.from, to: range.to, limit: 200 })
     void fetchTemplates()
-  }, [fetchList, fetchTemplates])
+  }, [fetchTemplates])
 
-  const listed = useMemo(() => {
-    return items
-      .filter((t) => (statusFilter === 'all' ? true : t.status === statusFilter))
-      .sort((a, b) => trainingWhen(b).localeCompare(trainingWhen(a)))
-  }, [items, statusFilter])
+  useEffect(() => {
+    const status: TrainingStatus | undefined =
+      statusFilter === 'all' ? undefined : statusFilter
+    void fetchList({ page, limit: PAGE_SIZE, status })
+  }, [fetchList, page, statusFilter])
+
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE) || 1)
+
+  useEffect(() => {
+    if (total > 0 && page > pageCount) {
+      setPage(pageCount)
+    }
+  }, [total, page, pageCount])
 
   function trainingLabel(templateId: string | null) {
     if (!templateId) return 'Тренировка'
     return templates.find((t) => t.id === templateId)?.name ?? 'Тренировка'
+  }
+
+  function changeStatus(next: StatusFilter) {
+    setStatusFilter(next)
+    setPage(1)
   }
 
   return (
@@ -85,7 +98,7 @@ export function TrainingsPage() {
             <button
               key={option.id}
               type="button"
-              onClick={() => setStatusFilter(option.id)}
+              onClick={() => changeStatus(option.id)}
               className={cn(
                 'flex-1 rounded-lg px-3 py-2 text-sm transition',
                 active
@@ -101,37 +114,66 @@ export function TrainingsPage() {
 
       {loading && items.length === 0 ? (
         <ListSkeleton />
-      ) : listed.length === 0 ? (
+      ) : items.length === 0 ? (
         <EmptyState>{EMPTY_BY_FILTER[statusFilter]}</EmptyState>
       ) : (
-        <ul className="space-y-2">
-          {listed.map((training) => {
-            const when = trainingWhen(training)
-            const duration = formatDuration(training.startedAt, training.finishedAt)
-            return (
-              <li key={training.id}>
-                <Link
-                  href={`/trainings/${training.id}`}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition hover:border-[var(--accent)]/30"
+        <>
+          <ul className="space-y-2">
+            {items.map((training) => {
+              const when = trainingWhen(training)
+              const duration = formatDuration(training.startedAt, training.finishedAt)
+              return (
+                <li key={training.id}>
+                  <Link
+                    href={`/trainings/${training.id}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition hover:border-[var(--accent)]/30"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                        {trainingLabel(training.templateId)}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">
+                        {new Date(when).toLocaleString('ru-RU')}
+                        {duration ? ` · ${duration}` : ''}
+                      </p>
+                      {isTrainingPendingSync(training) ? (
+                        <p className="mt-1 text-xs text-amber-300/90">Не на сервере</p>
+                      ) : null}
+                    </div>
+                    <TrainingStatusBadge status={training.status} />
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+
+          {total > PAGE_SIZE ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-4">
+              <p className="text-xs text-[var(--muted)]">
+                Страница {page} из {pageCount}
+                {` · ${total}`}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={page <= 1 || loading}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-[var(--foreground)]">
-                      {trainingLabel(training.templateId)}
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--muted)]">
-                      {new Date(when).toLocaleString('ru-RU')}
-                      {duration ? ` · ${duration}` : ''}
-                    </p>
-                    {isTrainingPendingSync(training) ? (
-                      <p className="mt-1 text-xs text-amber-300/90">Не на сервере</p>
-                    ) : null}
-                  </div>
-                  <TrainingStatusBadge status={training.status} />
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
+                  Назад
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={page >= pageCount || loading}
+                  onClick={() => setPage((current) => current + 1)}
+                >
+                  Далее
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   )

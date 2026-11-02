@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 
 import { BodyWeightSection } from '@/entities/body-measurement/ui/body-weight-section'
 import { useExerciseStore } from '@/entities/exercise/model/store'
@@ -18,8 +17,6 @@ import {
 import { DualSeriesChart } from '@/entities/stats/ui/dual-series-chart'
 import { MuscleGroupChart } from '@/entities/stats/ui/muscle-group-chart'
 import { SimpleBarChart } from '@/entities/stats/ui/simple-bar-chart'
-import type { Training } from '@/entities/training/model/types'
-import { useTemplateStore } from '@/entities/template/model/store'
 import { useTrainingStore } from '@/entities/training/model/store'
 import {
   fetchCloudSyncState,
@@ -32,7 +29,6 @@ import {
   statsKeyNeedsFetch,
   trainingWindowNeedsFetch,
 } from '@/shared/lib/cloud-sync-state'
-import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
 import { ActivityHeatmap } from '@/entities/training/ui/activity-heatmap'
 import { toDateKey } from '@/entities/training/lib/activity-calendar'
 import {
@@ -40,26 +36,16 @@ import {
   MuscleDiagram,
 } from '@/entities/exercise/ui/muscle-diagram'
 import { cn } from '@/shared/lib/cn'
-import { formatDuration, formatNumber } from '@/shared/lib/format'
-import { EmptyState } from '@/shared/ui/empty-state'
+import { formatNumber } from '@/shared/lib/format'
 import { PageHeader } from '@/shared/ui/page-header'
 import { TabPageFallback } from '@/shared/ui/tab-page-fallback'
 
-type StatsTab = 'overview' | 'progress' | 'trainings' | 'weight'
-type StatusFilter = 'all' | 'finished' | 'planned' | 'cancelled'
+type StatsTab = 'overview' | 'progress' | 'weight'
 
 const TABS: Array<{ id: StatsTab; label: string }> = [
   { id: 'overview', label: 'Обзор' },
   { id: 'progress', label: 'Прогресс' },
-  { id: 'trainings', label: 'Тренировки' },
   { id: 'weight', label: 'Вес' },
-]
-
-const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
-  { id: 'all', label: 'Все' },
-  { id: 'finished', label: 'Завершены' },
-  { id: 'planned', label: 'Запланированы' },
-  { id: 'cancelled', label: 'Отменены' },
 ]
 
 const PERIOD_OPTIONS: Array<{ id: StatsPeriod; label: string }> = [
@@ -71,7 +57,6 @@ const PERIOD_OPTIONS: Array<{ id: StatsPeriod; label: string }> = [
 const TAB_DESCRIPTIONS: Record<StatsTab, string> = {
   overview: 'Сводка, распределение по мышечным группам и карта активности.',
   progress: 'Прогресс по упражнению и корреляция веса тела с силой.',
-  trainings: 'Список сессий с фильтром по статусу.',
   weight: 'Запись веса и динамика.',
 }
 
@@ -124,33 +109,15 @@ function SegmentedControl<T extends string>({ value, options, onChange }: Segmen
   )
 }
 
-function trainingWhen(training: Training) {
-  if (training.status === 'planned') return training.scheduledAt ?? training.createdAt
-  if (training.status === 'finished') {
-    return training.finishedAt ?? training.startedAt ?? training.createdAt
-  }
-  return training.startedAt ?? training.scheduledAt ?? training.createdAt
-}
-
-const EMPTY_BY_FILTER: Record<StatusFilter, string> = {
-  all: 'Пока нет тренировок.',
-  finished: 'Пока нет завершённых тренировок.',
-  planned: 'Нет запланированных тренировок.',
-  cancelled: 'Нет отменённых тренировок.',
-}
-
 export function StatsPage() {
   const mode = useSessionStore((s) => s.mode)
   const exercises = useExerciseStore((s) => s.items)
   const fetchExercises = useExerciseStore((s) => s.fetchList)
-  const templates = useTemplateStore((s) => s.items)
-  const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const trainings = useTrainingStore((s) => s.items)
   const fetchTrainings = useTrainingStore((s) => s.fetchList)
   const showLocalWindow = useTrainingStore((s) => s.showLocalWindow)
   const [tab, setTab] = useState<StatsTab>('overview')
   const [period, setPeriod] = useState<StatsPeriod>('month')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [exerciseId, setExerciseId] = useState('')
   const dayKey = useMemo(() => toDateKey(new Date()), [])
   const overviewKey = `${dayKey}:${period}`
@@ -182,8 +149,7 @@ export function StatsPage() {
 
   useEffect(() => {
     void fetchExercises()
-    void fetchTemplates()
-  }, [fetchExercises, fetchTemplates])
+  }, [fetchExercises])
 
   useEffect(() => {
     setVisibleTrainingWindow(range.from, range.to)
@@ -315,17 +281,6 @@ export function StatsPage() {
       return ms >= fromMs && ms <= toMs
     })
   }, [trainings, range.from, range.to])
-
-  const listedTrainings = useMemo(() => {
-    return trainings
-      .filter((t) => (statusFilter === 'all' ? true : t.status === statusFilter))
-      .sort((a, b) => trainingWhen(b).localeCompare(trainingWhen(a)))
-  }, [trainings, statusFilter])
-
-  function trainingLabel(templateId: string | null) {
-    if (!templateId) return 'Тренировка'
-    return templates.find((t) => t.id === templateId)?.name ?? 'Тренировка'
-  }
 
   const overview = useMemo(() => {
     const totalVolume = volume.reduce((sum, p) => sum + p.volume, 0)
@@ -629,62 +584,6 @@ export function StatsPage() {
           </section>
         </div>
         )
-      ) : null}
-
-      {tab === 'trainings' ? (
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="font-[family-name:var(--font-display)] text-xl">Список тренировок</h2>
-              <p className="mt-1 text-sm text-[var(--muted)]">
-                {listedTrainings.length}{' '}
-                {listedTrainings.length === 1
-                  ? 'сессия'
-                  : listedTrainings.length > 1 && listedTrainings.length < 5
-                    ? 'сессии'
-                    : 'сессий'}
-              </p>
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <SegmentedControl
-              value={statusFilter}
-              options={STATUS_FILTERS}
-              onChange={setStatusFilter}
-            />
-          </div>
-
-          {listedTrainings.length === 0 ? (
-            <EmptyState>{EMPTY_BY_FILTER[statusFilter]}</EmptyState>
-          ) : (
-            <ul className="space-y-2">
-              {listedTrainings.map((training) => {
-                const when = trainingWhen(training)
-                const duration = formatDuration(training.startedAt, training.finishedAt)
-                return (
-                  <li key={training.id}>
-                    <Link
-                      href={`/trainings/${training.id}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-4 py-3 transition hover:border-[var(--accent)]/30"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-[var(--foreground)]">
-                          {trainingLabel(training.templateId)}
-                        </p>
-                        <p className="mt-1 text-xs text-[var(--muted)]">
-                          {new Date(when).toLocaleString('ru-RU')}
-                          {duration ? ` · ${duration}` : ''}
-                        </p>
-                      </div>
-                      <TrainingStatusBadge status={training.status} />
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </section>
       ) : null}
 
       {tab === 'weight' ? <BodyWeightSection /> : null}

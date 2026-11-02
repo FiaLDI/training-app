@@ -17,6 +17,9 @@ export function resetEntityStores() {
   resetCloudSyncState()
   useTrainingStore.setState({
     items: [],
+    total: 0,
+    page: 1,
+    limit: 100,
     current: null,
     loading: false,
     error: null,
@@ -58,8 +61,12 @@ export function resetEntityStores() {
 /** Fill RAM stores from IndexedDB so lists are not empty until the next fetch. */
 export function seedEntityStoresFromLocal() {
   const exercises = localData.exercises.list()
+  const trainings = localData.trainings.list()
   useTrainingStore.setState({
-    items: localData.trainings.list(),
+    items: trainings,
+    total: trainings.length,
+    page: 1,
+    limit: trainings.length || 100,
     loading: false,
     error: null,
   })

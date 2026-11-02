@@ -41,6 +41,7 @@ import type {
   CreateTrainingInput,
   CreateTrainingSetInput,
   Training,
+  TrainingStatus,
   TrainingWithDetails,
   UpdateTrainingExerciseGroupInput,
   UpdateTrainingExerciseInput,
@@ -117,11 +118,16 @@ function mergeFetchedCloudList(
 
 type TrainingStore = {
   items: Training[]
+  total: number
+  page: number
+  limit: number
   current: TrainingWithDetails | null
   loading: boolean
   error: string | null
   fetchList: (params?: {
+    page?: number
     limit?: number
+    status?: TrainingStatus
     from?: string
     to?: string
     merge?: 'replace' | 'union'
@@ -161,46 +167,103 @@ type TrainingStore = {
   deleteGroup: (trainingId: string, groupId: string) => Promise<void>
 }
 
+function paginateLocalTrainings(params?: {
+  page?: number
+  limit?: number
+  status?: TrainingStatus
+  from?: string
+  to?: string
+}) {
+  let items = mergeCloudWithPending(
+    localData.trainings.list({ from: params?.from, to: params?.to }),
+  )
+  if (params?.status) {
+    items = items.filter((item) => item.status === params.status)
+  }
+  items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const total = items.length
+  const page = Math.max(1, params?.page ?? 1)
+  const limit = Math.max(1, params?.limit ?? 100)
+  const start = (page - 1) * limit
+  return {
+    items: items.slice(start, start + limit),
+    total,
+    page,
+    limit,
+  }
+}
+
 export const useTrainingStore = create<TrainingStore>((set, get) => ({
   items: [],
+  total: 0,
+  page: 1,
+  limit: 100,
   current: null,
   loading: false,
   error: null,
 
   showLocalWindow(params) {
     const items = mergeCloudWithPending(localData.trainings.list({ from: params?.from, to: params?.to }))
-    set({ items, loading: false, error: null })
+    set({ items, total: items.length, page: 1, limit: items.length || 100, loading: false, error: null })
   },
 
   async fetchList(params) {
-    const key = `trainings:${params?.limit ?? 100}:${params?.from ?? ''}:${params?.to ?? ''}`
+    const page = Math.max(1, params?.page ?? 1)
+    const limit = Math.max(1, params?.limit ?? 100)
+    const key = `trainings:${page}:${limit}:${params?.status ?? ''}:${params?.from ?? ''}:${params?.to ?? ''}`
     const prevItems = get().items
-    const localItems = localData.trainings.list({ from: params?.from, to: params?.to })
+    const localPage = paginateLocalTrainings({
+      page,
+      limit,
+      status: params?.status,
+      from: params?.from,
+      to: params?.to,
+    })
     const catalogKnown = localData.trainings.list().length > 0
-    const hasCachedItems = prevItems.length > 0 || catalogKnown || localItems.length > 0
-    const items = localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems
+    const hasCachedItems = prevItems.length > 0 || catalogKnown || localPage.items.length > 0
+    const items =
+      localPage.items.length > 0 ? localPage.items : hasCachedItems ? prevItems : localPage.items
     const merge = params?.merge ?? 'replace'
     if (isLocalMode()) {
-      set({ items, loading: false, error: null })
+      set({
+        items: localPage.items,
+        total: localPage.total,
+        page: localPage.page,
+        limit: localPage.limit,
+        loading: false,
+        error: null,
+      })
       return
     }
 
     return coalesceFetch(key, async () => {
       set({
         items,
+        total: localPage.total,
+        page,
+        limit,
         loading: !hasCachedItems,
         error: null,
       })
 
       try {
         const result = await trainingApi.list({
-          limit: params?.limit ?? 100,
+          page,
+          limit,
+          status: params?.status,
           from: params?.from,
           to: params?.to,
           timeoutMs: READ_TIMEOUT_MS,
         })
+        const merged = mergeFetchedCloudList(result.items, prevItems, merge)
+        const itemsForPage = params?.status
+          ? merged.filter((item) => item.status === params.status)
+          : merged
         set({
-          items: mergeFetchedCloudList(result.items, prevItems, merge),
+          items: itemsForPage,
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
           loading: false,
           error: null,
         })
@@ -217,19 +280,31 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
           for (const item of detailItems) {
             await pullCloudTrainingDetails(item.id, BACKGROUND_READ_TIMEOUT_MS)
           }
+          const refreshed =
+            merge === 'union'
+              ? unionTrainingLists(get().items, mergeCloudWithPending(result.items))
+              : mergeCloudWithPending(result.items)
           set({
-            items:
-              merge === 'union'
-                ? unionTrainingLists(get().items, mergeCloudWithPending(result.items))
-                : mergeCloudWithPending(result.items),
+            items: params?.status
+              ? refreshed.filter((item) => item.status === params.status)
+              : refreshed,
             loading: false,
             error: null,
           })
         })()
       } catch (error) {
-        const fallback = localData.trainings.list({ from: params?.from, to: params?.to })
+        const fallback = paginateLocalTrainings({
+          page,
+          limit,
+          status: params?.status,
+          from: params?.from,
+          to: params?.to,
+        })
         set({
-          items: mergeCloudWithPending(fallback),
+          items: fallback.items,
+          total: fallback.total,
+          page: fallback.page,
+          limit: fallback.limit,
           loading: false,
           error: catalogKnown
             ? null
