@@ -5,9 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
+  Check,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   MoreHorizontal,
   Pencil,
   Play,
@@ -103,61 +102,61 @@ function PreviousMaxHint({
   )
 }
 
+function exerciseProgress(
+  item: {
+    id: string
+    groupId: string | null
+    targetSets: number
+    sets: Array<{ completed: boolean; isWarmup?: boolean }>
+  },
+  all: Array<{
+    id: string
+    groupId: string | null
+    positionInGroup: number | null
+    targetSets: number
+    sets: Array<{ completed: boolean; isWarmup?: boolean }>
+  }>,
+) {
+  if (item.groupId) {
+    const members = all.filter((row) => row.groupId === item.groupId)
+    const target = Math.max(...members.map((row) => row.targetSets), 1)
+    const rounds = countCompletedGroupRounds(item.groupId, all)
+    return Math.min(1, rounds / target)
+  }
+  const done = item.sets.filter((set) => !set.isWarmup && set.completed).length
+  return Math.min(1, done / Math.max(item.targetSets, 1))
+}
+
 function ExerciseStepper({
   name,
   index,
-  total,
+  progress,
   groupPartners,
   groupType,
   activeExerciseId,
-  onPrev,
-  onNext,
   onSelect,
   onSelectExercise,
 }: {
   name: string
   index: number
-  total: number
+  progress: number[]
   groupPartners?: Array<{ id: string; name: string }>
   groupType?: string
   activeExerciseId?: string
-  onPrev: () => void
-  onNext: () => void
   onSelect: (index: number) => void
   onSelectExercise?: (exerciseId: string) => void
 }) {
+  const total = progress.length
+
   return (
     <div className="mb-5">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          disabled={index <= 0}
-          onClick={onPrev}
-          aria-label="Предыдущее упражнение"
-          className="inline-flex size-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition hover:border-[var(--accent)]/40 disabled:pointer-events-none disabled:opacity-30"
-        >
-          <ChevronLeft className="size-6" />
-        </button>
-        <div className="min-w-0 flex-1 text-center">
-          {groupPartners && groupPartners.length > 1 && groupType ? (
-            <p className="mb-1 text-xs font-medium text-[var(--accent)]">{groupType}</p>
-          ) : null}
-          <h1 className="text-wrap break-words font-[family-name:var(--font-display)] text-2xl tracking-tight">
-            {name}
-          </h1>
-          <p className="mt-1 text-sm tabular-nums text-[var(--muted)]">
-            {index + 1} / {total}
-          </p>
-        </div>
-        <button
-          type="button"
-          disabled={index >= total - 1}
-          onClick={onNext}
-          aria-label="Следующее упражнение"
-          className="inline-flex size-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] transition hover:border-[var(--accent)]/40 disabled:pointer-events-none disabled:opacity-30"
-        >
-          <ChevronRight className="size-6" />
-        </button>
+      <div className="min-w-0 text-center">
+        {groupPartners && groupPartners.length > 1 && groupType ? (
+          <p className="mb-1 text-xs font-medium text-[var(--accent)]">{groupType}</p>
+        ) : null}
+        <h1 className="text-wrap break-words font-[family-name:var(--font-display)] text-2xl tracking-tight">
+          {name}
+        </h1>
       </div>
       {groupPartners && groupPartners.length > 1 ? (
         <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -178,27 +177,70 @@ function ExerciseStepper({
           ))}
         </div>
       ) : null}
-      {total > 1 ? (
-        <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-          {Array.from({ length: total }, (_, itemIndex) => (
-            <button
-              key={itemIndex}
-              type="button"
-              aria-label={`Упражнение ${itemIndex + 1}`}
-              aria-current={itemIndex === index ? 'page' : undefined}
-              onClick={() => onSelect(itemIndex)}
-              className="flex h-6 items-center justify-center px-0.5"
-            >
-              <span
-                className={cn(
-                  'h-1.5 rounded-full transition-all',
-                  itemIndex === index
-                    ? 'w-6 bg-[var(--accent)]'
-                    : 'w-1.5 bg-[var(--border)]',
-                )}
-              />
-            </button>
-          ))}
+      {total > 0 ? (
+        <div className="mt-4 flex items-center px-1">
+          {progress.map((ratio, itemIndex) => {
+            const isActive = itemIndex === index
+            const isDone = ratio >= 1
+            const glow = Math.round((isActive ? Math.max(ratio, 0.65) : ratio) * 100)
+            const prevRatio = itemIndex > 0 ? progress[itemIndex - 1] : 0
+            const leftStrength = prevRatio
+            const rightStrength = ratio
+            const lineStrength = Math.max(leftStrength, rightStrength)
+            const lineLit = lineStrength > 0
+
+            return (
+              <div key={itemIndex} className="contents">
+                {itemIndex > 0 ? (
+                  <div
+                    className="min-w-2 flex-1 rounded-full transition-all"
+                    style={{
+                      height: lineLit ? 2 : 1,
+                      background:
+                        leftStrength >= 1 && rightStrength >= 1
+                          ? 'var(--accent)'
+                          : lineLit
+                            ? `linear-gradient(90deg, color-mix(in oklab, var(--accent) ${Math.round(leftStrength * 100)}%, var(--border)), color-mix(in oklab, var(--accent) ${Math.round(rightStrength * 100)}%, var(--border)))`
+                            : 'var(--border)',
+                      boxShadow: lineLit
+                        ? `0 0 ${6 + Math.round(lineStrength * 10)}px color-mix(in oklab, var(--accent) ${Math.round(25 + lineStrength * 50)}%, transparent)`
+                        : undefined,
+                    }}
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  aria-label={
+                    isDone
+                      ? `Упражнение ${itemIndex + 1}, выполнено`
+                      : `Упражнение ${itemIndex + 1}`
+                  }
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => onSelect(itemIndex)}
+                  className={cn(
+                    'relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold tabular-nums transition',
+                    isDone
+                      ? 'bg-[var(--accent)] text-[var(--background)] shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_45%,transparent)]'
+                      : isActive
+                        ? 'border-2 border-[var(--accent)] bg-[color-mix(in_oklab,var(--surface)_70%,transparent)] text-[var(--accent)] shadow-[0_0_12px_color-mix(in_oklab,var(--accent)_40%,transparent)]'
+                        : glow > 0
+                          ? 'border border-[var(--accent)] text-[var(--accent)]'
+                          : 'border border-[var(--border)] bg-[color-mix(in_oklab,var(--surface)_70%,transparent)] text-[var(--muted)]',
+                  )}
+                  style={
+                    !isActive && !isDone && glow > 0
+                      ? {
+                          boxShadow: `0 0 ${8 + Math.round(glow / 10)}px color-mix(in oklab, var(--accent) ${Math.round(20 + glow * 0.45)}%, transparent)`,
+                          background: `color-mix(in oklab, var(--accent) ${Math.round(glow * 0.38)}%, transparent)`,
+                        }
+                      : undefined
+                  }
+                >
+                  {isDone ? <Check className="size-4" strokeWidth={3} /> : itemIndex + 1}
+                </button>
+              </div>
+            )
+          })}
         </div>
       ) : null}
     </div>
@@ -529,18 +571,12 @@ export function TrainingSessionPage({ id }: Props) {
           <ExerciseStepper
             name={exerciseName(activeExercise.exerciseId)}
             index={activeIndex}
-            total={sortedExercises.length}
+            progress={sortedExercises.map((item) =>
+              exerciseProgress(item, sortedExercises),
+            )}
             groupPartners={groupPartners}
             groupType={activeGroup ? groupTypeLabel(activeGroup.type) : undefined}
             activeExerciseId={activeExercise.id}
-            onPrev={() => {
-              const prev = sortedExercises[activeIndex - 1]
-              if (prev) setActiveExerciseId(prev.id)
-            }}
-            onNext={() => {
-              const next = sortedExercises[activeIndex + 1]
-              if (next) setActiveExerciseId(next.id)
-            }}
             onSelect={(itemIndex) => {
               const selected = sortedExercises[itemIndex]
               if (selected) setActiveExerciseId(selected.id)
