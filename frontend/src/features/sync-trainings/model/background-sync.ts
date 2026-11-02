@@ -72,6 +72,7 @@ async function refreshStoresFromLocal() {
   const trainingById = new Map(localData.trainings.list().map((item) => [item.id, item]))
   useTrainingStore.setState({
     items: training.items.map((item) => trainingById.get(item.id) ?? item),
+    listItems: training.listItems.map((item) => trainingById.get(item.id) ?? item),
     current: training.current
       ? (localData.trainings.get(training.current.id) ?? training.current)
       : null,

@@ -116,14 +116,26 @@ function mergeFetchedCloudList(
   return mode === 'union' ? unionTrainingLists(prev, merged) : merged
 }
 
+type ListPageParams = {
+  page?: number
+  limit?: number
+  status?: TrainingStatus
+}
+
 type TrainingStore = {
+  /** Calendar / dashboard window — not the /trainings list. */
   items: Training[]
-  total: number
-  page: number
-  limit: number
   current: TrainingWithDetails | null
   loading: boolean
   error: string | null
+  /** Dedicated /trainings list query — isolated from window fetches & background pull. */
+  listItems: Training[]
+  listTotal: number
+  listPage: number
+  listLimit: number
+  listStatus: TrainingStatus | null
+  listLoading: boolean
+  listError: string | null
   fetchList: (params?: {
     page?: number
     limit?: number
@@ -132,6 +144,7 @@ type TrainingStore = {
     to?: string
     merge?: 'replace' | 'union'
   }) => Promise<void>
+  fetchListPage: (params?: ListPageParams) => Promise<void>
   showLocalWindow: (params?: { from?: string; to?: string }) => void
   pullLatestFromCloud: () => Promise<void>
   fetchOne: (id: string) => Promise<void>
@@ -167,103 +180,96 @@ type TrainingStore = {
   deleteGroup: (trainingId: string, groupId: string) => Promise<void>
 }
 
-function paginateLocalTrainings(params?: {
-  page?: number
-  limit?: number
+function paginateLocalTrainings(params: {
+  page: number
+  limit: number
   status?: TrainingStatus
-  from?: string
-  to?: string
 }) {
-  let items = mergeCloudWithPending(
-    localData.trainings.list({ from: params?.from, to: params?.to }),
-  )
-  if (params?.status) {
+  let items = mergeCloudWithPending(localData.trainings.list())
+  if (params.status) {
     items = items.filter((item) => item.status === params.status)
   }
   items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   const total = items.length
-  const page = Math.max(1, params?.page ?? 1)
-  const limit = Math.max(1, params?.limit ?? 100)
-  const start = (page - 1) * limit
+  const start = (params.page - 1) * params.limit
   return {
-    items: items.slice(start, start + limit),
+    items: items.slice(start, start + params.limit),
     total,
-    page,
-    limit,
+    page: params.page,
+    limit: params.limit,
   }
+}
+
+function matchesListFilter(item: Training, status: TrainingStatus | null) {
+  return status == null || item.status === status
+}
+
+function mapListItems(
+  listItems: Training[],
+  id: string,
+  next: Training | null | undefined,
+): Training[] {
+  if (!next) {
+    return listItems.filter((item) => item.id !== id)
+  }
+  let found = false
+  const mapped = listItems.map((item) => {
+    if (item.id !== id) return item
+    found = true
+    return next
+  })
+  return found ? mapped : listItems
 }
 
 export const useTrainingStore = create<TrainingStore>((set, get) => ({
   items: [],
-  total: 0,
-  page: 1,
-  limit: 100,
   current: null,
   loading: false,
   error: null,
+  listItems: [],
+  listTotal: 0,
+  listPage: 1,
+  listLimit: 10,
+  listStatus: null,
+  listLoading: false,
+  listError: null,
 
   showLocalWindow(params) {
     const items = mergeCloudWithPending(localData.trainings.list({ from: params?.from, to: params?.to }))
-    set({ items, total: items.length, page: 1, limit: items.length || 100, loading: false, error: null })
+    set({ items, loading: false, error: null })
   },
 
   async fetchList(params) {
-    const page = Math.max(1, params?.page ?? 1)
-    const limit = Math.max(1, params?.limit ?? 100)
-    const key = `trainings:${page}:${limit}:${params?.status ?? ''}:${params?.from ?? ''}:${params?.to ?? ''}`
+    const key = `trainings:${params?.limit ?? 100}:${params?.from ?? ''}:${params?.to ?? ''}:${params?.status ?? ''}:${params?.page ?? 1}`
     const prevItems = get().items
-    const localPage = paginateLocalTrainings({
-      page,
-      limit,
-      status: params?.status,
-      from: params?.from,
-      to: params?.to,
-    })
+    const localItems = localData.trainings.list({ from: params?.from, to: params?.to })
     const catalogKnown = localData.trainings.list().length > 0
-    const hasCachedItems = prevItems.length > 0 || catalogKnown || localPage.items.length > 0
-    const items =
-      localPage.items.length > 0 ? localPage.items : hasCachedItems ? prevItems : localPage.items
+    const hasCachedItems = prevItems.length > 0 || catalogKnown || localItems.length > 0
+    const items = localItems.length > 0 ? localItems : hasCachedItems ? prevItems : localItems
     const merge = params?.merge ?? 'replace'
     if (isLocalMode()) {
-      set({
-        items: localPage.items,
-        total: localPage.total,
-        page: localPage.page,
-        limit: localPage.limit,
-        loading: false,
-        error: null,
-      })
+      set({ items, loading: false, error: null })
       return
     }
 
     return coalesceFetch(key, async () => {
       set({
         items,
-        total: localPage.total,
-        page,
-        limit,
         loading: !hasCachedItems,
         error: null,
       })
 
       try {
         const result = await trainingApi.list({
-          page,
-          limit,
+          page: params?.page,
+          limit: params?.limit ?? 100,
           status: params?.status,
           from: params?.from,
           to: params?.to,
           timeoutMs: READ_TIMEOUT_MS,
         })
-        const merged = mergeFetchedCloudList(result.items, prevItems, merge)
-        const itemsForPage = params?.status
-          ? merged.filter((item) => item.status === params.status)
-          : merged
         set({
-          items: itemsForPage,
-          total: result.total,
-          page: result.page,
-          limit: result.limit,
+          items: mergeFetchedCloudList(result.items, prevItems, merge),
           loading: false,
           error: null,
         })
@@ -280,33 +286,124 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
           for (const item of detailItems) {
             await pullCloudTrainingDetails(item.id, BACKGROUND_READ_TIMEOUT_MS)
           }
-          const refreshed =
-            merge === 'union'
-              ? unionTrainingLists(get().items, mergeCloudWithPending(result.items))
-              : mergeCloudWithPending(result.items)
           set({
-            items: params?.status
-              ? refreshed.filter((item) => item.status === params.status)
-              : refreshed,
+            items:
+              merge === 'union'
+                ? unionTrainingLists(get().items, mergeCloudWithPending(result.items))
+                : mergeCloudWithPending(result.items),
             loading: false,
             error: null,
           })
         })()
       } catch (error) {
-        const fallback = paginateLocalTrainings({
-          page,
-          limit,
-          status: params?.status,
-          from: params?.from,
-          to: params?.to,
-        })
+        const fallback = localData.trainings.list({ from: params?.from, to: params?.to })
         set({
-          items: fallback.items,
-          total: fallback.total,
-          page: fallback.page,
-          limit: fallback.limit,
+          items: mergeCloudWithPending(fallback),
           loading: false,
           error: catalogKnown
+            ? null
+            : error instanceof Error
+              ? error.message
+              : 'Не удалось загрузить тренировки',
+        })
+      }
+    })
+  },
+
+  async fetchListPage(params) {
+    const page = Math.max(1, params?.page ?? 1)
+    const limit = Math.max(1, params?.limit ?? 10)
+    const status = params?.status
+    const key = `trainings-list:${page}:${limit}:${status ?? ''}`
+    const localPage = paginateLocalTrainings({ page, limit, status })
+    const catalogKnown = localData.trainings.list().length > 0
+
+    if (isLocalMode()) {
+      set({
+        listItems: localPage.items,
+        listTotal: localPage.total,
+        listPage: localPage.page,
+        listLimit: localPage.limit,
+        listStatus: status ?? null,
+        listLoading: false,
+        listError: null,
+      })
+      return
+    }
+
+    return coalesceFetch(key, async () => {
+      set({
+        listItems: localPage.items,
+        listTotal: Math.max(get().listTotal, localPage.total),
+        listPage: page,
+        listLimit: limit,
+        listStatus: status ?? null,
+        listLoading: localPage.items.length === 0,
+        listError: null,
+      })
+
+      try {
+        const result = await trainingApi.list({
+          page,
+          limit,
+          status,
+          timeoutMs: READ_TIMEOUT_MS,
+        })
+        ingestCloudTrainingHeaders(result.items)
+        const pending = localData.trainings.list().filter(isTrainingPendingSync)
+        const cloudIds = new Set(result.items.map((item) => item.id))
+        const pendingExtra = pending.filter(
+          (item) => !cloudIds.has(item.id) && matchesListFilter(item, status ?? null),
+        )
+        const pageById = new Map<string, Training>()
+        for (const item of result.items) {
+          if (matchesListFilter(item, status ?? null)) pageById.set(item.id, item)
+        }
+        for (const item of pending) {
+          if (pageById.has(item.id)) pageById.set(item.id, item)
+        }
+        const pageItems = [...pageById.values()]
+        // Pending-only rows (not on server yet) stay on page 1; later pages stay server-accurate.
+        const listItems = page === 1 ? [...pendingExtra, ...pageItems] : pageItems
+        set({
+          listItems,
+          listTotal: result.total + pendingExtra.length,
+          listPage: result.page,
+          listLimit: result.limit,
+          listStatus: status ?? null,
+          listLoading: false,
+          listError: null,
+        })
+        void fetchCloudSyncState().then((live) => {
+          if (!live) return
+          persistSyncCollections(live, ['trainings'])
+        })
+        const detailItems = result.items.filter(trainingNeedsCloudDetails)
+        if (detailItems.length === 0) return
+        void (async () => {
+          for (const item of detailItems) {
+            await pullCloudTrainingDetails(item.id, BACKGROUND_READ_TIMEOUT_MS)
+          }
+          const latest = get()
+          if (latest.listPage !== page || latest.listLimit !== limit || latest.listStatus !== (status ?? null)) {
+            return
+          }
+          const byId = new Map(localData.trainings.list().map((item) => [item.id, item]))
+          set({
+            listItems: latest.listItems.map((item) => byId.get(item.id) ?? item),
+            listLoading: false,
+            listError: null,
+          })
+        })()
+      } catch (error) {
+        set({
+          listItems: localPage.items,
+          listTotal: localPage.total,
+          listPage: localPage.page,
+          listLimit: localPage.limit,
+          listStatus: status ?? null,
+          listLoading: false,
+          listError: catalogKnown
             ? null
             : error instanceof Error
               ? error.message
@@ -381,7 +478,19 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
         sync: { status: 'pending', reason: pendingReason() },
       },
     })
-    set((state) => ({ items: [training, ...state.items] }))
+    set((state) => {
+      const onList =
+        state.listPage === 1 && matchesListFilter(training, state.listStatus)
+      return {
+        items: [training, ...state.items],
+        listItems: onList
+          ? [training, ...state.listItems.filter((item) => item.id !== training.id)]
+          : state.listItems,
+        listTotal: onList && !state.listItems.some((item) => item.id === training.id)
+          ? state.listTotal + 1
+          : state.listTotal,
+      }
+    })
     if (isCloudMode()) scheduleCloudSync()
     return training
   },
@@ -394,6 +503,7 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     set((state) => ({
       current,
       items: state.items.map((item) => (item.id === id && current ? current : item)),
+      listItems: mapListItems(state.listItems, id, current),
     }))
     if (isCloudMode()) scheduleCloudSync()
   },
@@ -429,10 +539,22 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
           sync: { status: 'pending', reason: pendingReason() },
         },
       })
-      set((state) => ({
-        items: [training, ...state.items],
-        current: localData.trainings.get(training.id),
-      }))
+      set((state) => {
+        const row = localData.trainings.get(training.id)
+        const onList =
+          state.listPage === 1 && row != null && matchesListFilter(row, state.listStatus)
+        return {
+          items: [training, ...state.items],
+          current: row,
+          listItems: onList
+            ? [training, ...state.listItems.filter((item) => item.id !== training.id)]
+            : state.listItems,
+          listTotal:
+            onList && !state.listItems.some((item) => item.id === training.id)
+              ? state.listTotal + 1
+              : state.listTotal,
+        }
+      })
       if (isCloudMode()) scheduleCloudSync()
       return training
     }
@@ -446,6 +568,7 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     set((state) => ({
       current,
       items: state.items.map((item) => (item.id === id && current ? current : item)),
+      listItems: mapListItems(state.listItems, id, current),
     }))
     if (isCloudMode()) scheduleCloudSync()
     return current!
@@ -459,16 +582,22 @@ export const useTrainingStore = create<TrainingStore>((set, get) => ({
     set((state) => ({
       current,
       items: state.items.map((item) => (item.id === id && current ? current : item)),
+      listItems: mapListItems(state.listItems, id, current),
     }))
     if (isCloudMode()) scheduleCloudSync()
   },
 
   async remove(id) {
     localData.trainings.remove(id)
-    set((state) => ({
-      items: state.items.filter((item) => item.id !== id),
-      current: state.current?.id === id ? null : state.current,
-    }))
+    set((state) => {
+      const removedFromList = state.listItems.some((item) => item.id === id)
+      return {
+        items: state.items.filter((item) => item.id !== id),
+        listItems: state.listItems.filter((item) => item.id !== id),
+        listTotal: removedFromList ? Math.max(0, state.listTotal - 1) : state.listTotal,
+        current: state.current?.id === id ? null : state.current,
+      }
+    })
     if (!isCloudMode()) return
 
     deleteOutbox.enqueue('training', id)

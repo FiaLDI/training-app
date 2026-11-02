@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
 import { StartTrainingButton } from '@/features/start-training/ui/start-training-button'
+import { useSessionStore } from '@/entities/session/model/store'
 import type { Training, TrainingStatus } from '@/entities/training/model/types'
 import { useTrainingStore } from '@/entities/training/model/store'
 import { TrainingStatusBadge } from '@/entities/training/ui/training-status-badge'
@@ -43,11 +44,12 @@ function trainingWhen(training: Training) {
 }
 
 export function TrainingsPage() {
-  const items = useTrainingStore((s) => s.items)
-  const total = useTrainingStore((s) => s.total)
-  const loading = useTrainingStore((s) => s.loading)
-  const error = useTrainingStore((s) => s.error)
-  const fetchList = useTrainingStore((s) => s.fetchList)
+  const mode = useSessionStore((s) => s.mode)
+  const items = useTrainingStore((s) => s.listItems)
+  const total = useTrainingStore((s) => s.listTotal)
+  const loading = useTrainingStore((s) => s.listLoading)
+  const error = useTrainingStore((s) => s.listError)
+  const fetchListPage = useTrainingStore((s) => s.fetchListPage)
   const templates = useTemplateStore((s) => s.items)
   const fetchTemplates = useTemplateStore((s) => s.fetchList)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -60,8 +62,8 @@ export function TrainingsPage() {
   useEffect(() => {
     const status: TrainingStatus | undefined =
       statusFilter === 'all' ? undefined : statusFilter
-    void fetchList({ page, limit: PAGE_SIZE, status })
-  }, [fetchList, page, statusFilter])
+    void fetchListPage({ page, limit: PAGE_SIZE, status })
+  }, [fetchListPage, page, statusFilter])
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE) || 1)
 
@@ -82,7 +84,7 @@ export function TrainingsPage() {
   }
 
   return (
-    <div>
+    <div className='max-w-xl mx-auto'>
       <PageHeader
         title="Тренировки"
         description="Список сессий с фильтром по статусу."
@@ -136,7 +138,7 @@ export function TrainingsPage() {
                         {new Date(when).toLocaleString('ru-RU')}
                         {duration ? ` · ${duration}` : ''}
                       </p>
-                      {isTrainingPendingSync(training) ? (
+                      {mode === 'cloud' && isTrainingPendingSync(training) ? (
                         <p className="mt-1 text-xs text-amber-300/90">Не на сервере</p>
                       ) : null}
                     </div>
