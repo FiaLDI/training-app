@@ -107,14 +107,14 @@ function exerciseProgress(
     id: string
     groupId: string | null
     targetSets: number
-    sets: Array<{ completed: boolean; isWarmup?: boolean }>
+    sets: Array<{ completed: boolean; isWarmup: boolean }>
   },
   all: Array<{
     id: string
     groupId: string | null
     positionInGroup: number | null
     targetSets: number
-    sets: Array<{ completed: boolean; isWarmup?: boolean }>
+    sets: Array<{ completed: boolean; isWarmup: boolean }>
   }>,
 ) {
   if (item.groupId) {
